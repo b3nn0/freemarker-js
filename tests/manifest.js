@@ -14,4 +14,5 @@ export const TEST_FILES = [
   './runtime/zeroArgPolicy.test.js',
   './directives/control.test.js',
   './directives/list.test.js',
+  './directives/assign.test.js',
 ];

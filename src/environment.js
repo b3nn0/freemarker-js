@@ -8,6 +8,7 @@ import {
 import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
+import { unwrap } from './model/unwrap.js';
 
 export class Environment {
   constructor(rootElement, template, options = {}) {
@@ -20,7 +21,8 @@ export class Environment {
       : (options.dataModel instanceof TemplateHashModel ? options.dataModel : this.wrap(options.dataModel));
     this.includeResolver = options.includeResolver ?? null;
     this.elementStack = [];
-    this._scopes = []; // ← nested scope stack (loop vars; #assign etc. land in M8)
+    this._scopes = []; // loop/macro scopes; innermost wins on read
+    this._nsScope = new Map(); // current template namespace ← #assign target
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
   }
 
@@ -41,7 +43,10 @@ export class Environment {
     } catch (e) {
       const marker = e instanceof BreakInstructionException || e instanceof ContinueInstructionException;
       if (!marker && e instanceof TemplateException && e.errorStackTrace === null) {
-        e.withLocation(this.template.name, element.beginLine, element.beginColumn,
+        const name = e.templateName ?? this.template.name;
+        e.withLocation(name,
+          e.beginLine === -1 ? element.beginLine : e.beginLine,
+          e.beginColumn === -1 ? element.beginColumn : e.beginColumn,
           this._errorStackTrace(element));
       }
       throw e;
@@ -56,7 +61,8 @@ export class Environment {
       const el = this.elementStack[i];
       if (!el.getCanonicalForm || el.beginLine === -1) continue;
       const canon = el.getCanonicalForm().split('\n')[0];
-      frames.push(`\t- Failed at: ${canon}  [in template "${this.template.name ?? 'Template'}" `
+      frames.push(`\t- ${frames.length === 0 ? 'Failed at' : 'Reached through'}: ${canon}`
+        + `  [in template "${this.template.name ?? 'Template'}" `
         + `in line ${el.beginLine}, column ${el.beginColumn}]`);
     }
     return 'FTL stack trace ("~" means nesting-related):\n' + frames.join('\n');
@@ -83,7 +89,34 @@ export class Environment {
     for (let i = this._scopes.length - 1; i >= 0; i--) {
       if (this._scopes[i].has(name)) return this._scopes[i].get(name);
     }
+    if (this._nsScope.has(name)) return this._nsScope.get(name);
     return this.dataModel ? this.dataModel.get(name) : null;
+  }
+
+  // ← Assignment.visit scope rules: global → data model; namespace → template namespace;
+  // local → innermost macro scope (macro scopes land in M9; here it behaves like namespace).
+  assignVariable(name, model, scope) {
+    if (scope === 'global') {
+      if (this.dataModel === null) this.dataModel = this.wrap({});
+      const src = this.dataModel.source;
+      const raw = model === null || model === undefined ? null : unwrap(model);
+      if (this.dataModel.isMap) src.set(name, raw);
+      else src[name] = raw;
+      return;
+    }
+    if (scope === 'local') {
+      // macro/function scopes are marked by pushMacroScope() (M9); the parser already
+      // rejects #local outside them.
+      for (let i = this._scopes.length - 1; i >= 0; i--) {
+        if (this._scopes[i].isMacroScope) {
+          this._scopes[i].set(name, model);
+          return;
+        }
+      }
+      this._nsScope.set(name, model);
+      return;
+    }
+    this._nsScope.set(name, model);
   }
 
   // Shared comparison ← ComparisonExpression.visit + #case/#on matching (M16 refines).

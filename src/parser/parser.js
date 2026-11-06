@@ -25,6 +25,7 @@ import { IteratorBlock, Items, Sep } from './ast/directives/list.js';
 import { AttemptBlock } from './ast/directives/attempt.js';
 import { SwitchBlock, Case, On } from './ast/directives/switch.js';
 import { BreakInstruction, ContinueInstruction } from './ast/directives/control.js';
+import { Assignment, AssignmentInstruction } from './ast/directives/assign.js';
 import { unescapeFTLStringLiteral } from '../utility/stringUtil.js';
 
 const STATIC_TYPES = new Set([TT.STATIC_TEXT_WS, TT.STATIC_TEXT_NON_WS, TT.STATIC_TEXT_FALSE_ALARM]);
@@ -53,6 +54,7 @@ export class Parser {
     this._iterCtx = [];
     this.breakableDepth = 0;
     this.continuableDepth = 0;
+    this.inMacroOrFunction = false; // ← #local is only legal inside macros/functions (M9)
   }
 
   parse() {
@@ -119,7 +121,8 @@ export class Parser {
     if (t.type !== TT.EOF) {
       throw this._error(`Unexpected ${this._desc(t)} at top level.`, t);
     }
-    return root;
+    // ← FTL.jj Root() / TemplateElements.asSingleElement(): a lone child *is* the root
+    return root.children.length === 1 ? root.children[0] : root;
   }
 
   _parseMixedContent(stop) {
@@ -238,10 +241,24 @@ export class Parser {
           this._next();
           group.addChild(this._parseContinue(t));
           continue;
+        case TT.ASSIGN:
+        case TT.GLOBALASSIGN:
+        case TT.LOCALASSIGN:
+          this._next();
+          group.addChild(this._parseAssign(t));
+          continue;
         default:
           break;
       }
 
+      // stray end tags and dangling else-tags are parse errors, not later milestones
+      if (t.image.startsWith('</')) {
+        throw this._error(`Unexpected end tag: ${t.image}`, t);
+      }
+      if (t.type === TT.ELSE || t.type === TT.ELSE_IF) {
+        throw this._error(
+          `Unexpected "${t.image}" — it must belong to an enclosing <#if> or <#list> block.`, t);
+      }
       // remaining tag-starting tokens are directives not yet parseable
       if (t.image.startsWith('<') || t.image.startsWith('[')) {
         throw new UnsupportedFeatureException(
@@ -419,6 +436,95 @@ export class Parser {
       throw this._error('You can\'t use the "#continue" directive here.', startTok);
     }
     return this._span(new ContinueInstruction(), startTok, startTok);
+  }
+
+  // ← FTL.jj Assign()
+  _assignName() {
+    const t = this._peek();
+    if (t.type === TT.ID) {
+      this._next();
+      return t.image;
+    }
+    if (t.type === TT.STRING_LITERAL) {
+      this._next();
+      try {
+        return unescapeFTLStringLiteral(t.image.slice(1, -1));
+      } catch (e) {
+        throw this._error(e.message, t);
+      }
+    }
+    throw this._error(`Expected a variable name, but got ${this._desc(t)}.`, t);
+  }
+
+  _parseAssign(startTok) {
+    const scope = startTok.type === TT.ASSIGN ? 'namespace'
+      : startTok.type === TT.GLOBALASSIGN ? 'global' : 'local';
+    if (scope === 'local' && !this.inMacroOrFunction) {
+      throw this._error('Local variable assigned outside a macro or function.', startTok);
+    }
+    const OP_TOKENS = new Map([
+      [TT.EQUALS, '='], [TT.PLUS_EQUALS, '+='], [TT.MINUS_EQUALS, '-='],
+      [TT.TIMES_EQUALS, '*='], [TT.DIV_EQUALS, '/='], [TT.MOD_EQUALS, '%='],
+    ]);
+
+    const first = this._assignName();
+    let opTok = this._next();
+    // block form: <#assign name> or <#assign name+=>
+    if (opTok.type === TT.DIRECTIVE_END) {
+      return this._parseAssignBlock(startTok, scope, first, '=');
+    }
+    if (OP_TOKENS.has(opTok.type) && this._peek().type === TT.DIRECTIVE_END && opTok.type !== TT.EQUALS) {
+      this._next();
+      return this._parseAssignBlock(startTok, scope, first, OP_TOKENS.get(opTok.type));
+    }
+
+    const assignments = [];
+    let pendingName = first;
+    for (;;) {
+      let opKind;
+      let exp = null;
+      if (opTok.type === TT.PLUS_PLUS) opKind = '++';
+      else if (opTok.type === TT.MINUS_MINUS) opKind = '--';
+      else if (OP_TOKENS.has(opTok.type)) {
+        opKind = OP_TOKENS.get(opTok.type);
+        exp = this._parseExpression();
+      } else {
+        throw this._error(
+          `Expected "=", "+=", "-=", "*=", "/=", "%=", "++", "--" or ">" after the variable name, `
+          + `but got ${this._desc(opTok)}.`, opTok);
+      }
+      assignments.push(new Assignment(pendingName, opKind, exp, scope));
+      if (this._peek().type === TT.COMMA) {
+        this._next();
+        pendingName = this._assignName();
+        opTok = this._next();
+        continue;
+      }
+      break;
+    }
+    let nsExp = null;
+    if (this._peek().type === TT.IN) {
+      this._next();
+      if (scope !== 'namespace') {
+        throw this._error('Cannot assign to namespace here.', startTok);
+      }
+      nsExp = this._parseExpression();
+    }
+    const endTok = this._expect(TT.DIRECTIVE_END, '">"');
+    if (assignments.length === 1 && nsExp === null) {
+      const a = assignments[0];
+      return this._span(a, startTok, endTok);
+    }
+    return this._span(new AssignmentInstruction(assignments, nsExp), startTok, endTok);
+  }
+
+  _parseAssignBlock(startTok, scope, name, opKind) {
+    const endType = scope === 'global' ? TT.END_GLOBAL
+      : scope === 'local' ? TT.END_LOCAL : TT.END_ASSIGN;
+    const children = this._parseMixedContent(new Set([endType]));
+    const endTok = this._expect(endType, 'the matching end tag');
+    return this._span(new Assignment(name, opKind === '=' ? 'block' : 'block+=', null, scope,
+      children.children), startTok, endTok);
   }
 
   _parseAttempt(startTok) {

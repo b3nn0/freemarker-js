@@ -33,7 +33,7 @@ describe('Interpolation: missing values', () => {
   it('unassigned variable is a template exception with location', async () => {
     const e = await rejectsMatch(out('${x}', {}), UnassignedVariableException,
       ['not in the data model', '"x"']);
-    ok(e.beginLine === 1 && e.beginColumn === 1, `pos ${e.beginLine},${e.beginColumn}`);
+    ok(e.beginLine === 1 && e.beginColumn === 3, `pos ${e.beginLine},${e.beginColumn}`);
     ok(e.templateName === 't.ftl', `templateName ${e.templateName}`);
     ok(e.errorStackTrace.includes('in template "t.ftl"'), 'errorStackTrace');
     ok(e.errorStackTrace.includes('line 1, column 1'), 'stack frame position');
@@ -124,9 +124,9 @@ describe('Interpolation: coercion errors', () => {
 });
 
 describe('Interpolation: error positions beyond line 1', () => {
-  it('reports the failing element line/column', async () => {
+  it('reports the failing expression line/column (← upstream blames the expression)', async () => {
     const e = await rejectsMatch(out('a\n\n${x}', {}), UnassignedVariableException);
     ok(e.beginLine === 3, `line ${e.beginLine}`);
-    ok(e.beginColumn === 1, `column ${e.beginColumn}`);
+    ok(e.beginColumn === 3, `column ${e.beginColumn}`);
   });
 });

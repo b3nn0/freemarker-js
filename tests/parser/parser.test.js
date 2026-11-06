@@ -5,15 +5,19 @@ import { describe, it, eq, ok, snapshot, throwsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import { ParseException, UnsupportedFeatureException } from '../../src/errors.js';
+import { MixedContentElements } from '../../src/parser/ast/mixedContentElements.js';
 
 function parseTemplate(source, cfg = new Configuration()) {
   return new Template('test.ftl', source, cfg);
 }
 
 function exprOf(source, cfg = new Configuration()) {
-  const root = parseTemplate('${' + source + '}', cfg).rootElement;
-  eq(root.children.length, 1, `expected one interpolation for ${JSON.stringify(source)}`);
-  return root.children[0].expression;
+  let root = parseTemplate('${' + source + '}', cfg).rootElement;
+  if (root instanceof MixedContentElements) {
+    eq(root.children.length, 1, `expected one interpolation for ${JSON.stringify(source)}`);
+    root = root.children[0];
+  }
+  return root.expression;
 }
 
 function canon(source, cfg = new Configuration()) {
@@ -236,8 +240,7 @@ describe('parser: parse errors carry positions', () => {
 
   it('#if now parses (M7)', () => {
     const t = parseTemplate('<#if x>y</#if>');
-    eq(t.rootElement.children.length, 1);
-    eq(t.rootElement.children[0].constructor.name, 'IfBlock');
+    eq(t.rootElement.constructor.name, 'IfBlock');
     snapshot(t.getCanonicalForm(), '<#if x>y</#if>');
   });
 

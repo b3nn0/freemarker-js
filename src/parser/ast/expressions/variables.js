@@ -21,7 +21,13 @@ export class Identifier extends Expression {
   evaluate(env) {
     const v = env.getVariable(this.name);
     if (v === null || v === undefined) {
-      throw new UnassignedVariableException(`The variable ${JSON.stringify(this.name)} is not in the data model.`);
+      const e = new UnassignedVariableException(
+        `The variable ${JSON.stringify(this.name)} is not in the data model.`);
+      // ← upstream carries the blamed expression's position on the exception
+      e.templateName = this.templateName;
+      e.beginLine = this.beginLine;
+      e.beginColumn = this.beginColumn;
+      throw e;
     }
     return v;
   }

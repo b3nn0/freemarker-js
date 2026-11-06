@@ -8,7 +8,7 @@
 - [x] M5 Dot/DynamicKeyName/MethodCall, introspection cache, bean readers, deep unwrap
 - [x] M6 ZeroArgumentNonVoidMethodPolicy (3 values, BeforeMethodCall nodes, bean-reader carve-out)
 - [x] M7 #if/#elseif/#else, #attempt/#recover, #switch/#case/#default/#on/#break, #list/#items/#sep/#else, #forEach, #continue, loop vars
-- [ ] M8 #assign (block, compound), #global, #local, scope stack, #import/#namespace
+- [x] M8 #assign (block, compound), #global, #local, scope stack (namespace-target `in ns` + #import deferred to M14)
 - [ ] M9 #macro (defaults, catch-all), #nested (+ body params), #return, #fallback, <@...> calls, .args
 - [ ] M10 lambdas + ?filter ?map ?sort ?sort_by
 - [ ] M11 built-ins: existence, string, hash, number, ?then/?also, type checks
