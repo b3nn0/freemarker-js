@@ -1,6 +1,7 @@
-// Template: parse once, render many. (Full lexing lands in M2; M1 parses static text only.)
+// Template: parse once, render many.
 
-import { TextBlock } from './parser/ast/textBlock.js';
+import { Parser } from './parser/parser.js';
+import { Configuration } from './configuration.js';
 import { Environment } from './environment.js';
 import { StringWriter } from './io/writer.js';
 
@@ -9,15 +10,15 @@ export class Template {
     if (typeof source !== 'string') throw new TypeError('Template source must be a string');
     this.name = name ?? null;
     this.source = source;
-    this.configuration = configuration;
+    this.configuration = configuration ?? new Configuration();
     this.rootElement = this._parse();
   }
 
   _parse() {
-    const tb = new TextBlock(this.source);
+    const root = new Parser(this.source, this.configuration, this.name).parse();
     const { line, column } = endPosition(this.source);
-    tb.setLocation(this.name, 1, 1, line, column);
-    return tb;
+    root.setLocation(this.name, 1, 1, line, column);
+    return root;
   }
 
   async processToString(model = null, options = {}) {

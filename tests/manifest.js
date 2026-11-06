@@ -6,4 +6,6 @@ export const TEST_FILES = [
   './syntax/interpolationSyntax.test.js',
   './parser/tokenManager.test.js',
   './parser/lexerPositions.test.js',
+  './parser/parser.test.js',
+  './utility/stringUtil.test.js',
 ];

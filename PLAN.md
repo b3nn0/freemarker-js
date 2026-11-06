@@ -1,9 +1,9 @@
 # PLAN.md — milestones (one commit each, suite green at commit)
 
 - [x] M0 scaffold: package.json, dirs, harness (harness.js/cli.mjs/index.html), README, UPSTREAM.md, PLAN.md, .gitignore, git init
-- [ ] M1 Writer/StringWriter, Template parse-text-only, TextBlock, processToString
+- [x] M1 Writer/StringWriter, Template parse-text-only, TextBlock, processToString
 - [x] M2 Token/TokenType/TokenManager: DEFAULT state, text, ${...}, comments, positions, lexical-state skeleton
-- [ ] M3 Expression parser: precedence chain, literals, ranges, escaped ids, .x vars, !/?exists, canonical form
+- [x] M3 Expression parser: precedence chain, literals, ranges, escaped ids, .x vars, !/?exists, canonical form
 - [ ] M4 Model layer v1 + ObjectWrapper primitives/arrays, ${...} output, coercion, NonXxxException
 - [ ] M5 Dot/DynamicKeyName/MethodCall, introspection cache, bean readers, deep unwrap
 - [ ] M6 ZeroArgumentNonVoidMethodPolicy (3 values, BeforeMethodCall nodes, bean-reader carve-out)

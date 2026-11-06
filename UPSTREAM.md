@@ -21,3 +21,4 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - Operator spellings: lexer replicates FTL.jj exactly (`&`/`&&`/`&amp;&amp;`/`\and`, `|`/`||`, `!`, `lt`/`lte`/`gt`/`gte` and escaped forms, `->`/`-&gt;`); the M3 parser additionally accepts bare `and`/`or`/`not` IDs as soft keywords (accepted superset; identifiers named `and`/`or`/`not` keep working since they stay ID tokens).
 - Lexer errors surface as `TokenMgrError` (`src/errors.js`), wrapped into `ParseException` by the M3 parser; upstream token-list wording simplified as above.
 - `NO_SPACE_EXPRESSION` (after `<@`) lexes whitespace like `FM_EXPRESSION` (upstream `TERMINATING_WHITESPACE` token dropped); call-parameter structure is enforced at parser level.
+- Method calls (`m()`), dynamic keys (`[expr]`), and built-in arguments (`?bi(...)`) throw `UnsupportedFeatureException` at parse time until M5/M11 (planned partial build-out, not a permanent deviation).
