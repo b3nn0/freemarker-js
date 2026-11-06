@@ -6,7 +6,9 @@ import {
   ReturnInstructionException,
 } from '../../../errors.js';
 
+/** #attempt/#recover ← Attempt. */
 export class AttemptBlock extends TemplateElement {
+  /** @param {TemplateElement[]} children @param {TemplateElement[]} recoveryChildren */
   constructor(children, recoveryChildren) {
     super();
     this.recoveryChildren = recoveryChildren;

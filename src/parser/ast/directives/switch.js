@@ -3,7 +3,9 @@
 import { TemplateElement } from '../templateElement.js';
 import { BreakInstructionException } from '../../../errors.js';
 
+/** #case ← Case. */
 export class Case extends TemplateElement {
+  /** @param {Expression} condition @param {TemplateElement[]} children */
   constructor(condition, children) {
     super();
     this.condition = condition; // null ← #default
@@ -20,7 +22,9 @@ export class Case extends TemplateElement {
   }
 }
 
+/** #default ← On. */
 export class On extends TemplateElement {
+  /** @param {Expression[]} exps @param {TemplateElement[]} children */
   constructor(exps, children) {
     super();
     this.exps = exps;
@@ -35,7 +39,9 @@ export class On extends TemplateElement {
   }
 }
 
+/** #switch ← Switch. */
 export class SwitchBlock extends TemplateElement {
+  /** @param {Expression} switchExp @param {Case[]} cases @param {On[]} ons */
   constructor(switchExp, cases, ons) {
     super();
     this.switchExp = switchExp;

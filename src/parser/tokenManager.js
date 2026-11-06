@@ -8,6 +8,7 @@ import { TokenMgrError } from '../errors.js';
 import { Configuration } from '../configuration.js';
 
 // start-tags that take expression params (need whitespace after the name):
+/** tag-name -> param keyword. @type {Map<string, string>} */
 const PARAM_START = new Map(Object.entries({
   if: TT.IF, list: TT.LIST, switch: TT.SWITCH, case: TT.CASE, on: TT.ON,
   assign: TT.ASSIGN, global: TT.GLOBALASSIGN, local: TT.LOCALASSIGN, include: TT._INCLUDE,
@@ -19,6 +20,7 @@ const PARAM_START = new Map(Object.entries({
 }));
 
 // start-tags closed by ws* (">"|"]"); value: [type, newLexState]:
+/** </tag> (requires close tag). @type {Map<string, string>} */
 const CLOSE1_START = new Map(Object.entries({
   attempt: [TT.ATTEMPT, LEX.DEFAULT], recover: [TT.RECOVER, LEX.DEFAULT], sep: [TT.SEP, LEX.DEFAULT],
   compress: [TT.COMPRESS, LEX.DEFAULT], comment: [TT.COMMENT, LEX.NO_PARSE], default: [TT.DEFAUL, LEX.DEFAULT],
@@ -28,6 +30,7 @@ const CLOSE1_START = new Map(Object.entries({
 }));
 
 // start-tags closed by ws* ("/")? (">"|"]"):
+/** </tag> (optional close). @type {Map<string, string>} */
 const CLOSE2_START = new Map(Object.entries({
   else: TT.ELSE, break: TT.BREAK, continue: TT.CONTINUE, return: TT.SIMPLE_RETURN,
   stop: TT.HALT, flush: TT.FLUSH, t: TT.TRIM, lt: TT.LTRIM, rt: TT.RTRIM, nt: TT.NOTRIM,
@@ -36,6 +39,7 @@ const CLOSE2_START = new Map(Object.entries({
 }));
 
 // end tags (ws* (">"|"]")):
+/** close tag -> directive token. @type {Map<string, Object>} */
 const END_TAGS = new Map(Object.entries({
   if: TT.END_IF, list: TT.END_LIST, items: TT.END_ITEMS, sep: TT.END_SEP,
   recover: TT.END_RECOVER, attempt: TT.END_ATTEMPT, foreach: TT.END_FOREACH, forEach: TT.END_FOREACH,
@@ -47,6 +51,7 @@ const END_TAGS = new Map(Object.entries({
 }));
 
 // all directive names ← _CoreAPI.ALL_BUILT_IN_DIRECTIVE_NAMES
+/** every directive keyword. @type {Set<string>} */
 const ALL_DIRECTIVE_NAMES = new Set([
   'assign', 'attempt', 'autoesc', 'autoEsc', 'break', 'call', 'case', 'comment', 'compress',
   'continue', 'default', 'else', 'elseif', 'elseIf', 'escape', 'fallback', 'flush', 'foreach',
@@ -57,11 +62,13 @@ const ALL_DIRECTIVE_NAMES = new Set([
 ]);
 
 // word spellings that lex to non-ID token types ← FTL.jj token literals
+/** expression-language keywords. @type {Map<string, Object>} */
 const KEYWORDS = new Map(Object.entries({
   true: TT.TRUE, false: TT.FALSE, as: TT.AS, in: TT.IN, using: TT.USING,
   lt: TT.LESS_THAN, lte: TT.LESS_THAN_EQUALS, gt: TT.ESCAPED_GT, gte: TT.ESCAPED_GTE,
 }));
 
+/** typo hints for unknown directives. @type {Map<string, string>} */
 const UNKNOWN_DIRECTIVE_TIPS = new Map(Object.entries({
   set: 'Use #assign or #local or #global, depending on the intended scope (#assign is template-scope).',
   var: 'Use #assign or #local or #global, depending on the intended scope (#assign is template-scope).',
@@ -88,6 +95,7 @@ const UNKNOWN_DIRECTIVE_TIPS = new Map(Object.entries({
 }));
 
 // index of the case-deciding char in camel-variant directive names, -1 = no camel variant
+/** @param {string} name @returns {number} index of the first capital, or -1 */
 function camelIdx(name) {
   switch (name.toLowerCase()) {
     case 'elseif': return 4;
@@ -102,6 +110,7 @@ function camelIdx(name) {
 }
 
 // identifier start chars (Unicode subset mirroring FTL.jj NON_ESCAPED_ID_START_CHAR ranges)
+/** non-ASCII identifier ranges (letter table). @type {number[][]} */
 const ID_RANGES = [
   [0x24, 0x24], [0x40, 0x5a], [0x5f, 0x5f], [0x61, 0x7a], // $ @ A-Z _ a-z
   [0xaa, 0xaa], [0xb5, 0xb5], [0xba, 0xba],
@@ -110,6 +119,7 @@ const ID_RANGES = [
   [0xf900, 0xfb06], [0xfb13, 0xfb17], [0xff21, 0xff3a], [0xff41, 0xff5a],
 ];
 
+/** chars allowed in [bracketed] ids. @type {Set<string>} */
 const ESCAPED_ID_CHARS = new Set(['-', '.', ':', '#']);
 
 /**
@@ -152,18 +162,22 @@ export class TokenManager {
 
   // ---- char stream (1-based, tab expansion mirrors SimpleCharStream.setTabSize, CRLF/CR = 1 break) ----
 
+  /** @returns {Token} */
   _eof() {
     return this.pos >= this.source.length;
   }
 
+  /** @param {number} [o] @returns {Token} */
   _peek(o = 0) {
     return this.pos + o < this.source.length ? this.source[this.pos + o] : '';
   }
 
+  /** @returns {Object} scanner state snapshot */
   _save() {
     return { pos: this.pos, line: this.line, column: this.column, lastLine: this.lastLine, lastColumn: this.lastColumn };
   }
 
+  /** @param {Object} s @returns {void} */
   _restore(s) {
     this.pos = s.pos;
     this.line = s.line;
@@ -172,6 +186,7 @@ export class TokenManager {
     this.lastColumn = s.lastColumn;
   }
 
+  /** @returns {string} one char */
   _read() {
     const c = this.source[this.pos++];
     if (c === '\r') {
@@ -197,22 +212,27 @@ export class TokenManager {
     return c;
   }
 
+  /** @param {number} n @returns {string} */
   _readN(n) {
     for (let i = 0; i < n; i++) this._read();
   }
 
+  /** @param {string} c @returns {boolean} */
   static isWhitespace(c) {
     return c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f';
   }
 
+  /** @param {string} c @returns {boolean} */
   _isDigit(c) {
     return c >= '0' && c <= '9';
   }
 
+  /** @param {string} c @returns {boolean} */
   _isHexDigit(c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
   }
 
+  /** @param {string} c @returns {boolean} */
   _isLetter(c) {
     if (c === '') return false;
     const cp = c.codePointAt(0);
@@ -223,21 +243,25 @@ export class TokenManager {
     return false;
   }
 
+  /** @param {string} c @returns {boolean} */
   _isIdStartChar(c) {
     if (c === '') return false;
     if (c === '\\') return ESCAPED_ID_CHARS.has(this._peek(1));
     return this._isLetter(c) || c === '$' || c === '@' || c === '_';
   }
 
+  /** @param {string} c @returns {boolean} */
   _isIdPartChar(c) {
     return c === '\\' ? ESCAPED_ID_CHARS.has(this._peek(1)) || false : this._isLetter(c) || this._isDigit(c) || c === '$' || c === '@' || c === '_';
   }
 
+  /** @param {TokenType} type @param {number} startPos @param {number} startLine @param {number} startColumn @returns {Token} */
   _token(type, startPos, startLine, startColumn) {
     return new Token(type, this.source.slice(startPos, this.pos),
       startLine, startColumn, this.lastLine, this.lastColumn);
   }
 
+  /** @param {string} message @param {number} beginLine @param {number} beginColumn @param {number} endLine @param {number} endColumn @returns {TokenMgrError} */
   _error(message, beginLine, beginColumn, endLine, endColumn) {
     return new TokenMgrError(message, beginLine ?? this.line, beginColumn ?? this.column,
       endLine ?? this.lastLine, endColumn ?? this.lastColumn);
@@ -316,6 +340,7 @@ export class TokenManager {
     }
   }
 
+  /** @param {string} name @returns {string} the detected convention */
   static identifierNamingConvention(name) {
     for (const c of name) {
       if (c === '_') return Configuration.LEGACY_NAMING_CONVENTION;
@@ -324,6 +349,7 @@ export class TokenManager {
     return Configuration.AUTO_DETECT_NAMING_CONVENTION;
   }
 
+  /** @param {string} name @param {number} idx @returns {string} */
   static _tagNamingConvention(name, idx) {
     if (idx < 0) return Configuration.AUTO_DETECT_NAMING_CONVENTION;
     const c = name[idx];
@@ -361,6 +387,7 @@ export class TokenManager {
     this.postInterpolationLexState = -1;
   }
 
+  /** @param {Token} tok @returns {never} */
   _unexpectedClosingToken(tok) {
     throw this._error(
       `You can't have an "${tok.image}" here, as there's nothing open that it could close.`,
@@ -388,6 +415,7 @@ export class TokenManager {
 
   // ---- DEFAULT state: text, interpolation openings, tags, comments ----
 
+  /** STATIC mode scanner. @returns {void} */
   _lexDefault() {
     const startPos = this.pos;
     const startLine = this.line;
@@ -431,6 +459,7 @@ export class TokenManager {
     return this._token(TT.STATIC_TEXT_NON_WS, startPos, startLine, startColumn);
   }
 
+  /** @param {number} startPos @param {number} startLine @param {number} startColumn @returns {void} */
   _lexTagStart(startPos, startLine, startColumn) {
     const opener = this._peek();
     const slash = this._peek(1) === '/';
@@ -463,6 +492,7 @@ export class TokenManager {
     return this._lexFtlTag(startPos, startLine, startColumn, opener, slash);
   }
 
+  /** @param {Token} tok @returns {void} */
   _unifiedCall(tok) {
     const firstChar = tok.image[0];
     if (this.autodetectTagSyntax && !this.tagSyntaxEstablished) {
@@ -476,6 +506,7 @@ export class TokenManager {
     this.switchTo(LEX.NO_SPACE_EXPRESSION);
   }
 
+  /** @param {Token} tok @returns {void} */
   _unifiedCallEnd(tok) {
     const firstChar = tok.image[0];
     if ((this.squBracTagSyntax && firstChar === '<') || (!this.squBracTagSyntax && firstChar === '[')) {
@@ -485,6 +516,7 @@ export class TokenManager {
     this.switchTo(LEX.DEFAULT);
   }
 
+  /** @param {number} startPos @param {number} startLine @param {number} startColumn @param {string} opener @param {boolean} isEnd @returns {void} */
   _lexFtlTag(startPos, startLine, startColumn, opener, isEnd) {
     this._readN(isEnd ? 3 : 2); // opener[/]#
 
@@ -605,6 +637,7 @@ export class TokenManager {
     return this._unknownDirective(startPos, startLine, startColumn, opener, isEnd, name);
   }
 
+  /** @param {Token} tok @returns {void} */
   _ftlHeader(tok) {
     if (!this.tagSyntaxEstablished) {
       this.squBracTagSyntax = tok.image[0] === '[';
@@ -625,6 +658,7 @@ export class TokenManager {
     }
   }
 
+  /** @returns {void} */
   _eatNewline() {
     // ← FTL.jj eatNewline: consumes whitespace only up to and including the first
     // line break; a whitespace run without any line break is put back unread.
@@ -645,6 +679,7 @@ export class TokenManager {
     this._restore(save); // EOF before any line break: nothing was eaten
   }
 
+  /** @param {number} startPos @param {number} startLine @param {number} startColumn @param {string} opener @param {boolean} isEnd @param {string} name @returns {never} */
   _unknownDirective(startPos, startLine, startColumn, opener, isEnd, name) {
     const tok = this._token(TT.UNKNOWN_DIRECTIVE, startPos, startLine, startColumn);
     if (ALL_DIRECTIVE_NAMES.has(name)) {
@@ -661,6 +696,7 @@ export class TokenManager {
 
   // ---- expression states ----
 
+  /** @returns {void} */
   _skipExpressionWhitespaceAndComments() {
     for (;;) {
       while (!this._eof() && TokenManager.isWhitespace(this._peek())) this._read();
@@ -674,6 +710,7 @@ export class TokenManager {
     }
   }
 
+  /** @returns {void} */
   _skipExpressionComment() {
     const startLine = this.line;
     const startColumn = this.column;
@@ -692,6 +729,7 @@ export class TokenManager {
     else this.switchTo(LEX.FM_EXPRESSION);
   }
 
+  /** FM_EXPRESSION mode scanner. @returns {void} */
   _lexExpression() {
     const startPos = this.pos;
     const startLine = this.line;
@@ -984,10 +1022,12 @@ export class TokenManager {
     ',': TT.COMMA, ';': TT.SEMICOLON, ':': TT.COLON, '?': TT.BUILT_IN, '.': TT.DOT,
   }));
 
+  /** @param {string} s @returns {boolean} */
   _startsWith(s) {
     return this.source.startsWith(s, this.pos);
   }
 
+  /** @returns {string} */
   _readIdChars() {
     for (;;) {
       if (this._peek() === '\\') {
@@ -1006,6 +1046,7 @@ export class TokenManager {
     }
   }
 
+  /** @param {number} startPos @param {number} startLine @param {number} startColumn @param {boolean} raw @returns {void} */
   _lexString(startPos, startLine, startColumn, raw) {
     const quote = this._read();
     for (;;) {
@@ -1060,6 +1101,7 @@ export class TokenManager {
     }
   }
 
+  /** @returns {boolean} */
   _looksLikeNoparseEnd() {
     // MAYBE_END ← ("<" | "[") "/" ("#")? letters ws* (">" | "]") with name == noparseTag
     let i = 1;

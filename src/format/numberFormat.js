@@ -55,12 +55,14 @@ export function parseNumberPattern(pattern) {
   return spec;
 }
 
+/** @param {string} p @returns {import('../errors.js').InvalidFormatStringException} */
 function invalidPattern(p) {
   return new InvalidFormatStringException(
     `Invalid number format pattern: ${JSON.stringify(p)}. `
     + 'The pattern must contain 0/# digit characters.');
 }
 
+/** named number formats (en_US symbols). @type {Map<string, Object>} */
 const NAMED = new Map([
   // DecimalFormat("#,##0.###") — the en_US "number" instance
   ['number', { prefix: '', suffix: '', grouping: true, minIntDigits: 1, minFrac: 0, maxFrac: 3, percent: false }],

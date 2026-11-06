@@ -5,7 +5,9 @@ import {
   BreakInstructionException, ContinueInstructionException, ReturnInstructionException,
 } from '../../../errors.js';
 
+/** #break ← BreakInstruction. */
 export class BreakInstruction extends TemplateElement {
+  /** @returns {null} @throws {BreakInstructionException} */
   execute() {
     throw new BreakInstructionException('#break');
   }
@@ -17,7 +19,9 @@ export class BreakInstruction extends TemplateElement {
   }
 }
 
+/** #continue ← ContinueInstruction. */
 export class ContinueInstruction extends TemplateElement {
+  /** @returns {null} @throws {BreakInstructionException} */
   execute() {
     throw new ContinueInstructionException('#continue');
   }
@@ -30,7 +34,9 @@ export class ContinueInstruction extends TemplateElement {
 }
 
 // ← ReturnInstruction (#return): exits a macro (no value) or returns a value from a function.
+/** #return ← ReturnInstruction. */
 export class ReturnInstruction extends TemplateElement {
+  /** @param {Expression|null} exp */
   constructor(exp) {
     super();
     this.exp = exp;

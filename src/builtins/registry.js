@@ -1,5 +1,9 @@
 // Built-in registry: name -> implementation. Filled by milestones M11-M16.
 
+/**
+ * name -> { minArgs?: number, maxArgs?: number, impl(target, args, env) }
+ * @type {Map<string, Object>}
+ */
 const BUILTINS = new Map();
 
 /**

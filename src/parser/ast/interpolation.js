@@ -4,6 +4,7 @@ import { TemplateElement } from './templateElement.js';
 import { MarkupModel, NumberModel } from '../../model/models.js';
 import { InvalidReferenceException, TemplateException } from '../../errors.js';
 
+/** ${...} ← DollarVariable; with fracOpts set it is the legacy #{...} (NumericalOutput). */
 export class Interpolation extends TemplateElement {
   /**
    * @param {import('./expressions/expression.js').Expression} expression
@@ -69,6 +70,11 @@ export class Interpolation extends TemplateElement {
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
+    if (this.fracOpts !== null) {
+      // ← NumericalOutput keeps the #{} form; m/M spell back the parsed bounds
+      return `#{${this.expression.getCanonicalForm()};m${this.fracOpts.minFrac}`
+        + `M${this.fracOpts.maxFrac}}`;
+    }
     return `\${${this.expression.getCanonicalForm()}}`;
   }
 

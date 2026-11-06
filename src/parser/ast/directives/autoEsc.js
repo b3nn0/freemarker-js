@@ -4,6 +4,7 @@
 
 import { TemplateElement } from '../templateElement.js';
 
+/** <#autoesc> ← AutoEscapingBlock (parse-time binding holder). */
 export class AutoEscBlock extends TemplateElement {
   /** @param {TemplateElement[]} children */
   constructor(children) {
@@ -30,6 +31,7 @@ export class AutoEscBlock extends TemplateElement {
   }
 }
 
+/** <#noautoesc> ← NoAutoEscapingBlock. */
 export class NoAutoEscBlock extends TemplateElement {
   /** @param {TemplateElement[]} children */
   constructor(children) {

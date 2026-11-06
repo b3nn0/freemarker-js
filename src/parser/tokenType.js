@@ -10,13 +10,16 @@
 const TYPES = new Map();
 let count = 0;
 
+/** Named token type ← freemarker.core.TokenType. */
 export class TokenType {
+  /** @param {string} name */
   constructor(name) {
     this.name = name;
     this.index = count++;
     TYPES.set(name, this);
   }
 
+  /** @returns {string} */
   toString() {
     return this.name;
   }
@@ -69,4 +72,5 @@ for (const name of [
 for (const name of ['KEEP_GOING', 'MAYBE_END', 'LONE_LESS_THAN_OR_DASH']) new TokenType(name);
 
 // name -> TokenType, frozen:
+/** All token types by name. @type {Object<string, TokenType>} */
 export const TT = Object.freeze(Object.fromEntries(TYPES));

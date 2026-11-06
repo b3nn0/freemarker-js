@@ -1,6 +1,8 @@
 // Base AST element: execute(env), getCanonicalForm(), location.
 
+/** Base class for AST elements: execute(env), getCanonicalForm(), location ← TemplateElement. */
 export class TemplateElement {
+  /** Location fields are filled in by the parser via setLocation. */
   constructor() {
     this.children = [];
     this.parent = null;
@@ -11,6 +13,14 @@ export class TemplateElement {
     this.endColumn = -1;
   }
 
+  /**
+   * @param {string} templateName
+   * @param {number} beginLine
+   * @param {number} beginColumn
+   * @param {number} endLine
+   * @param {number} endColumn
+   * @returns {void}
+   */
   setLocation(templateName, beginLine, beginColumn, endLine, endColumn) {
     this.templateName = templateName;
     this.beginLine = beginLine;
@@ -20,6 +30,7 @@ export class TemplateElement {
     return this;
   }
 
+  /** @param {TemplateElement} child @returns {void} */
   addChild(child) {
     child.parent = this;
     this.children.push(child);

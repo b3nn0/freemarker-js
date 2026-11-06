@@ -2,6 +2,7 @@
 
 /** In-memory character sink used when no writer is supplied. */
 export class StringWriter {
+  /** Creates an empty buffer. */
   constructor() {
     this._chunks = [];
     this._closed = false;
@@ -16,6 +17,7 @@ export class StringWriter {
     this._chunks.push(String(chunk));
   }
 
+  /** No-op marker; nothing is flushed in memory. @returns {void} */
   close() {
     this._closed = true;
   }

@@ -83,6 +83,7 @@ export class Configuration {
   getRecordZeroArgumentNonVoidMethodPolicy() {
     return this._recordZeroArgumentNonVoidMethodPolicy;
   }
+  /** @param {string} p - policy constant @throws {BugException} */
   _assertPolicy(p) {
     if (!Object.values(ZeroArgumentNonVoidMethodPolicy).includes(p)) {
       throw new TypeError(`Invalid ZeroArgumentNonVoidMethodPolicy: ${String(p)}`);

@@ -7,7 +7,9 @@ import { BuiltinArgMethod, stringMethodArg } from './common.js';
 import { StringModel, NumberModel, SequenceModel, BooleanModel } from '../model/models.js';
 import { NonNumericalException, TemplateException } from '../errors.js';
 
+/** @type {import('../model/models.js').BooleanModel} */
 const BoolTrue = BooleanModel.TRUE;
+/** @type {import('../model/models.js').BooleanModel} */
 const BoolFalse = BooleanModel.FALSE;
 
 // Java String.trim equivalent: strips chars <= U+0020 at both ends (JS trim also
@@ -88,30 +90,60 @@ function numberMethodArg(v, env, idx) {
 }
 
 registerBuiltIn('length', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new NumberModel(targetString(target, env, 'length').length);
   },
 });
 
 registerBuiltIn('upper_case', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new StringModel(targetString(target, env, 'upper_case').toUpperCase());
   },
 });
 
 registerBuiltIn('lower_case', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new StringModel(targetString(target, env, 'lower_case').toLowerCase());
   },
 });
 
 registerBuiltIn('trim', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new StringModel(javaTrim(targetString(target, env, 'trim')));
   },
 });
 
 registerBuiltIn('cap_first', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     const s = targetString(target, env, 'cap_first');
     let i = 0;
@@ -122,12 +154,24 @@ registerBuiltIn('cap_first', {
 });
 
 registerBuiltIn('capitalize', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new StringModel(capitalize(targetString(target, env, 'capitalize')));
   },
 });
 
 registerBuiltIn('chop_linebreak', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     // ← StringUtil.chomp
     const s = targetString(target, env, 'chop_linebreak');
@@ -140,6 +184,12 @@ registerBuiltIn('chop_linebreak', {
 registerBuiltIn('contains', {
   minArgs: 1,
   maxArgs: 1,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'contains', 1, 1,
       (e, s, a) => (s.includes(stringMethodArg(a[0], e)) ? BoolTrue : BoolFalse));
@@ -149,6 +199,12 @@ registerBuiltIn('contains', {
 registerBuiltIn('starts_with', {
   minArgs: 1,
   maxArgs: 1,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'starts_with', 1, 1,
       (e, s, a) => (s.startsWith(stringMethodArg(a[0], e)) ? BoolTrue : BoolFalse));
@@ -158,6 +214,12 @@ registerBuiltIn('starts_with', {
 registerBuiltIn('ends_with', {
   minArgs: 1,
   maxArgs: 1,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'ends_with', 1, 1,
       (e, s, a) => (s.endsWith(stringMethodArg(a[0], e)) ? BoolTrue : BoolFalse));
@@ -167,6 +229,12 @@ registerBuiltIn('ends_with', {
 registerBuiltIn('index_of', {
   minArgs: 1,
   maxArgs: 2,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'index_of', 1, 2, (e, s, a) => {
       const from = a.length > 1 ? Math.trunc(numberMethodArg(a[1], e, 1)) : 0;
@@ -178,6 +246,12 @@ registerBuiltIn('index_of', {
 registerBuiltIn('last_index_of', {
   minArgs: 1,
   maxArgs: 2,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'last_index_of', 1, 2, (e, s, a) => {
       const from = a.length > 1 ? Math.trunc(numberMethodArg(a[1], e, 1)) : s.length;
@@ -189,6 +263,12 @@ registerBuiltIn('last_index_of', {
 registerBuiltIn('split', {
   minArgs: 1,
   maxArgs: 1,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'split', 1, 1, (e, s, a) => {
       const sep = stringMethodArg(a[0], e);
@@ -202,6 +282,12 @@ registerBuiltIn('split', {
 registerBuiltIn('replace', {
   minArgs: 2,
   maxArgs: 2,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'replace', 2, 2, (e, s, a) => {
       const from = stringMethodArg(a[0], e);
@@ -244,6 +330,12 @@ function pad(s, width, fill) {
 registerBuiltIn('left_pad', {
   minArgs: 1,
   maxArgs: 2,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'left_pad', 1, 2, (e, s, a) => {
       const fill = a.length > 1 ? stringMethodArg(a[1], e) : ' ';
@@ -255,6 +347,12 @@ registerBuiltIn('left_pad', {
 registerBuiltIn('right_pad', {
   minArgs: 1,
   maxArgs: 2,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return methodOnString(target, env, 'right_pad', 1, 2, (e, s, a) => {
       const fill = a.length > 1 ? stringMethodArg(a[1], e) : ' ';

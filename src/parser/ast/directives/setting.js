@@ -6,6 +6,7 @@ import { TemplateElement } from '../templateElement.js';
 
 // ← PropertySetting.SETTING_NAMES (legacy-naming view; camelCase variants are
 // accepted too when the parser's naming convention is camel).
+/** Allowed #setting keys (snake convention). @type {string[]} */
 export const SETTING_NAMES = [
   'boolean_format', 'c_format', 'classic_compatible', 'date_format', 'datetime_format',
   'locale', 'number_format', 'output_encoding', 'sql_date_and_time_time_zone',
@@ -14,12 +15,14 @@ export const SETTING_NAMES = [
 
 // ← the *_KEY_CAMEL_CASE twins (accepted regardless of the naming convention;
 // see UPSTREAM.md).
+/** camelCase aliases accepted too. @type {string[]} */
 export const CAMEL_SETTING_NAMES = [
   'booleanFormat', 'cFormat', 'classicCompatible', 'dateFormat', 'datetimeFormat',
   'locale', 'numberFormat', 'outputEncoding', 'sqlDateAndTimeTimeZone',
   'timeFormat', 'timeZone', 'urlEscapingCharset',
 ];
 
+/** <#setting key=value> ← PropertySetting. */
 export class PropertySetting extends TemplateElement {
   /**
    * @param {string} key - the setting name as written

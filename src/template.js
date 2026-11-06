@@ -70,6 +70,7 @@ export class Template {
     // Sync core; Promise only at the API edge (upstream parity: process is sync, API is async).
   }
 
+  /** @returns {string} canonical source of the root element */
   getCanonicalForm() {
     return this.rootElement.getCanonicalForm();
   }

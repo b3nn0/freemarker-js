@@ -5,7 +5,9 @@ import { InvalidReferenceException, NonMethodException } from '../../../errors.j
 import { TemplateMethodModel } from '../../../model/templateModel.js';
 import { unwrap } from '../../../model/unwrap.js';
 
+/** f(x) ← MethodCall. */
 export class MethodCall extends Expression {
+  /** @param {Expression} target @param {Expression[]} args */
   constructor(target, args) {
     super();
     this.target = target;

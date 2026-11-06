@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Static page: open in a browser; src/index.js is plain dependency-free ESM. -->
+<meta charset="utf-8">
+<pre id="out"></pre>
+<script type="module">
+  import { Configuration, Template } from '../src/index.js';
+  const cfg = new Configuration();
+  cfg.setOutputFormat('HTML'); // auto-escapes ${...} interpolations
+  const t = new Template('greet.ftl',
+    'Hello, ${name}! Your score: ${score?string("0.0")}%', {});
+  const out = await t.processToString({ name: '<b>World</b>', score: 97.25 });
+  document.getElementById('out').textContent = out; // untrusted name stays escaped
+</script>

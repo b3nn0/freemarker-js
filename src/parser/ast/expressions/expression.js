@@ -1,6 +1,8 @@
 // Expression AST base node (← freemarker.core.Expression). Evaluation lands in M4.
 
+/** Base for expression AST nodes ← Expression. */
 export class Expression {
+  /** Location fields are filled in by the parser. */
   constructor() {
     this.templateName = null;
     this.beginLine = -1;
@@ -9,6 +11,14 @@ export class Expression {
     this.endColumn = -1;
   }
 
+  /**
+   * @param {string} templateName
+   * @param {number} beginLine
+   * @param {number} beginColumn
+   * @param {number} endLine
+   * @param {number} endColumn
+   * @returns {void}
+   */
   setLoc(templateName, beginLine, beginColumn, endLine, endColumn) {
     this.templateName = templateName;
     this.beginLine = beginLine;
@@ -19,6 +29,7 @@ export class Expression {
   }
 
   // Convenience: copy positions off tokens ({beginLine..} objects).
+  /** @param {string} templateName @param {import('../../token.js').Token} beginToken @param {import('../../token.js').Token} endToken @returns {void} */
   setTokenLoc(templateName, beginToken, endToken) {
     return this.setLoc(templateName,
       beginToken.beginLine, beginToken.beginColumn, endToken.endLine, endToken.endColumn);

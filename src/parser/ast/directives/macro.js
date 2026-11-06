@@ -4,8 +4,16 @@ import { TemplateElement } from '../templateElement.js';
 import { HashModel } from '../../../model/models.js';
 import { InvalidReferenceException, ReturnInstructionException } from '../../../errors.js';
 
+/** #macro / #function ← Macro. */
 export class Macro extends TemplateElement {
   // params: [{ name, defaultExp|null }]; catchAllName: string|null
+  /**
+   * @param {string} name
+   * @param {Array<{ name: string, defaultExp: Expression|null }>} params
+   * @param {string|null} catchAllName
+   * @param {boolean} isFunction
+   * @param {TemplateElement[]} bodyChildren
+   */
   constructor(name, params, catchAllName, isFunction, bodyChildren) {
     super();
     this.name = name;
@@ -29,6 +37,7 @@ export class Macro extends TemplateElement {
 
   // ← Macro.dump: macros list space-separated params without parens;
   // functions use parens and commas.
+  /** @returns {string} */
   _paramsCanonical() {
     const parts = this.params.map((p) =>
       p.defaultExp === null ? p.name : `${p.name}=${p.defaultExp.getCanonicalForm()}`);
@@ -48,7 +57,9 @@ export class Macro extends TemplateElement {
   }
 }
 
+/** A #macro as a callable value ← MacroModel. */
 export class MacroModel {
+  /** @param {Macro} macroDef */
   constructor(macroDef) {
     this.macroDef = macroDef;
     this.isMacroLike = !macroDef.isFunction;

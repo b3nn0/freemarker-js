@@ -8,11 +8,14 @@ import { CommentDirective } from './commentDirective.js';
 import { TerseComment } from './terseComment.js';
 import { MixedContentElements } from './mixedContentElements.js';
 
+/** @param {string} c @returns {boolean} */
 function isWsChar(c) {
   return c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f';
 }
 
+/** Static text ← TextBlock (incl. M13 whitespace-trim state). */
 export class TextBlock extends TemplateElement {
+  /** @param {string} text @param {boolean} [unparsed] */
   constructor(text, unparsed = false) {
     super();
     this.text = text;

@@ -5,7 +5,9 @@ import { InvalidReferenceException, TemplateException } from '../../../errors.js
 import { BooleanModel, RangeModel } from '../../../model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
 
+/** (...) ← ParentheticalExpression. */
 export class ParentheticalExpression extends Expression {
+  /** @param {Expression} expression */
   constructor(expression) {
     super();
     this.expression = expression;
@@ -27,7 +29,9 @@ export class ParentheticalExpression extends Expression {
 
 // "+": sequence+sequence and hash+hash stay collections; number+number is arithmetic;
 // otherwise both sides are coerced to strings ← AddConcatExpression.visit.
+/** + (string/sequence concat) ← AddConcat. */
 export class AddConcatExpression extends Expression {
+  /** @param {Expression} left @param {Expression} right */
   constructor(left, right) {
     super();
     this.left = left;
@@ -65,7 +69,9 @@ export class AddConcatExpression extends Expression {
   }
 }
 
+/** - * / % ← ArithmeticExpression. */
 export class ArithmeticExpression extends Expression {
+  /** @param {Expression} left @param {Expression} right @param {string} operator */
   constructor(left, right, operator) {
     super();
     this.left = left;
@@ -99,7 +105,9 @@ export class ArithmeticExpression extends Expression {
   }
 }
 
+/** -x/+x ← UnaryPlusMinusExpression. */
 export class UnaryPlusMinusExpression extends Expression {
+  /** @param {Expression} target @param {boolean} isMinus */
   constructor(target, isMinus) {
     super();
     this.target = target;
@@ -121,7 +129,9 @@ export class UnaryPlusMinusExpression extends Expression {
   }
 }
 
+/** !x ← NotExpression. */
 export class NotExpression extends Expression {
+  /** @param {Expression} target */
   constructor(target) {
     super();
     this.target = target;
@@ -143,7 +153,9 @@ export class NotExpression extends Expression {
 
 // Comparison semantics v1 (M16 refines date handling and natural string order):
 // both numbers → numeric; both dates → time; both booleans → identity; else string form.
+/** == != < <= > >= ← ComparisonExpression. */
 export class ComparisonExpression extends Expression {
+  /** @param {Expression} left @param {Expression} right @param {string} opString */
   constructor(left, right, opString) {
     super();
     this.left = left;
@@ -184,7 +196,9 @@ export class ComparisonExpression extends Expression {
 }
 
 // endType: inclusive | exclusive | sizeLimited | unbound ← Range.END_*
+/** x..y ← Range. */
 export class Range extends Expression {
+  /** @param {Expression} left @param {Expression} right @param {string} endType */
   constructor(left, right, endType) {
     super();
     this.left = left;
@@ -221,7 +235,9 @@ export class Range extends Expression {
   }
 }
 
+/** && ← AndExpression. */
 export class AndExpression extends Expression {
+  /** @param {Expression} left @param {Expression} right */
   constructor(left, right) {
     super();
     this.left = left;
@@ -243,7 +259,9 @@ export class AndExpression extends Expression {
   }
 }
 
+/** || ← OrExpression. */
 export class OrExpression extends Expression {
+  /** @param {Expression} left @param {Expression} right */
   constructor(left, right) {
     super();
     this.left = left;
@@ -266,7 +284,9 @@ export class OrExpression extends Expression {
 }
 
 // `x!y` / `x!`: missing left side (thrown or null) falls back to right side.
+/** x!y ← DefaultToExpression. */
 export class DefaultToExpression extends Expression {
+  /** @param {Expression} left @param {Expression|null} right */
   constructor(left, right) {
     super();
     this.left = left;
@@ -295,7 +315,9 @@ export class DefaultToExpression extends Expression {
   }
 }
 
+/** x?has? ← ExistsExpression. */
 export class ExistsExpression extends Expression {
+  /** @param {Expression} expression */
   constructor(expression) {
     super();
     this.expression = expression;

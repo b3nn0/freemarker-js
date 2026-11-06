@@ -91,3 +91,6 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M16: boolean_format supports the "true,false" pair form and "c"; TemplateBooleanFormat's other syntaxes are not ported. Invalid values fail at set time with the Configurable.parseBooleanFormat message.
 - M16: #{exp; fmt} rejects non-numeric literals at parse time (numberLiteralOnly, messages ported); the min/max fraction settings override locale defaults like upstream; fracOpts apply only in #{} (the port's ?string(fmt) has its own pattern path).
 - M16: ?iso_date/?iso_time/?iso_datetime force the date type before formatting; the upstream "?iso" (no suffix) and "iso_milliseconds"-style parameterized forms follow the same modifier subset above.
+- M17: audit-only milestone. Position audit: every parser method spans its node (_span) and errors carry line/column; Environment decorates the first runtime TemplateException with the template stack. Canonical-form audit: #{exp;mN M2M4} now dumps in the #{} form (upstream NumericalOutput keeps its form; ${} dumping of legacy output was the port's M5 placeholder).
+- M17: ISO date-format modifiers _h/_m/_s/_ms/_nz/_fz implemented (subset); utc and fractional-second accuracy remain unsupported.
+- M17: full JSDoc coverage pass on src/ (all production declarations); no behavior change.

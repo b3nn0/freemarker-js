@@ -10,7 +10,9 @@ import { HashModel } from '../../../model/models.js';
 import { unwrap } from '../../../model/unwrap.js';
 import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
 
+/** Bare name ← Identifier. */
 export class Identifier extends Expression {
+  /** @param {string} name */
   constructor(name) {
     super();
     this.name = name;
@@ -40,7 +42,9 @@ export class Identifier extends Expression {
   }
 }
 
+/** x.y ← Dot. */
 export class Dot extends Expression {
+  /** @param {Expression} target @param {Expression|null} key */
   constructor(target, key) {
     super();
     this.target = target;
@@ -83,6 +87,7 @@ export class Dot extends Expression {
 
   // ← the parse-time BeforeMethodCall trick: a directly enclosing MethodCall routes through here.
   // Returns [model, preCalled]; preCalled=true when the policy already produced the value.
+  /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */
   _evaluateForMethodCall(env, argExprs) {
     const t = this.target.evaluate(env);
     if (t === null || t === undefined) {
@@ -110,7 +115,9 @@ export class Dot extends Expression {
 }
 
 // ← freemarker.core.DynamicKeyName: target[key] or target[...]
+/** x[h] ← DynamicKeyName. */
 export class DynamicKeyName extends Expression {
+  /** @param {Expression} target @param {Expression|null} key */
   constructor(target, key) {
     super();
     this.target = target;
@@ -159,6 +166,7 @@ export class DynamicKeyName extends Expression {
       + 'not a hash or sequence.');
   }
 
+  /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */
   _evaluateForMethodCall(env, argExprs) {
     const t = this.target.evaluate(env);
     if (t === null || t === undefined) throw new InvalidPropertyException(

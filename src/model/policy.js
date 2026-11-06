@@ -1,6 +1,10 @@
 // ← freemarker.ext.beans.ZeroArgumentNonVoidMethodPolicy (3 values kept for API parity;
 // BOTH ≡ PROPERTY_ONLY in the JS port, see UPSTREAM.md).
 
+/**
+ * Values of the zero-argument non-void method policy.
+ * @type {{ FAIL: string, TRY_AS_NULL_OR_EMPTY: string, TRY_AS_METHOD: string }}
+ */
 export const ZeroArgumentNonVoidMethodPolicy = Object.freeze({
   METHOD_ONLY: 'METHOD_ONLY',
   PROPERTY_ONLY_UNLESS_BEAN_PROPERTY_READ_METHOD: 'PROPERTY_ONLY_UNLESS_BEAN_PROPERTY_READ_METHOD',

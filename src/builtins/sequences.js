@@ -11,6 +11,7 @@ import { LocalLambdaExpression } from '../parser/ast/expressions/lambda.js';
 import { InvalidReferenceException, TemplateException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
 
+/** @param {Object} key - a key model @returns {string} */
 function keyTypeName(key) {
   if (key instanceof StringModel) return ['string', 'strings'];
   if (key instanceof NumberModel) return ['number', 'numbers'];
@@ -70,6 +71,12 @@ function sortItems(items, keyOf, env, biLabel, valueWord, valueWordPlural) {
 
 registerBuiltIn('sort', {
   acceptsMissing: true, // own "not a sequence" error covers null targets
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('sort', target, env);
@@ -142,6 +149,12 @@ registerBuiltIn('sort_by', {
   acceptsMissing: true,
   minArgs: 1,
   maxArgs: 1,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('sort_by', target, env);
@@ -183,6 +196,12 @@ registerBuiltIn('filter', {
   minArgs: 1,
   maxArgs: 1,
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('filter', target, env);
@@ -210,6 +229,12 @@ registerBuiltIn('map', {
   minArgs: 1,
   maxArgs: 1,
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('map', target, env);
@@ -234,6 +259,12 @@ registerBuiltIn('join', {
   minArgs: 1,
   maxArgs: 1,
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('join', target, env);
@@ -248,6 +279,12 @@ registerBuiltIn('seq_contains', {
   minArgs: 1,
   maxArgs: 1,
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('seq_contains', target, env);
@@ -265,6 +302,12 @@ registerBuiltIn('seq_index_of', {
   minArgs: 1,
   maxArgs: 1,
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('seq_index_of', target, env);
@@ -280,6 +323,12 @@ registerBuiltIn('seq_index_of', {
 
 registerBuiltIn('reverse', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('reverse', target, env);

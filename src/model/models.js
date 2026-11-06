@@ -13,6 +13,7 @@ export class StringModel extends TemplateScalarModel {
     super();
     this.value = value;
   }
+  /** @returns {string} */
   getAsString() {
     return this.value;
   }
@@ -20,6 +21,7 @@ export class StringModel extends TemplateScalarModel {
 
 // ← TemplateMarkupOutputModel (CommonTemplateMarkupOutputModel flavor): a value
 // that is either already markup, or plain text to be escaped by its format.
+/** A string tagged with an OutputFormat ← MarkupOutputFormat output values. */
 export class MarkupModel extends StringModel {
   /**
    * @param {string|null} plainText - the unescaped source text (nullable once markup is known)
@@ -59,6 +61,7 @@ export class NumberModel extends TemplateNumberModel {
     super();
     this.value = value;
   }
+  /** @returns {number} */
   getAsNumber() {
     return this.value;
   }
@@ -71,6 +74,7 @@ export class BooleanModel extends TemplateBooleanModel {
     super();
     this.value = value;
   }
+  /** @returns {boolean} */
   getAsBoolean() {
     return this.value;
   }
@@ -90,6 +94,7 @@ export class DateModel extends TemplateDateModel {
     this.value = value;
     this.dateType = dateType;
   }
+  /** @returns {Date} */
   getAsDate() {
     return this.value;
   }
@@ -138,6 +143,7 @@ export class HashModel extends TemplateHashModelEx {
     this.wrapper = wrapper ?? null;
     this.isMap = source instanceof Map;
   }
+  /** @param {unknown} v @returns {import('./templateModel.js').TemplateModel} */
   _wrap(v) {
     return this.wrapper ? this.wrapper.wrap(v) : v;
   }

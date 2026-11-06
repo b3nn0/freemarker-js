@@ -55,6 +55,11 @@ describe('runtime: numeric interpolation #{...}', () => {
     eq(await render('#{x}', new Configuration(), { x: 1234.5 }), '1,234.5');
   });
 
+  it('canonical form keeps the #{} form with its bounds', () => {
+    const t = new Template('m', '#{x;m2M4}', new Configuration());
+    eq(t.rootElement.getCanonicalForm(), '#{x;m2M4}');
+  });
+
   it('bad specifiers are parse errors', () => {
     throwsMatch(() => new Template('m', '#{x;q2}', new Configuration()),
       ParseException, ['Invalid format specifier']);

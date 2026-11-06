@@ -7,8 +7,18 @@ import {
 } from '../../../errors.js';
 import { TemplateSequenceModel, TemplateHashModelEx } from '../../../model/templateModel.js';
 
+/** #list / #forEach ← IteratorBlock. */
 export class IteratorBlock extends TemplateElement {
   // sourceExp, loopVar, loopVar2, hashListing, forEach; children before #else; elseChildren|null
+  /**
+   * @param {Expression} sourceExp
+   * @param {string|null} loopVar
+   * @param {string|null} loopVar2
+   * @param {TemplateElement[]} children
+   * @param {boolean} hashListing
+   * @param {boolean} forEach
+   * @param {TemplateElement[]|null} elseChildren
+   */
   constructor(sourceExp, loopVar, loopVar2, children, hashListing, forEach, elseChildren) {
     super();
     this.sourceExp = sourceExp;
@@ -101,7 +111,9 @@ export class IteratorBlock extends TemplateElement {
   }
 }
 
+/** #items ← Items. */
 export class Items extends TemplateElement {
+  /** @param {string|null} loopVar @param {string|null} loopVar2 @param {TemplateElement[]} children */
   constructor(loopVar, loopVar2, children) {
     super();
     this.loopVar = loopVar;
@@ -136,7 +148,9 @@ export class Items extends TemplateElement {
   }
 }
 
+/** #sep ← Sep. */
 export class Sep extends TemplateElement {
+  /** @param {TemplateElement[]} children */
   constructor(children) {
     super();
     if (children) for (const c of children) this.addChild(c);

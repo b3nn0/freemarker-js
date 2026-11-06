@@ -7,11 +7,20 @@ import {
 import { StringWriter } from '../../../io/writer.js';
 import { StringModel } from '../../../model/models.js';
 
+/** @type {{ NAMESPACE: string, GLOBAL: string, LOCAL: string }} */
 export const ASSIGN_SCOPE = { NAMESPACE: 'namespace', GLOBAL: 'global', LOCAL: 'local' };
 
+/** #assign/#global/#local ← Assignment. */
 export class Assignment extends TemplateElement {
   // name; opKind: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '++' | '-- | 'block' | 'block+=' ;
   // exp (null for ++/-- and block); scope: ASSIGN_SCOPE value
+  /**
+   * @param {string} name
+   * @param {string} opKind
+   * @param {Expression|null} exp
+   * @param {string} scope
+   * @param {TemplateElement[]|null} [blockChildren]
+   */
   constructor(name, opKind, exp, scope, blockChildren = null) {
     super();
     this.name = name;
@@ -87,6 +96,7 @@ export class Assignment extends TemplateElement {
     return null;
   }
 
+  /** @param {import('../../../environment.js').Environment} env @returns {unknown} current value or null */
   _capture(env) {
     const w = new StringWriter();
     const savedOut = env.output;
@@ -99,11 +109,13 @@ export class Assignment extends TemplateElement {
     return w.getAsString();
   }
 
+  /** @returns {string} */
   _tag() {
     return this.scope === ASSIGN_SCOPE.GLOBAL ? 'global'
       : this.scope === ASSIGN_SCOPE.LOCAL ? 'local' : 'assign';
   }
 
+  /** @returns {string} */
   _namePart() {
     if (this.opKind === '++' || this.opKind === '--') return `${this.name}${this.opKind}`;
     if (this.exp === null) return `${this.name} ${this.opKind}`;
@@ -125,7 +137,9 @@ export class Assignment extends TemplateElement {
   }
 }
 
+/** #assign a=1, b=2 ← AssignmentInstruction. */
 export class AssignmentInstruction extends TemplateElement {
+  /** @param {Assignment[]} assignments @param {Expression|null} namespaceExp */
   constructor(assignments, namespaceExp) {
     super();
     this.assignments = assignments;

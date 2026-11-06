@@ -16,7 +16,9 @@ import {
   InvalidReferenceException, NonExtendedHashException, NonNumericalException, TemplateException,
 } from '../errors.js';
 
+/** @type {import('../model/models.js').BooleanModel} */
 const BoolTrue = BooleanModel.TRUE;
+/** @type {import('../model/models.js').BooleanModel} */
 const BoolFalse = BooleanModel.FALSE;
 
 // ---- existence handling (BuiltInsForExistenceHandling) ----
@@ -42,6 +44,10 @@ function isEmpty(model, env) {
 
 registerBuiltIn('if_exists', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target) {
     // ← TemplateModel.NOTHING: an empty string for output purposes
     return target === null || target === undefined ? new StringModel('') : target;
@@ -50,6 +56,12 @@ registerBuiltIn('if_exists', {
 
 registerBuiltIn('has_content', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return isEmpty(target, env) ? BoolFalse : BoolTrue;
   },
@@ -60,6 +72,12 @@ registerBuiltIn('has_content', {
 registerBuiltIn('default', {
   minArgs: 1,
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     const firstNonNull = (vals) => {
       for (const v of vals) {
@@ -103,6 +121,12 @@ function toNull(target, env, key, blankTest) {
 
 registerBuiltIn('blank_to_null', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     // ← isBlank: whitespace (or NBSP) only; the empty string is blank too
     return toNull(target, env, 'blank_to_null',
@@ -112,6 +136,12 @@ registerBuiltIn('blank_to_null', {
 
 registerBuiltIn('empty_to_null', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return toNull(target, env, 'empty_to_null', (s) => s.length === 0);
   },
@@ -119,6 +149,12 @@ registerBuiltIn('empty_to_null', {
 
 registerBuiltIn('trim_to_null', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     if (target === null || target === undefined) return null;
     const s = env.coerceToString(target, ' for the "?trim_to_null" built-in').trim();
@@ -131,6 +167,12 @@ registerBuiltIn('trim_to_null', {
 registerBuiltIn('then', {
   minArgs: 2,
   maxArgs: 2,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     if (argExprs.length !== 2) {
       throw argCntError('then', argExprs.length, 2, 2);
@@ -150,6 +192,12 @@ registerBuiltIn('then', {
 registerBuiltIn('switch', {
   minArgs: 2,
   maxArgs: Infinity,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, argExprs, env) {
     if (argExprs.length < 2) {
       throw argCntError('switch', argExprs.length, 2, Infinity);
@@ -192,6 +240,12 @@ registerBuiltIn('switch', {
 
 registerBuiltIn('size', {
   acceptsMissing: true, // own error below covers null/missing targets
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     if (target instanceof TemplateSequenceModel) return new NumberModel(target.size());
     if (target instanceof TemplateHashModelEx) return new NumberModel(target.size());
@@ -203,6 +257,12 @@ registerBuiltIn('size', {
 
 registerBuiltIn('first', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('first', target, env);
@@ -212,6 +272,12 @@ registerBuiltIn('first', {
 
 registerBuiltIn('last', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('last', target, env);
@@ -235,6 +301,12 @@ function keysValuesError(key, target, env) {
 
 registerBuiltIn('keys', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('keys', target, env);
     return new SequenceModel(target.keys().map((k) => new StringModel(k)));
@@ -243,6 +315,12 @@ registerBuiltIn('keys', {
 
 registerBuiltIn('values', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('values', target, env);
     return new SequenceModel(target.values().map((v) => env.wrap(v)));
@@ -265,6 +343,12 @@ function numberTarget(target, env, key) {
 }
 
 registerBuiltIn('abs', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     const v = numberTarget(target, env, 'abs');
     return new NumberModel(Math.abs(v));
@@ -272,12 +356,24 @@ registerBuiltIn('abs', {
 });
 
 registerBuiltIn('ceiling', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new NumberModel(Math.ceil(numberTarget(target, env, 'ceiling')));
   },
 });
 
 registerBuiltIn('floor', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     return new NumberModel(Math.floor(numberTarget(target, env, 'floor')));
   },
@@ -285,6 +381,12 @@ registerBuiltIn('floor', {
 
 // Java rounds halves away from zero; Math.round(-2.5) is -2 → explicit.
 registerBuiltIn('round', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target, args, env) {
     const v = numberTarget(target, env, 'round');
     return new NumberModel(v < 0 ? -Math.round(-v) : Math.round(v));
@@ -325,6 +427,10 @@ registerBuiltIn('is_sequence', {
 });
 registerBuiltIn('is_method', {
   acceptsMissing: true,
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
   impl(target) {
     if (target === null || target === undefined) return BoolFalse;
     return (target instanceof TemplateMethodModel || target.isFunctionModel === true)

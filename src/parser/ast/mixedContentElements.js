@@ -2,6 +2,7 @@
 
 import { TemplateElement } from './templateElement.js';
 
+/** A run of mixed content ← MixedContentElements. */
 export class MixedContentElements extends TemplateElement {
   /**
    * @param {import('../../environment.js').Environment} env - rendering environment

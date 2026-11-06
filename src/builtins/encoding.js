@@ -36,6 +36,12 @@ function bypassed(target, key) {
 }
 
 registerBuiltIn('html', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     if (bypassed(target, 'html')) return target;
     return new StringModel(xhtmlEnc(targetString(target, env, 'html')));
@@ -43,6 +49,12 @@ registerBuiltIn('html', {
 });
 
 registerBuiltIn('xhtml', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     if (bypassed(target, 'xhtml')) return target;
     return new StringModel(xhtmlEnc(targetString(target, env, 'xhtml')));
@@ -50,6 +62,12 @@ registerBuiltIn('xhtml', {
 });
 
 registerBuiltIn('xml', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     if (bypassed(target, 'xml')) return target;
     return new StringModel(xmlEnc(targetString(target, env, 'xml')));
@@ -59,6 +77,12 @@ registerBuiltIn('xml', {
 // ?no_esc: wrap in the current output format's markup model so the
 // interpolation writes it out as-is (← NoEsc BI + OutputFormat.output path).
 registerBuiltIn('no_esc', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     const fmt = env.outputFormat ?? env.configuration.getOutputFormat();
     return MarkupModel.fromMarkup(targetString(target, env, 'no_esc'), fmt);
@@ -67,6 +91,12 @@ registerBuiltIn('no_esc', {
 
 // ?url: application/x-www-form-urlencoded (UTF-8).
 registerBuiltIn('url', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     return new StringModel(urlEnc(targetString(target, env, 'url'), false));
   },
@@ -74,6 +104,12 @@ registerBuiltIn('url', {
 
 // ?json_string: StringUtil.jsonStringEnc (2.3.32 rules).
 registerBuiltIn('json_string', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     return new StringModel(jsStringEnc(targetString(target, env, 'json_string'), true));
   },
@@ -81,6 +117,12 @@ registerBuiltIn('json_string', {
 
 // ?js_string: StringUtil.javaScriptStringEnc (2.3.32 rules).
 registerBuiltIn('js_string', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     return new StringModel(jsStringEnc(targetString(target, env, 'js_string'), false));
   },
@@ -88,6 +130,12 @@ registerBuiltIn('js_string', {
 
 // ?c: the computer-oriented ("C") form; strings return themselves unchanged.
 registerBuiltIn('c', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     if (target instanceof StringModel) return target;
     if (target && typeof target.getAsNumber === 'function') {
@@ -104,6 +152,12 @@ registerBuiltIn('c', {
 // parser creates a load-time cycle (builtIn → index → encoding → parser →
 // builtIn); it stays safe because the Parser class is only touched at runtime.
 registerBuiltIn('eval', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, args, env) {
     const src = targetString(target, env, 'eval');
     let exp;

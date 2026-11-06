@@ -3,7 +3,9 @@
 import { Expression } from './expression.js';
 import { ftlQuote } from '../../../utility/stringUtil.js';
 
+/** Number literal ← NumberLiteral. */
 export class NumberLiteral extends Expression {
+  /** @param {number} value */
   constructor(value) {
     super();
     this.value = value;
@@ -23,7 +25,9 @@ export class NumberLiteral extends Expression {
   }
 }
 
+/** String literal ← StringLiteral. */
 export class StringLiteral extends Expression {
+  /** @param {string} value */
   constructor(value) {
     super();
     this.value = value;
@@ -43,7 +47,9 @@ export class StringLiteral extends Expression {
   }
 }
 
+/** Boolean literal ← BooleanLiteral. */
 export class BooleanLiteral extends Expression {
+  /** @param {boolean} value */
   constructor(value) {
     super();
     this.value = value;
@@ -63,7 +69,9 @@ export class BooleanLiteral extends Expression {
   }
 }
 
+/** List literal ← ListLiteral. */
 export class ListLiteral extends Expression {
+  /** @param {Expression[]} items */
   constructor(items) {
     super();
     this.items = items;
@@ -83,7 +91,9 @@ export class ListLiteral extends Expression {
   }
 }
 
+/** Hash literal ← HashLiteral. */
 export class HashLiteral extends Expression {
+  /** @param {Expression[]} keys @param {Expression[]} values */
   constructor(keys, values) {
     super();
     this.keys = keys;

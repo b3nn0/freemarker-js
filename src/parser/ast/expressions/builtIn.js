@@ -7,7 +7,9 @@ import { HashModel } from '../../../model/models.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 
 // ← freemarker.core.BuiltinVariable: the leading-dot special variables. Only .args lands in M9.
+/** ?loop_var style builtin variable ← BuiltinVariable. */
 export class BuiltinVariable extends Expression {
+  /** @param {string} name */
   constructor(name) {
     super();
     this.name = name;
@@ -38,9 +40,11 @@ export class BuiltinVariable extends Expression {
   }
 }
 
+/** x?name ← BuiltIn (target, key, args). */
 export class BuiltIn extends Expression {
   // args: Expression[] | null — raw argument expressions; builtins that accept
   // lambda arguments receive the unevaluated nodes (← BuiltInWithParseTimeParameters).
+  /** @param {Expression} target @param {string} key @param {Expression[]|null} [args] */
   constructor(target, key, args = null) {
     super();
     this.target = target;

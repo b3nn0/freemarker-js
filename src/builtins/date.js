@@ -11,6 +11,12 @@ import { formatIsoDate, DATE_TYPES } from '../format/dateFormat.js';
 // ?string, ?string(fmt) with a format string, or ?string(fmtHash).
 registerBuiltIn('string', {
   minArgs: 0, maxArgs: 1,
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
   impl(target, argExprs, env) {
     if (argExprs !== null && argExprs.length > 1) {
       throw argCntError('string', argExprs.length, 0, 1);
@@ -114,7 +120,13 @@ function formatWithHash(target, hash, env) {
  */
 function asType(name, dateType) {
   registerBuiltIn(name, {
-    impl(target, args, env) {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+  impl(target, args, env) {
       if (!(target instanceof DateModel)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
@@ -136,7 +148,13 @@ asType('datetime', DATE_TYPES.DATE_TIME);
  */
 function isoAsType(name, dateType) {
   registerBuiltIn(name, {
-    impl(target, args, env) {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+  impl(target, args, env) {
       if (!(target instanceof DateModel)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);

@@ -13,6 +13,7 @@ export class OutputFormat {
     this.name = name;
   }
 
+  /** @returns {boolean} */
   get isMarkup() {
     return false;
   }
@@ -29,6 +30,7 @@ export class OutputFormat {
     throw new Error(`Can't escape text for output format ${this.name}`);
   }
 
+  /** @returns {string} the format name */
   toString() {
     return this.name;
   }
@@ -38,6 +40,7 @@ export class OutputFormat {
 export class UndefinedOutputFormat extends OutputFormat {
   static INSTANCE = new UndefinedOutputFormat();
 
+  /** Constructs the singleton. */
   constructor() {
     super('Undefined');
   }
@@ -47,6 +50,7 @@ export class UndefinedOutputFormat extends OutputFormat {
 export class PlainTextOutputFormat extends OutputFormat {
   static INSTANCE = new PlainTextOutputFormat();
 
+  /** Constructs the singleton. */
   constructor() {
     super('PlainText');
   }
@@ -54,6 +58,7 @@ export class PlainTextOutputFormat extends OutputFormat {
 
 /** Base for escaping formats. ← MarkupOutputFormat */
 export class MarkupOutputFormat extends OutputFormat {
+  /** @returns {boolean} */
   get isMarkup() {
     return true;
   }
@@ -81,6 +86,7 @@ export class MarkupOutputFormat extends OutputFormat {
 export class HTMLOutputFormat extends MarkupOutputFormat {
   static INSTANCE = new HTMLOutputFormat();
 
+  /** Constructs the singleton. */
   constructor() {
     super('HTML');
   }
@@ -106,6 +112,7 @@ export class HTMLOutputFormat extends MarkupOutputFormat {
 export class XHTMLOutputFormat extends MarkupOutputFormat {
   static INSTANCE = new XHTMLOutputFormat();
 
+  /** Constructs the singleton. */
   constructor() {
     super('XHTML');
   }
@@ -123,6 +130,7 @@ export class XHTMLOutputFormat extends MarkupOutputFormat {
 export class XMLOutputFormat extends MarkupOutputFormat {
   static INSTANCE = new XMLOutputFormat();
 
+  /** Constructs the singleton. */
   constructor() {
     super('XML');
   }
@@ -137,6 +145,7 @@ export class XMLOutputFormat extends MarkupOutputFormat {
 }
 
 // ← Configuration.STANDARD_OUTPUT_FORMATS (the ones this port registers)
+/** name -> standard OutputFormat instance. @type {Map<string, Object>} */
 const STANDARD_OUTPUT_FORMATS = new Map([
   ['Undefined', UndefinedOutputFormat.INSTANCE],
   ['PlainText', PlainTextOutputFormat.INSTANCE],

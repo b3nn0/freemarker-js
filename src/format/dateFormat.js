@@ -4,6 +4,7 @@
 
 import { InvalidFormatStringException } from '../errors.js';
 
+/** ← TemplateDateModel date types. @type {{ NONE: number, DATE: number, TIME: number, DATE_TIME: number, FULL: number }} */
 export const DATE_TYPES = { NONE: 0, DATE: 1, TIME: 2, DATE_TIME: 3, FULL: 4 };
 
 /**
@@ -72,6 +73,7 @@ function zoneOffsetString(d) {
   return `${sign}${pad(Math.floor(abs / 60), 2)}:${pad(abs % 60, 2)}`;
 }
 
+/** @type {string[]} */
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
@@ -156,7 +158,9 @@ function formatField(c, width, d) {
   }
 }
 
+/** @type {string[]} */
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** @type {string[]} */
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 

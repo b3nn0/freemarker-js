@@ -28,6 +28,7 @@ export function backslashEscapeIdentifier(name) {
 }
 
 // ← StringUtil.createEscapes
+/** char -> entity table for XMLEnc/XHTMLEnc. @type {Map<string, string>} */
 const ESCAPES = (() => {
   const e = new Array(0x5c + 1).fill(0);
   for (let i = 0; i < 32; i++) e[i] = 1; // hex-escaped control chars
@@ -45,6 +46,7 @@ const ESCAPES = (() => {
   return e;
 })();
 
+/** @param {string} c @returns {boolean} true for "$" and "#" (with "{") */
 function isInterpolationStart(c) {
   return c === '$' || c === '#';
 }
@@ -150,6 +152,7 @@ export function isTrimmableToEmpty(s, from = 0, to = s.length) {
   return true;
 }
 
+/** @type {string} */
 const HEX_DIGITS = '0123456789ABCDEF';
 
 /**

@@ -4,9 +4,17 @@
 import { TemplateElement } from '../templateElement.js';
 import { InvalidReferenceException, UnsupportedFeatureException } from '../../../errors.js';
 
+/** <@call ...> ← UnifiedCall. */
 export class UnifiedCall extends TemplateElement {
   // target: Expression; namedArgs: Map<string, Expression> | null; positionalArgs: Expression[] | null;
   // bodyParamNames: string[] | null (the "; p1, p2" list); bodyChildren: TemplateElement[]
+  /**
+   * @param {Expression} target
+   * @param {Expression[]} positionalArgs
+   * @param {Array<{ name: string, value: Expression }>} namedArgs
+   * @param {string[]} bodyParamNames
+   * @param {TemplateElement[]|null} bodyChildren
+   */
   constructor(target, positionalArgs, namedArgs, bodyParamNames, bodyChildren) {
     super();
     this.target = target;
@@ -54,6 +62,7 @@ export class UnifiedCall extends TemplateElement {
 
   // ← UnifiedCall.dump: positional args are comma separated; named args use
   // "name=value" pairs separated by single spaces (sorted by name upstream).
+  /** @returns {string} */
   _argsCanonical() {
     if (this.namedArgs !== null && this.namedArgs.size > 0) {
       const keys = [...this.namedArgs.keys()].sort();
@@ -82,7 +91,9 @@ export class UnifiedCall extends TemplateElement {
   }
 }
 
+/** #nested ← Nested. */
 export class NestedInstruction extends TemplateElement {
+  /** @param {Expression[]|null} bodyParameters */
   constructor(bodyParameters) {
     super();
     this.bodyParameters = bodyParameters; // Expression[] | null
@@ -126,7 +137,9 @@ export class NestedInstruction extends TemplateElement {
   }
 }
 
+/** #fallback ← MacroFallback. */
 export class FallbackInstruction extends TemplateElement {
+  /** @returns {null} */
   execute() {
     throw new UnsupportedFeatureException(
       'The #fallback directive requires XML node processing (#visit), which this port does not support.');

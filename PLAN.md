@@ -17,4 +17,4 @@
 - [x] M14 #include/#import via includeResolver, #stop, #flush no-op, UnsupportedFeatureException set
 - [x] M15 #outputformat/#autoesc/#noautoesc, ?html ?xml ?no_esc, HTML escaper, ?url, ?json_string/?js_string/?c, ?eval
 - [x] M16 #setting, number/date formatting subset (#{exp;m2M4}, ?string(fmt), number_format/date_format, pattern subset)
-- [ ] M17 polish: position audit, README matrix, examples/, regex/eval audit, perf sanity
+- [x] M17 polish: position audit, README matrix, examples/, regex/eval audit, perf sanity

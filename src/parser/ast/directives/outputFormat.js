@@ -5,6 +5,7 @@
 
 import { TemplateElement } from '../templateElement.js';
 
+/** <#outputformat ...> ← OutputFormat (the directive). */
 export class OutputFormatBlock extends TemplateElement {
   /**
    * @param {TemplateElement[]} children - block contents

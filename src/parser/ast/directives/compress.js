@@ -3,13 +3,20 @@
 import { TemplateElement } from '../templateElement.js';
 import { StringWriter } from '../../../io/writer.js';
 
+/** ← StandardCompressWriter state machine. @type {number} */
 const AT_BEGINNING = 0;
+/** @type {number} */
 const INIT = 1;
+/** @type {number} */
 const SAW_CR = 2;
+/** @type {number} */
 const LINEBREAK_CR = 3;
+/** @type {number} */
 const LINEBREAK_CRLF = 4;
+/** @type {number} */
 const LINEBREAK_LF = 5;
 
+/** @param {string} c @returns {boolean} */
 function isWs(c) {
   return c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f';
 }
@@ -67,6 +74,7 @@ export function standardCompress(s, singleLine = false) {
   return out; // pending trailing whitespace is dropped (no line-break write at close)
 }
 
+/** #compress ← Compress. */
 export class CompressedBlock extends TemplateElement {
   /**
    * @param {import('../templateElement.js').TemplateElement[]} children - block contents

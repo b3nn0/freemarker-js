@@ -2,12 +2,15 @@
 
 import { TemplateElement } from './templateElement.js';
 
+/** <#-- --> comment ← Comment. */
 export class CommentDirective extends TemplateElement {
+  /** @param {string} text */
   constructor(text) {
     super();
     this.text = text;
   }
 
+  /** @returns {null} */
   execute() {
     return null;
   }
