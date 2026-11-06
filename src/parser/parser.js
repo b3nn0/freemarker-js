@@ -31,8 +31,10 @@ import { Macro } from './ast/directives/macro.js';
 import { UnifiedCall, NestedInstruction, FallbackInstruction } from './ast/directives/unifiedCall.js';
 import { ReturnInstruction } from './ast/directives/control.js';
 import { FTLHeader } from './ast/directives/ftlHeader.js';
+import { TrimInstruction } from './ast/directives/trim.js';
+import { CompressedBlock } from './ast/directives/compress.js';
 import { BuiltinVariable } from './ast/expressions/builtIn.js';
-import { unescapeFTLStringLiteral } from '../utility/stringUtil.js';
+import { unescapeFTLStringLiteral, isTrimmableToEmpty } from '../utility/stringUtil.js';
 
 const STATIC_TYPES = new Set([TT.STATIC_TEXT_WS, TT.STATIC_TEXT_NON_WS, TT.STATIC_TEXT_FALSE_ALARM]);
 
@@ -93,6 +95,10 @@ export class Parser {
     this.macros = []; // ← template.addMacro equivalent; collected Macro nodes
     this._argsFlag = false; // set when `.args` is parsed inside the current macro/function
     this.headerElement = null; // ← FTL.jj Root(): at most one header
+    this.stripWhitespace = configuration.getWhitespaceStripping();
+    this.stripText = false; // only the #ftl header can set it (2.3)
+    this.preventStrippings = false; // ← Configuration.preventStrippings (not exposed by this port)
+    this.mixedContentNesting = 0; // ← FTL.jj mixedContentNesting (for stripText)
   }
 
   /**
@@ -102,7 +108,10 @@ export class Parser {
    */
   parse() {
     try {
-      return this._parseRoot();
+      const root = this._parseRoot();
+    // ← Root(): if (!preventStrippings) root = root.postParseCleanup(stripWhitespace);
+    if (!this.preventStrippings) this._postParseCleanup(root);
+    return root;
     } catch (e) {
       if (e instanceof TokenMgrError) {
         throw new ParseException(e.message, {
@@ -215,9 +224,9 @@ export class Parser {
       if (typeof v !== 'string') throw this._errorAt(`Expected a string constant for "${keyTok.image}".`, exp);
       settings.encoding = v;
     } else if (matches('strip_whitespace', 'stripWhitespace')) {
-      settings.stripWhitespace = this._evalHeaderBoolean(keyTok.image, exp);
+      settings.stripWhitespace = this.stripWhitespace = this._evalHeaderBoolean(keyTok.image, exp);
     } else if (matches('strip_text', 'stripText')) {
-      settings.stripText = this._evalHeaderBoolean(keyTok.image, exp);
+      settings.stripText = this.stripText = this._evalHeaderBoolean(keyTok.image, exp);
     } else if (matches('strict_syntax', 'strictSyntax')) {
       settings.strictSyntax = this._evalHeaderBoolean(keyTok.image, exp);
     } else if (matches('auto_esc', 'autoEsc')) {
@@ -284,6 +293,7 @@ export class Parser {
   }
 
   _parseMixedContent(stop) {
+    this.mixedContentNesting++;
     const group = new MixedContentElements();
     let pending = '';
     let pendingBegin = null;
@@ -303,6 +313,8 @@ export class Parser {
 
       if (STATIC_TYPES.has(t.type)) {
         this._next();
+        // ← PCData()/WhitespaceText(): stripText removes top-level text runs at parse time
+        if (this.stripText && this.mixedContentNesting === 1 && !this.preventStrippings) continue;
         if (pendingBegin === null) pendingBegin = t;
         pending += t.image;
         pendingEnd = t;
@@ -360,16 +372,24 @@ export class Parser {
       }
 
       if (t.type === TT.TRIVIAL_FTL_HEADER || t.type === TT.FTL_HEADER) {
-        // ← FTL.jj Root(): the header is only allowed at the start (after optional whitespace).
-        if (this.headerElement !== null || group.children.length > 0 || pending.trim() !== '') {
+        // ← FTL.jj Root(): the header is only allowed at the start, preceded only by
+        // whitespace (the LOOKAHEAD [STATIC_TEXT_WS] consumes that whitespace run).
+        if (this.headerElement !== null
+          || (group.children.length > 0
+            && !group.children.every((c) => c instanceof TextBlock && isTrimmableToEmpty(c.text)))
+          || pending.trim() !== '') {
           throw this._error('The "#ftl" directive is only allowed once, at the start of the template.', t);
         }
-        flush();
+        group.children.length = 0; // LOOKAHEAD whitespace never becomes an element
+        pending = '';
+        pendingBegin = null;
+        pendingEnd = null;
         this._next();
-        const header = t.type === TT.TRIVIAL_FTL_HEADER
-          ? this._parseTrivialFTLHeader(t)
-          : this._parseFTLHeader(t);
-        group.addChild(header);
+        // ← FTL.jj Root()/HeaderElement(): the header is NOT an AST child (void
+        // production); it only configures the parser/template. The following text is
+        // the first top-level text, so it skips the opening auto-strip.
+        if (t.type === TT.TRIVIAL_FTL_HEADER) this._parseTrivialFTLHeader(t);
+        else this._parseFTLHeader(t);
         continue;
       }
 
@@ -435,6 +455,26 @@ export class Parser {
           this._next();
           group.addChild(this._parseNested(t));
           continue;
+        case TT.TRIM:
+          this._next();
+          group.addChild(this._span(new TrimInstruction(true, true), t, t));
+          continue;
+        case TT.LTRIM:
+          this._next();
+          group.addChild(this._span(new TrimInstruction(true, false), t, t));
+          continue;
+        case TT.RTRIM:
+          this._next();
+          group.addChild(this._span(new TrimInstruction(false, true), t, t));
+          continue;
+        case TT.NOTRIM:
+          this._next();
+          group.addChild(this._span(new TrimInstruction(false, false), t, t));
+          continue;
+        case TT.COMPRESS:
+          this._next();
+          group.addChild(this._parseCompress(t));
+          continue;
         case TT.FALLBACK:
           this._next();
           if (!this.inMacro) throw this._error('Cannot fall back outside a macro.', t);
@@ -462,7 +502,48 @@ export class Parser {
     }
 
     flush();
+    this.mixedContentNesting--;
     return group;
+  }
+
+  // ---- post-parse whitespace cleanup ← TemplateElement.postParseCleanup ----
+
+  /**
+   * Recurses (children first), then runs TextBlock trimming, then drops ignorable children.
+   * @param {import('./ast/templateElement.js').TemplateElement} el
+   * @returns {import('./ast/templateElement.js').TemplateElement}
+   */
+  _postParseCleanup(el) {
+    if (el.children.length > 0) {
+      for (let i = 0; i < el.children.length; i++) {
+        el.children[i] = this._postParseCleanup(el.children[i]);
+      }
+      for (let i = 0; i < el.children.length; i++) {
+        if (el.children[i].isIgnorable(this.stripWhitespace)) {
+          el.children.splice(i, 1);
+          i--; // later isIgnorable calls investigate the shifted siblings
+        }
+      }
+    }
+    if (el instanceof TextBlock) el.postParseCleanup(this.stripWhitespace);
+    return el;
+  }
+
+  /**
+   * <#compress> body ← FTL.jj Compress().
+   * @param {import('./token.js').Token} startTok
+   * @returns {CompressedBlock}
+   */
+  _parseCompress(startTok) {
+    const children = this._parseMixedContent(new Set([TT.END_COMPRESS]));
+    const end = this._peek();
+    if (end.type !== TT.END_COMPRESS) {
+      throw this._error('Missing end tag: "</#compress>" expected.', end);
+    }
+    this._next();
+    const block = new CompressedBlock(children.children);
+    this._span(block, startTok, end);
+    return block;
   }
 
   // ---- M7 directives ----

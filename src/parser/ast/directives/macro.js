@@ -144,3 +144,6 @@ export class MacroModel {
     return null;
   }
 }
+
+// ← getFirstLeaf/getLastLeaf stop at Macro (treated as leaf for whitespace scans)
+Macro.prototype._whitespaceScanLeaf = true;

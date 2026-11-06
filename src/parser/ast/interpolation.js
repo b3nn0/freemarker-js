@@ -29,4 +29,14 @@ export class Interpolation extends TemplateElement {
   getCanonicalForm() {
     return `\${${this.expression.getCanonicalForm()}}`;
   }
+
+  /** ← DollarVariable: interpolations heed whitespace around them */
+  heedsOpeningWhitespace() {
+    return true;
+  }
+
+  /** ← DollarVariable: interpolations heed whitespace around them */
+  heedsTrailingWhitespace() {
+    return true;
+  }
 }

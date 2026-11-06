@@ -626,12 +626,23 @@ export class TokenManager {
   }
 
   _eatNewline() {
+    // ← FTL.jj eatNewline: consumes whitespace only up to and including the first
+    // line break; a whitespace run without any line break is put back unread.
+    const save = this._save();
     while (!this._eof()) {
       const c = this._peek();
-      if (!TokenManager.isWhitespace(c)) return;
+      if (!TokenManager.isWhitespace(c)) {
+        this._restore(save);
+        return;
+      }
       this._read();
-      if (c === '\n' || c === '\r') return;
+      if (c === '\r') {
+        if (this._peek() === '\n') this._read();
+        return;
+      }
+      if (c === '\n') return;
     }
+    this._restore(save); // EOF before any line break: nothing was eaten
   }
 
   _unknownDirective(startPos, startLine, startColumn, opener, isEnd, name) {

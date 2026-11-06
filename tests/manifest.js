@@ -13,6 +13,7 @@ export const TEST_FILES = [
   './runtime/interpolation.test.js',
   './runtime/dynamicAccess.test.js',
   './runtime/zeroArgPolicy.test.js',
+  './runtime/whitespace.test.js',
   './directives/control.test.js',
   './directives/list.test.js',
   './directives/assign.test.js',

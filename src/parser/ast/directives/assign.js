@@ -16,6 +16,7 @@ export class Assignment extends TemplateElement {
     super();
     this.name = name;
     this.opKind = opKind;
+    if (opKind === 'block' || opKind === 'block+=') this._whitespaceScanLeaf = true; // ← BlockAssignment
     this.exp = exp;
     this.scope = scope;
     this.blockChildren = blockChildren;

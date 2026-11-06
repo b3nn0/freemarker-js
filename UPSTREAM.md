@@ -61,3 +61,11 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M12: `#ftl` ns_prefixes / attributes params and strict_syntax behavior deferred to later milestones (auto-esc/output_format land M15, strip_* land M13); recorded on template.ftlHeader.settings meanwhile.
 - M12: tag-syntax modes match handleTagSyntaxAndSwitch: a tag whose opening bracket mismatches the established syntax demotes to static text; closer bracket mismatch is "The tag shouldn't end with".
 - M12: naming-convention tokens verified: #forEach/#foreach (idx 3), #elseIf/#elseif (idx 4), #outputFormat (idx 6), #autoEsc (idx 4), #noAutoEsc (idx 2), #noParse/#noparse (idx 2, switches noparseTag).
+- M13: `#ftl` header is NOT an AST child (FTL.jj HeaderElement() is void; Root() discards it). It eats the single preceding STATIC_TEXT_WS token and eatNewline after its closer consumes exactly up to the first line break (backup otherwise). This is why "  \n \n  <#ftl> \n \n  x" -> " \n  x": the text after the header is the first top-level text, so it skips the opening auto-strip.
+- M13: port rejects `#ftl` preceded by non-whitespace outright; upstream reaches a different parse error for that (header branch of Root() LOOKAHEAD simply doesn't fire) - same outcome (error), message differs.
+- M13: postParseCleanup ported (TextBlock deliberateLeftTrim/RightTrim + openingCharsToStrip/trailingCharsToStrip, heeds*, isIgnorable, nonOutputtingType list incl. PropertySetting/LibraryLoad pending M14); getFirstLeaf/getLastLeaf treat Macro and block-assignments as leaves (TemplateElement.java comment).
+- M13: trimming whitespace test uses the port's ASCII whitespace set (isWhitespace), a subset of Java Character.isWhitespace.
+- M13: #compress implemented at string level (render children to a buffer, then standardCompress port of StandardCompressWriter states) instead of the upstream Writer stack; same output semantics.
+- M13: strip_text applies only at mixedContentNesting == 1 (top level), matching Text() in FTL.jj.
+- M13: whitespace-trim jython template suite (templatesuite/whitespace-trim.ftl/.txt) reproduces expected output exactly; WhitespaceStrippingTest.java expectations ported incl. the quirky 2.3.0-compat comment cases.
+- M13: LooseDirectiveEnd (">/" grammar) verified: break/nested accept "/>"; #sep/#else (CLOSE_TAG1-only) reject it as malformed tags.

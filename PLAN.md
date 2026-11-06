@@ -13,7 +13,7 @@
 - [x] M10 lambdas + ?filter ?map ?sort ?sort_by
 - [x] M11 built-ins: existence, string, hash, number, ?then/?also, type checks
 - [x] M12 tag syntax modes + interpolation modes + naming convention (auto/camel/legacy)
-- [ ] M13 whitespace stripping (+ stripText, #t/#lt/#rt/#nt, #compress), #noparse, loose directive ends
+- [x] M13 whitespace stripping (+ stripText, #t/#lt/#rt/#nt, #compress), #noparse, loose directive ends
 - [ ] M14 #include/#import via includeResolver, #stop, #flush no-op, UnsupportedFeatureException set
 - [ ] M15 #outputformat/#autoesc/#noautoesc, ?html ?xml ?no_esc, HTML escaper, ?url, ?json_string/?js_string/?c, ?eval
 - [ ] M16 number/date formatting subset (${expr; fmt}, number_format/date_format, pattern subset)

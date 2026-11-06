@@ -267,3 +267,15 @@ describe('parser: canonical round-trip', () => {
     eq(c2, c1);
   });
 });
+
+describe('parser: loose directive ends (FTL.jj LooseDirectiveEnd)', () => {
+  it('accepts "/>" for break and nested', async () => {
+    eq(await new Template('t.ftl', '<#switch 1><#case 1>a<#break/><#default>b</#switch>').processToString(), 'a');
+    eq(await new Template('t.ftl', '<#macro m>[<#nested/>]</#macro><@m/>').processToString(), '[]');
+  });
+
+  it('rejects "/>" where the grammar allows only CLOSE_TAG1 (#sep, #else)', () => {
+    throwsMatch(() => new Template('t.ftl', '<#list 1..2 as x>${x}<#sep/>,</#list>'),
+      ParseException, ['malformed']);
+  });
+});

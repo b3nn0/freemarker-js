@@ -134,3 +134,18 @@ export function unescapeFTLStringLiteral(body) {
   }
   return out;
 }
+
+/**
+ * ← StringUtil.isTrimmableToEmpty: true when every char in [from, to) is
+ * whitespace per Java's String.trim() rule (c <= ' ').
+ * @param {string} s
+ * @param {number} [from]
+ * @param {number} [to]
+ * @returns {boolean}
+ */
+export function isTrimmableToEmpty(s, from = 0, to = s.length) {
+  for (let i = from; i < to; i++) {
+    if (s[i] > ' ') return false;
+  }
+  return true;
+}

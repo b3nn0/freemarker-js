@@ -27,6 +27,91 @@ export class TemplateElement {
   }
 
   /**
+   * @returns {TemplateElement|null} previous sibling ← TemplateElement.previousSibling
+   */
+  previousSibling() {
+    if (this.parent == null) return null;
+    const i = this.parent.children.indexOf(this);
+    return i > 0 ? this.parent.children[i - 1] : null;
+  }
+
+  /**
+   * @returns {TemplateElement|null} next sibling ← TemplateElement.nextSibling
+   */
+  nextSibling() {
+    if (this.parent == null) return null;
+    const i = this.parent.children.indexOf(this);
+    return i >= 0 && i + 1 < this.parent.children.length ? this.parent.children[i + 1] : null;
+  }
+
+  /**
+   * @returns {TemplateElement|null} deepest first leaf ← TemplateElement.getFirstLeaf
+   * (Macro / block-assignment are treated as leaves)
+   */
+  getFirstLeaf() {
+    let e = this;
+    while (e.children.length > 0 && e._whitespaceScanLeaf !== true) e = e.children[0];
+    return e;
+  }
+
+  /**
+   * @returns {TemplateElement|null} deepest last leaf ← TemplateElement.getLastLeaf
+   * (Macro / block-assignment are treated as leaves)
+   */
+  getLastLeaf() {
+    let e = this;
+    while (e.children.length > 0 && e._whitespaceScanLeaf !== true) e = e.children[e.children.length - 1];
+    return e;
+  }
+
+  /**
+   * ← TemplateElement.prevTerminalNode (tree-walk helper for whitespace cleanup).
+   * @returns {TemplateElement|null}
+   */
+  prevTerminalNode() {
+    const prev = this.previousSibling();
+    if (prev != null) return prev.getLastLeaf();
+    if (this.parent != null) return this.parent.prevTerminalNode();
+    return null;
+  }
+
+  /**
+   * ← TemplateElement.nextTerminalNode (tree-walk helper for whitespace cleanup).
+   * @returns {TemplateElement|null}
+   */
+  nextTerminalNode() {
+    const next = this.nextSibling();
+    if (next != null) return next.getFirstLeaf();
+    if (this.parent != null) return this.parent.nextTerminalNode();
+    return null;
+  }
+
+  /**
+   * ← TemplateElement.heedsOpeningWhitespace default (non-output directives: false).
+   * @returns {boolean}
+   */
+  heedsOpeningWhitespace() {
+    return false;
+  }
+
+  /**
+   * ← TemplateElement.heedsTrailingWhitespace default (non-output directives: false).
+   * @returns {boolean}
+   */
+  heedsTrailingWhitespace() {
+    return false;
+  }
+
+  /**
+   * ← TemplateElement.isIgnorable: removed by post-parse cleanup.
+   * @param {boolean} stripWhitespace
+   * @returns {boolean}
+   */
+  isIgnorable(stripWhitespace) {
+    return false;
+  }
+
+  /**
    * @param {import('../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
