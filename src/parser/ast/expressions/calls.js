@@ -2,7 +2,7 @@
 
 import { Expression } from './expression.js';
 import { InvalidReferenceException, NonMethodException } from '../../../errors.js';
-import { MethodModel } from '../../../model/models.js';
+import { TemplateMethodModel } from '../../../model/templateModel.js';
 import { unwrap } from '../../../model/unwrap.js';
 
 export class MethodCall extends Expression {
@@ -11,9 +11,16 @@ export class MethodCall extends Expression {
     this.target = target;
     this.args = args;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.target.getCanonicalForm()}(${this.args.map(a => a.getCanonicalForm()).join(', ')})`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     let t;
     let preCalled = false;
@@ -34,7 +41,7 @@ export class MethodCall extends Expression {
       const models = this.args.map((a) => a.evaluate(env));
       return t.invoke(env, { positionalArgs: models, namedArgs: new Map() });
     }
-    if (!(t instanceof MethodModel)) {
+    if (!(t instanceof TemplateMethodModel)) {
       throw new NonMethodException(
         `Can't call ${this.target.getCanonicalForm()}: it is a ${env.typeLabel(t)}, not a method.`);
     }

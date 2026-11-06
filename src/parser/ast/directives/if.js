@@ -10,6 +10,9 @@ export class ConditionalBlock extends TemplateElement {
     this.type = type;
     if (children) for (const c of children) this.addChild(c);
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const head = this.condition
       ? `<#${this.type} ${this.condition.getCanonicalForm()}>`
@@ -25,6 +28,10 @@ export class IfBlock extends TemplateElement {
     for (const b of blocks) this.addChild(b);
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     for (const b of this.blocks) {
       if (b.condition === null || env.toBoolean(b.condition.evaluate(env), ' of #if/#elseif')) {
@@ -35,6 +42,9 @@ export class IfBlock extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return this.blocks.map((b) => b.getCanonicalForm()).join('') + '</#if>';
   }

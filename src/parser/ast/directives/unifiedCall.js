@@ -17,6 +17,10 @@ export class UnifiedCall extends TemplateElement {
     for (const c of bodyChildren) this.addChild(c);
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     const model = this.target.evaluate(env);
     if (model === null || model === undefined) {
@@ -61,6 +65,9 @@ export class UnifiedCall extends TemplateElement {
     return '';
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const args = this._argsCanonical();
     const bp = this.bodyParamNames === null || this.bodyParamNames.length === 0
@@ -81,6 +88,10 @@ export class NestedInstruction extends TemplateElement {
     this.bodyParameters = bodyParameters; // Expression[] | null
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     const ctx = env._macroCallStack[env._macroCallStack.length - 1];
     if (ctx === undefined || ctx.bodyChildren === null || ctx.bodyChildren.length === 0) {
@@ -106,6 +117,9 @@ export class NestedInstruction extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     if (this.bodyParameters === null || this.bodyParameters.length === 0) return '<#nested>';
     return `<#nested ${this.bodyParameters.map((e) => e.getCanonicalForm()).join(' ')}>`;
@@ -117,6 +131,9 @@ export class FallbackInstruction extends TemplateElement {
     throw new UnsupportedFeatureException(
       'The #fallback directive requires XML node processing (#visit), which this port does not support.');
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return '<#fallback/>';
   }

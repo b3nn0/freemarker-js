@@ -16,4 +16,5 @@ export const TEST_FILES = [
   './directives/list.test.js',
   './directives/assign.test.js',
   './directives/macro.test.js',
+  './builtins/sequences.test.js',
 ];

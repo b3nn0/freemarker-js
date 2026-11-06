@@ -112,7 +112,15 @@ const ID_RANGES = [
 
 const ESCAPED_ID_CHARS = new Set(['-', '.', ':', '#']);
 
+/**
+ * Hand-written lexer mirroring FTL.jj token states / TOKEN_MGR_DECLS (no regex).
+ * Positions are 1-based with tab expansion, like SimpleCharStream.
+ */
 export class TokenManager {
+  /**
+   * @param {string} source
+   * @param {import('../configuration.js').Configuration} configuration
+   */
   constructor(source, configuration) {
     this.source = source;
     this.cfg = configuration;
@@ -237,10 +245,23 @@ export class TokenManager {
 
   // ---- state / tag syntax / naming convention ← FTL.jj TOKEN_MGR_DECLS ----
 
+  /**
+   * Switches the active token state.
+   * @param {number} state - a LEX.* constant
+   * @returns {void}
+   */
   switchTo(state) {
     this.curLexState = state;
   }
 
+  /**
+   * Applies tag-syntax auto-detection/consistency, then the naming convention and state switch
+   * ← FTL.jj handleTagSyntaxAndSwitch.
+   * @param {import('./token.js').Token} tok
+   * @param {number} tokenNamingConvention
+   * @param {number} newLexState
+   * @returns {void}
+   */
   handleTagSyntaxAndSwitch(tok, tokenNamingConvention, newLexState) {
     const image = tok.image;
     const firstChar = image[0];
@@ -264,6 +285,13 @@ export class TokenManager {
     this.switchTo(newLexState);
   }
 
+  /**
+   * Enforces the #ftl naming convention once established
+   * ← FTL.jj checkNamingConvention.
+   * @param {import('./token.js').Token} tok
+   * @param {number} tokenNamingConvention
+   * @returns {void}
+   */
   checkNamingConvention(tok, tokenNamingConvention) {
     if (tokenNamingConvention === undefined) {
       tokenNamingConvention = TokenManager.identifierNamingConvention(tok.image);
@@ -304,6 +332,12 @@ export class TokenManager {
       : Configuration.LEGACY_NAMING_CONVENTION;
   }
 
+  /**
+   * Enters expression mode for an interpolation opening that matches the configured syntax;
+   * a disabled syntax demotes the token to static text ← FTL.jj startInterpolation.
+   * @param {import('./token.js').Token} tok
+   * @returns {void}
+   */
   startInterpolation(tok) {
     const sq = this.interpolationSyntax === Configuration.SQUARE_BRACKET_INTERPOLATION_SYNTAX;
     const isSquOpen = tok.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING;
@@ -316,6 +350,7 @@ export class TokenManager {
     this.switchTo(LEX.FM_EXPRESSION);
   }
 
+  /** @returns {void} Leaves expression mode back to the pre-interpolation state. */
   endInterpolation() {
     this.switchTo(this.postInterpolationLexState);
     this.postInterpolationLexState = -1;
@@ -329,6 +364,11 @@ export class TokenManager {
 
   // ---- main entry ----
 
+  /**
+   * Main entry: produces the next token per the current lexical state.
+   * @returns {import('./token.js').Token}
+   * @throws {import('../errors.js').TokenMgrError}
+   */
   nextToken() {
     const st = this.curLexState;
     if (st === LEX.FM_EXPRESSION || st === LEX.IN_PAREN || st === LEX.NO_SPACE_EXPRESSION
@@ -965,6 +1005,12 @@ export class TokenManager {
 
   // ---- NO_PARSE content (comment / noparse); parser calls this after COMMENT/TERSE_COMMENT/NOPARSE ----
 
+  /**
+   * Reads comment/noparse body up to the matching closing tag; called by the parser after
+   * COMMENT / TERSE_COMMENT / NOPARSE tokens ← UnparsedContent().
+   * @returns {{ text: string, closed: boolean, beginLine: number, beginColumn: number,
+   *   endLine: number, endColumn: number, endTagImage: string|null }}
+   */
   readUnparsedContent() {
     // ← UnparsedContent(): returns { text, closed, beginLine, beginColumn, endLine, endColumn, endTagImage }
     const parts = [];

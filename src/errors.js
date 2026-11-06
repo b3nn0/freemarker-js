@@ -27,7 +27,14 @@ export class TemplateException extends FreeMarkerException {
     this.errorStackTrace = errorStackTrace;
   }
 
-  // FTL stack frames ("freemarker-js://name#L>line>C"), built at throw sites.
+  /**
+   * Attaches template location + FTL stack trace; chainable, built at throw sites.
+   * @param {string|null} templateName
+   * @param {number} beginLine
+   * @param {number} beginColumn
+   * @param {string|null} errorStackTrace
+   * @returns {this}
+   */
   withLocation(templateName, beginLine, beginColumn, errorStackTrace) {
     this.templateName = templateName;
     this.beginLine = beginLine;
@@ -58,8 +65,11 @@ export class StopException extends TemplateException {}
 // Internal control-flow markers (← BreakException/ContinueException); not exported publicly.
 export class BreakInstructionException extends TemplateException {}
 export class ContinueInstructionException extends TemplateException {}
-// ← ReturnInstructionException: internal #return marker, carries the returned value.
 export class ReturnInstructionException extends TemplateException {
+  // ← ReturnInstructionException: internal #return marker, carries the returned value.
+  /**
+   * @param {Object|null} [value] - the model returned by #return (null when valueless)
+   */
   constructor(value) {
     super('return-marker');
     this.value = value ?? null;

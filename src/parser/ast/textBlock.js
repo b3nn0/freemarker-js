@@ -9,11 +9,18 @@ export class TextBlock extends TemplateElement {
     this.unparsed = unparsed;
   }
 
+  /**
+   * @param {import('../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     env.output.write(this.text);
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return this.unparsed ? `<#noparse>${this.text}</#noparse>` : this.text;
   }

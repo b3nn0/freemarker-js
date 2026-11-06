@@ -4,11 +4,20 @@
 import { TemplateModel } from './templateModel.js';
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';
 
+/**
+ * Maps plain JS values to TemplateModel instances; the same wrapped object always
+ * yields the same model instance (WeakMap identity cache).
+ */
 export class SimpleObjectWrapper {
+  /** Creates an empty wrapper (the cache is per instance). */
   constructor() {
     this._cache = new WeakMap();
   }
 
+  /**
+   * @param {unknown} value - any JS value; models pass through
+   * @returns {import('./templateModel.js').TemplateModel|null} null for null/undefined/unsupported
+   */
   wrap(value) {
     if (value === null || value === undefined) return null;
     if (value instanceof TemplateModel) return value;

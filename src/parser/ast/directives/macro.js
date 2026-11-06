@@ -17,6 +17,10 @@ export class Macro extends TemplateElement {
     this.macroModel = new MacroModel(this);
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     // Registration happens at parse time (← Parser.Macro(): template.addMacro); at
     // render start the Environment seeds them into the namespace.
@@ -33,6 +37,9 @@ export class Macro extends TemplateElement {
     return parts.length === 0 ? '' : ` ${parts.join(' ')}`;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const tag = this.isFunction ? 'function' : 'macro';
     return `<#${tag} ${this.name}${this._paramsCanonical()}>`

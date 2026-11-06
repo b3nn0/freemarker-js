@@ -15,9 +15,16 @@ export class Identifier extends Expression {
     super();
     this.name = name;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return backslashEscapeIdentifier(this.name);
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const v = env.getVariable(this.name);
     if (v === null || v === undefined) {
@@ -39,9 +46,16 @@ export class Dot extends Expression {
     this.target = target;
     this.key = key;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.target.getCanonicalForm()}.${backslashEscapeIdentifier(this.key)}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const t = this.target.evaluate(env);
     if (t === null || t === undefined) {
@@ -102,9 +116,16 @@ export class DynamicKeyName extends Expression {
     this.target = target;
     this.key = key; // null ← empty [] (only legal before !/??)
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.target.getCanonicalForm()}[${this.key === null ? '' : this.key.getCanonicalForm()}]`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const t = this.target.evaluate(env);
     const empty = () => new InvalidPropertyException(

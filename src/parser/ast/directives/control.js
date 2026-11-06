@@ -9,6 +9,9 @@ export class BreakInstruction extends TemplateElement {
   execute() {
     throw new BreakInstructionException('#break');
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return '<#break>';
   }
@@ -18,6 +21,9 @@ export class ContinueInstruction extends TemplateElement {
   execute() {
     throw new ContinueInstructionException('#continue');
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return '<#continue>';
   }
@@ -29,9 +35,16 @@ export class ReturnInstruction extends TemplateElement {
     super();
     this.exp = exp;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     throw new ReturnInstructionException(this.exp === null ? null : this.exp.evaluate(env));
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return this.exp === null ? '<#return>' : `<#return ${this.exp.getCanonicalForm()}>`;
   }

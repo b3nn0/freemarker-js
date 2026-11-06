@@ -1,4 +1,4 @@
-// Lexical states, names mirrored from FTL.jj.
+/** Lexical states, names mirrored from FTL.jj; TokenManager.curLexState holds one. */
 export const DEFAULT = 0;
 export const FM_EXPRESSION = 1;
 export const IN_PAREN = 2;

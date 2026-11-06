@@ -20,6 +20,10 @@ export class IteratorBlock extends TemplateElement {
     if (children) for (const c of children) this.addChild(c);
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     const src = this.sourceExp.evaluate(env);
     if (src === null || src === undefined) {
@@ -79,6 +83,9 @@ export class IteratorBlock extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const head = this.forEach
       ? `<#forEach ${this.loopVar} in ${this.sourceExp.getCanonicalForm()}>`
@@ -101,6 +108,10 @@ export class Items extends TemplateElement {
     this.loopVar2 = loopVar2;
     if (children) for (const c of children) this.addChild(c);
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     const ctx = env._iterStack.length ? env._iterStack[env._iterStack.length - 1] : null;
     if (ctx === null) {
@@ -116,6 +127,9 @@ export class Items extends TemplateElement {
     }
     return null;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const head = `<#items as ${this.loopVar}${this.loopVar2 !== null ? `, ${this.loopVar2}` : ''}>`;
     return head + this.children.map((c) => c.getCanonicalForm()).join('') + '</#items>';
@@ -127,10 +141,17 @@ export class Sep extends TemplateElement {
     super();
     if (children) for (const c of children) this.addChild(c);
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     for (const c of this.children) env.visit(c);
     return null;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `<#sep>${this.children.map((c) => c.getCanonicalForm()).join('')}</#sep>`;
   }

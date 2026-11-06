@@ -9,6 +9,10 @@ export class Interpolation extends TemplateElement {
     this.expression = expression;
   }
 
+  /**
+   * @param {import('../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     const value = this.expression.evaluate(env);
     if (value === null || value === undefined) {
@@ -19,6 +23,9 @@ export class Interpolation extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `\${${this.expression.getCanonicalForm()}}`;
   }

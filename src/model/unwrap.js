@@ -3,6 +3,12 @@
 
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';
 
+/**
+ * Recursively converts models back to plain JS values (for handing arguments to JS
+ * functions). Unrelated values pass through unchanged.
+ * @param {TemplateModel|null|undefined|unknown} model
+ * @returns {unknown} a plain string / number / boolean / Date / Array / Map / object, or null
+ */
 export function unwrap(model) {
   if (model === null || model === undefined) return null;
   if (model instanceof StringModel) return model.value;

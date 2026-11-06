@@ -10,9 +10,16 @@ export class ParentheticalExpression extends Expression {
     super();
     this.expression = expression;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `(${this.expression.getCanonicalForm()})`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     return this.expression.evaluate(env);
   }
@@ -26,9 +33,16 @@ export class AddConcatExpression extends Expression {
     this.left = left;
     this.right = right;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.left.getCanonicalForm()} + ${this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const l = this.left.evaluate(env);
     const r = this.right.evaluate(env);
@@ -58,10 +72,17 @@ export class ArithmeticExpression extends Expression {
     this.right = right;
     this.operator = operator; // subtract | multiply | divide | modulo
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const symbol = { subtract: '-', multiply: '*', divide: '/', modulo: '%' }[this.operator];
     return `${this.left.getCanonicalForm()} ${symbol} ${this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const l = env.toNumber(this.left.evaluate(env), ` on the left of "${this.operator}"`);
     const r = env.toNumber(this.right.evaluate(env), ` on the right of "${this.operator}"`);
@@ -84,9 +105,16 @@ export class UnaryPlusMinusExpression extends Expression {
     this.target = target;
     this.isMinus = isMinus;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.isMinus ? '-' : '+'}${this.target.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const v = env.toNumber(this.target.evaluate(env), ' after a unary +/- sign');
     return env.wrap(this.isMinus ? -v : +v);
@@ -98,9 +126,16 @@ export class NotExpression extends Expression {
     super();
     this.target = target;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `!${this.target.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     return env.wrap(!env.toBoolean(this.target.evaluate(env), ' after "!"'));
   }
@@ -115,9 +150,16 @@ export class ComparisonExpression extends Expression {
     this.right = right;
     this.opString = opString; // == != < <= > >= &lt; &lt;= &gt; &gt;=
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.left.getCanonicalForm()} ${this.opString} ${this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const l = this.left.evaluate(env);
     const r = this.right.evaluate(env);
@@ -149,10 +191,17 @@ export class Range extends Expression {
     this.right = right; // may be null
     this.endType = endType;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const symbol = { inclusive: '..', exclusive: '..<', sizeLimited: '..*', unbound: '..' }[this.endType];
     return `${this.left.getCanonicalForm()}${symbol}${this.right === null ? '' : this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     const from = env.toNumber(this.left.evaluate(env), ' on the left of a range');
     const to = this.right === null ? null : env.toNumber(this.right.evaluate(env), ' on the right of a range');
@@ -178,9 +227,16 @@ export class AndExpression extends Expression {
     this.left = left;
     this.right = right;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.left.getCanonicalForm()} && ${this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     if (!env.toBoolean(this.left.evaluate(env), ' on the left of "&&"')) return BooleanModel.FALSE;
     return env.wrap(env.toBoolean(this.right.evaluate(env), ' on the right of "&&"'));
@@ -193,9 +249,16 @@ export class OrExpression extends Expression {
     this.left = left;
     this.right = right;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.left.getCanonicalForm()} || ${this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     if (env.toBoolean(this.left.evaluate(env), ' on the left of "||"')) return BooleanModel.TRUE;
     return env.wrap(env.toBoolean(this.right.evaluate(env), ' on the right of "||"'));
@@ -209,11 +272,18 @@ export class DefaultToExpression extends Expression {
     this.left = left;
     this.right = right ?? null; // ← x! (trailing ! in named params)
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return this.right === null
       ? `${this.left.getCanonicalForm()}!`
       : `${this.left.getCanonicalForm()}!${this.right.getCanonicalForm()}`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     try {
       const l = this.left.evaluate(env);
@@ -230,9 +300,16 @@ export class ExistsExpression extends Expression {
     super();
     this.expression = expression;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `${this.expression.getCanonicalForm()}??`;
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     try {
       const v = this.expression.evaluate(env);

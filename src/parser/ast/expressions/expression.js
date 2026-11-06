@@ -24,12 +24,19 @@ export class Expression {
       beginToken.beginLine, beginToken.beginColumn, endToken.endLine, endToken.endColumn);
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     throw new Error(`getCanonicalForm() not implemented for ${this.constructor.name}`);
   }
 
   // Returns a TemplateModel, or null for missing values (← Expression.visit semantics;
   // missing-as-error conversion happens at consumption points).
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
   evaluate(env) {
     throw new Error(`evaluate() not implemented for ${this.constructor.name}`);
   }

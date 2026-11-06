@@ -12,6 +12,9 @@ export class TerseComment extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `<#--${this.text}-->`;
   }

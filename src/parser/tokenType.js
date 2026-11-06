@@ -1,4 +1,11 @@
-// Token type enum with readable names (for error messages), mirroring FTL.jj token definitions.
+/**
+ * Token type enum with readable names (for error messages), mirroring FTL.jj token definitions.
+ * @typedef {Object} Token
+ * @property {number} type - a TT.* constant
+ * @property {string} image - the exact source text of the token
+ * @property {number} beginLine @property {number} beginColumn
+ * @property {number} endLine @property {number} endColumn
+ */
 
 const TYPES = new Map();
 let count = 0;

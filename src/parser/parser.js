@@ -20,6 +20,7 @@ import {
   DefaultToExpression, ExistsExpression,
 } from './ast/expressions/operators.js';
 import { BuiltIn } from './ast/expressions/builtIn.js';
+import { LocalLambdaExpression } from './ast/expressions/lambda.js';
 import { IfBlock, ConditionalBlock } from './ast/directives/if.js';
 import { IteratorBlock, Items, Sep } from './ast/directives/list.js';
 import { AttemptBlock } from './ast/directives/attempt.js';
@@ -47,8 +48,24 @@ const EXPRESSION_START = new Set([
   TT.INTEGER, TT.DECIMAL, TT.HEX_INTEGER, TT.STRING_LITERAL, TT.RAW_STRING, TT.TRUE, TT.FALSE,
   TT.ID, TT.OPEN_BRACKET, TT.OPENING_CURLY_BRACKET, TT.OPEN_PAREN, TT.DOT, TT.PLUS, TT.MINUS, TT.EXCLAM,
 ]);
+// Built-ins that bind their arguments at parse time and accept a lambda argument
+// (name -> required lambda parameter count) ← BuiltInWithParseTimeParameters
+// isLocalLambdaParameterSupported (filterBI, mapBI).
+const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1]]);
+// Built-ins that evaluate to a method; their "(...)" is a MethodCall on the built-in
+// result ← BuiltInWithDirectCallOptimization (sort_byBI in 2.3.36).
+const METHOD_LIKE_BUILTINS = new Set(['sort_by']);
 
+/**
+ * Recursive-descent parser mirroring the upstream JavaCC grammar (current syntax only).
+ * @property {Object[]} macros - Macro nodes collected at parse time (namespace seeding)
+ */
 export class Parser {
+  /**
+   * @param {string} source - the template source
+   * @param {import('../configuration.js').Configuration} configuration
+   * @param {string|null} [templateName]
+   */
   constructor(source, configuration, templateName = null) {
     this.cfg = configuration;
     this.templateName = templateName;
@@ -65,6 +82,11 @@ export class Parser {
     this._argsFlag = false; // set when `.args` is parsed inside the current macro/function
   }
 
+  /**
+   * Parses the whole template; lexer failures (TokenMgrError) are converted to ParseException.
+   * @returns {import('./ast/nodes/textBlock.js')|Object} the root element
+   * @throws {import('../errors.js').ParseException}
+   */
   parse() {
     try {
       return this._parseRoot();
@@ -972,12 +994,28 @@ export class Parser {
         if (name.type !== TT.ID) {
           throw this._error(`Expected a built-in name after "?", but got ${this._desc(name)}.`, name);
         }
-        if (this._peek(1).type === TT.OPEN_PAREN) {
+        this._next();
+        let args = null;
+        const hasParen = this._peek().type === TT.OPEN_PAREN;
+        if (LAMBDA_ARG_BUILTINS.has(name.image)) {
+          if (!hasParen) {
+            throw this._error(`The "?${name.image}" built-in must be called with an argument `
+              + `in parentheses, as in ?${name.image}(x -> ...).`, name);
+          }
+          this._next(); // "("
+          const arg = this._parseMaybeLambdaArg(name.image);
+          const c = this._peek();
+          if (c.type !== TT.CLOSE_PAREN) {
+            throw this._error(`Expected ")" to close "?${name.image}(...)", but got ${this._desc(c)}.`, c);
+          }
+          this._next();
+          args = [arg];
+        } else if (hasParen && !METHOD_LIKE_BUILTINS.has(name.image)) {
           throw new UnsupportedFeatureException(
             `Built-in arguments (as in ?${name.image}(...)) land in M11.`);
         }
-        this._next();
-        exp = this._span(new BuiltIn(exp, name.image), exp, name);
+        // METHOD_LIKE_BUILTINS: the "(" is left for the primary loop to parse as a MethodCall.
+        exp = this._span(new BuiltIn(exp, name.image, args), exp, name);
       } else if (t.type === TT.EXCLAM) {
         this._next();
         const rhs = EXPRESSION_START.has(this._peek().type) ? this._parseExpression() : null;
@@ -995,6 +1033,61 @@ export class Parser {
       } else {
         return exp;
       }
+    }
+  }
+
+  // ← FTL.jj LocalLambdaExpression (only as the argument of a few built-ins) +
+  // PositionalMaybeLambdaArgs: `x -> exp`, `(x, y) -> exp`, or a plain expression.
+  _parseMaybeLambdaArg(builtinName) {
+    const t = this._peek();
+    if (t.type === TT.ID && this._peek(1).type === TT.LAMBDA_ARROW) {
+      this._next();
+      this._next();
+      const rhs = this._parseOr();
+      const node = new LocalLambdaExpression([t.image], rhs);
+      this._checkLambdaParamCount(node, builtinName, t);
+      return this._span(node, t, rhs);
+    }
+    if (t.type === TT.OPEN_PAREN) {
+      // LOOKAHEAD: ( [ ID (COMMA ID)* ] ) LAMBDA_ARROW
+      let j = 1;
+      const params = [];
+      if (this._peek(j).type === TT.ID) {
+        for (;;) {
+          params.push(this._peek(j).image);
+          j++;
+          if (this._peek(j).type === TT.COMMA) {
+            j++;
+            if (this._peek(j).type !== TT.ID) break;
+            continue;
+          }
+          break;
+        }
+      }
+      if (this._peek(j).type === TT.CLOSE_PAREN && this._peek(j + 1).type === TT.LAMBDA_ARROW) {
+        this._next(); // "("
+        for (let i = 0; i < params.length; i++) {
+          if (i !== 0) this._expect(TT.COMMA, '","');
+          this._expect(TT.ID, 'a lambda parameter name');
+        }
+        this._expect(TT.CLOSE_PAREN, '")"');
+        this._expect(TT.LAMBDA_ARROW, '"->"');
+        const rhs = this._parseOr();
+        const node = new LocalLambdaExpression(params, rhs);
+        this._checkLambdaParamCount(node, builtinName, t);
+        return this._span(node, t, rhs);
+      }
+    }
+    return this._parseExpression();
+  }
+
+  // ← BuiltInWithParseTimeParameters.checkLocalLambdaParamCount
+  _checkLambdaParamCount(node, builtinName, tok) {
+    const want = LAMBDA_ARG_BUILTINS.get(builtinName);
+    if (node.params.length !== want) {
+      throw this._error(
+        `?${builtinName}(...) parameter lambda expression must declare exactly ${want} `
+        + `parameter${want === 1 ? '' : 's'}, but it declared ${node.params.length}.`, tok);
     }
   }
 

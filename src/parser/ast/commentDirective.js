@@ -12,6 +12,9 @@ export class CommentDirective extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return `<#comment>${this.text}</#comment>`;
   }

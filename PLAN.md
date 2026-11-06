@@ -10,7 +10,7 @@
 - [x] M7 #if/#elseif/#else, #attempt/#recover, #switch/#case/#default/#on/#break, #list/#items/#sep/#else, #forEach, #continue, loop vars
 - [x] M8 #assign (block, compound), #global, #local, scope stack (namespace-target `in ns` + #import deferred to M14)
 - [x] M9 #macro (defaults, catch-all), #nested (+ body params), #return, #fallback, <@...> calls, .args
-- [ ] M10 lambdas + ?filter ?map ?sort ?sort_by
+- [x] M10 lambdas + ?filter ?map ?sort ?sort_by
 - [ ] M11 built-ins: existence, string, hash, number, ?then/?also, type checks
 - [ ] M12 tag syntax modes + interpolation modes + naming convention (auto/camel/legacy)
 - [ ] M13 whitespace stripping (+ stripText, #t/#lt/#rt/#nt, #compress), #noparse, loose directive ends

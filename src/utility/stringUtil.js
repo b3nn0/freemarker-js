@@ -1,11 +1,19 @@
 // Canonical-form helpers mirrored from upstream StringUtil / _CoreStringUtils.
 
 // ← StringUtil.isBackslashEscapedFTLIdentifierCharacter
+/**
+ * @param {string} c - a single character
+ * @returns {boolean} whether backslash-escaping identifiers applies to it
+ */
 export function isBackslashEscapedFTLIdentifierChar(c) {
   return c === '-' || c === '.' || c === ':' || c === '#';
 }
 
 // ← _CoreStringUtils.backslashEscapeIdentifier
+/**
+ * @param {string} name
+ * @returns {string} the identifier with backslash escapes where required
+ */
 export function backslashEscapeIdentifier(name) {
   let out = null;
   for (let i = 0; i < name.length; i++) {
@@ -42,6 +50,10 @@ function isInterpolationStart(c) {
 }
 
 // ← StringUtil.ftlQuote + FTLStringLiteralEnc(s, q, true)
+/**
+ * @param {string} s - arbitrary string
+ * @returns {string} it as a safe FTL string literal (upstream escaping table)
+ */
 export function ftlQuote(s) {
   const quotation = s.indexOf('"') !== -1 && s.indexOf('\'') === -1 ? '\'' : '"';
   const otherQuotation = quotation === '"' ? '\'' : '"';
@@ -77,6 +89,12 @@ export function ftlQuote(s) {
 }
 
 // ← FTL.jj <ESCAPED_CHAR> decoding (grammar: n t r f b g l a \\ ' " { = xHH)
+/**
+ * Decodes an FTL string literal body (escape sequences per the grammar's ESCAPED_CHAR).
+ * @param {string} body
+ * @returns {string}
+ * @throws {Error} on an unknown or malformed escape
+ */
 export function unescapeFTLStringLiteral(body) {
   let out = '';
   for (let i = 0; i < body.length; i++) {

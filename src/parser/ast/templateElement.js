@@ -26,10 +26,17 @@ export class TemplateElement {
     return this;
   }
 
+  /**
+   * @param {import('../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     throw new Error(`execute() not implemented for ${this.constructor.name}`);
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     return this.children.map(c => c.getCanonicalForm()).join('');
   }

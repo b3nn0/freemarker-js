@@ -9,6 +9,9 @@ export class Case extends TemplateElement {
     this.condition = condition; // null ← #default
     if (children) for (const c of children) this.addChild(c);
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const head = this.condition === null
       ? '<#default>'
@@ -23,6 +26,9 @@ export class On extends TemplateElement {
     this.exps = exps;
     if (children) for (const c of children) this.addChild(c);
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const args = this.exps.map((e) => e.getCanonicalForm()).join(', ');
     return `<#on ${args}>` + this.children.map((c) => c.getCanonicalForm()).join('');
@@ -39,6 +45,10 @@ export class SwitchBlock extends TemplateElement {
     for (const o of this.ons) this.addChild(o);
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     const v = this.switchExp.evaluate(env);
     const visitMatched = (el) => {
@@ -65,6 +75,9 @@ export class SwitchBlock extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const head = `<#switch ${this.switchExp.getCanonicalForm()}>`;
     return head

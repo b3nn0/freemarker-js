@@ -13,6 +13,10 @@ export class AttemptBlock extends TemplateElement {
     if (children) for (const c of children) this.addChild(c);
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     try {
       for (const c of this.children) env.visit(c);
@@ -27,6 +31,9 @@ export class AttemptBlock extends TemplateElement {
     return null;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const body = this.children.map((c) => c.getCanonicalForm()).join('');
     const rec = this.recoveryChildren.map((c) => c.getCanonicalForm()).join('');

@@ -21,6 +21,10 @@ export class Assignment extends TemplateElement {
     this.blockChildren = blockChildren;
   }
 
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     let value;
     switch (this.opKind) {
@@ -105,6 +109,9 @@ export class Assignment extends TemplateElement {
     return `${this.name} ${this.opKind} ${this.exp.getCanonicalForm()}`;
   }
 
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const tag = this._tag();
     if (this.blockChildren) {
@@ -124,6 +131,10 @@ export class AssignmentInstruction extends TemplateElement {
     this.namespaceExp = namespaceExp ?? null;
     for (const a of assignments) this.addChild(a);
   }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
   execute(env) {
     if (this.namespaceExp !== null) {
       throw new UnsupportedFeatureException(
@@ -132,6 +143,9 @@ export class AssignmentInstruction extends TemplateElement {
     for (const a of this.assignments) env.visit(a);
     return null;
   }
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
   getCanonicalForm() {
     const tag = this.assignments.length > 0 ? this.assignments[0]._tag() : 'assign';
     const parts = this.assignments.map((a) => a._namePart()).join(', ');

@@ -5,7 +5,16 @@ import { Configuration } from './configuration.js';
 import { Environment } from './environment.js';
 import { StringWriter } from './io/writer.js';
 
+/**
+ * A parsed template: parse once, render many times.
+ */
 export class Template {
+  /**
+   * Parses the source eagerly; parse errors (ParseException) are thrown here.
+   * @param {string|null} name - template name for messages/stack traces
+   * @param {string} source
+   * @param {import('./configuration.js').Configuration} [configuration]
+   */
   constructor(name, source, configuration) {
     if (typeof source !== 'string') throw new TypeError('Template source must be a string');
     this.name = name ?? null;
@@ -14,6 +23,10 @@ export class Template {
     this.rootElement = this._parse();
   }
 
+  /**
+   * Runs the parser; keeps the declared macros for namespace seeding.
+   * @returns {Object} the root element
+   */
   _parse() {
     const parser = new Parser(this.source, this.configuration, this.name);
     const root = parser.parse();
@@ -25,12 +38,24 @@ export class Template {
     return root;
   }
 
+  /**
+   * Renders into a string (convenience over process()).
+   * @param {Object|import('./model/templateModel.js').TemplateModel|null} [model]
+   * @param {{ includeResolver?: Function }} [options]
+   * @returns {Promise<string>}
+   */
   async processToString(model = null, options = {}) {
     const w = new StringWriter();
     await this.process(model, { ...options, out: w });
     return w.getAsString();
   }
 
+  /**
+   * Renders into options.out (a StringWriter when omitted).
+   * @param {Object|import('./model/templateModel.js').TemplateModel|null} [model]
+   * @param {{ out?: import('./io/writer.js').StringWriter, includeResolver?: Function }} [options]
+   * @returns {Promise<void>}
+   */
   async process(model = null, options = {}) {
     const env = new Environment(this.rootElement, this, {
       out: options.out ?? new StringWriter(),
@@ -46,7 +71,11 @@ export class Template {
   }
 }
 
-// 1-based position after the last char; CR / LF / CRLF are each one line break.
+/**
+ * 1-based position after the last char; CR / LF / CRLF are each one line break.
+ * @param {string} source
+ * @returns {{ line: number, column: number }}
+ */
 function endPosition(source) {
   let line = 1;
   let column = 1;
