@@ -38,6 +38,7 @@ export class OutputFormat {
 
 /** Output format "Undefined": format-agnostic. ← UndefinedOutputFormat */
 export class UndefinedOutputFormat extends OutputFormat {
+  /** Singleton instance ← UndefinedOutputFormat.INSTANCE */
   static INSTANCE = new UndefinedOutputFormat();
 
   /** Constructs the singleton. */
@@ -48,6 +49,7 @@ export class UndefinedOutputFormat extends OutputFormat {
 
 /** Output format "PlainText": still not a markup format. ← PlainTextOutputFormat */
 export class PlainTextOutputFormat extends OutputFormat {
+  /** Singleton instance ← PlainTextOutputFormat.INSTANCE */
   static INSTANCE = new PlainTextOutputFormat();
 
   /** Constructs the singleton. */
@@ -84,6 +86,7 @@ export class MarkupOutputFormat extends OutputFormat {
 
 /** HTML: escapes via StringUtil.XHTMLEnc. ← HTMLOutputFormat */
 export class HTMLOutputFormat extends MarkupOutputFormat {
+  /** Singleton instance ← HTMLOutputFormat.INSTANCE */
   static INSTANCE = new HTMLOutputFormat();
 
   /** Constructs the singleton. */
@@ -110,6 +113,7 @@ export class HTMLOutputFormat extends MarkupOutputFormat {
 
 /** XHTML: same escaper as HTML. ← XHTMLOutputFormat */
 export class XHTMLOutputFormat extends MarkupOutputFormat {
+  /** Singleton instance ← XHTMLOutputFormat.INSTANCE */
   static INSTANCE = new XHTMLOutputFormat();
 
   /** Constructs the singleton. */
@@ -128,6 +132,7 @@ export class XHTMLOutputFormat extends MarkupOutputFormat {
 
 /** XML: StringUtil.XMLEnc (the apostrophe is not escaped). ← XMLOutputFormat */
 export class XMLOutputFormat extends MarkupOutputFormat {
+  /** Singleton instance ← XMLOutputFormat.INSTANCE */
   static INSTANCE = new XMLOutputFormat();
 
   /** Constructs the singleton. */

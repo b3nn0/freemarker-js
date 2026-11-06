@@ -1011,11 +1011,13 @@ export class TokenManager {
       startLine, startColumn, this.line, this.column);
   }
 
+  /** two-char operator images -> token type. @type {Map<string, TokenType>} */
   static OP2 = new Map(Object.entries({
     '+=': TT.PLUS_EQUALS, '-=': TT.MINUS_EQUALS, '*=': TT.TIMES_EQUALS,
     '/=': TT.DIV_EQUALS, '%=': TT.MOD_EQUALS, '<=': TT.LESS_THAN_EQUALS,
   }));
 
+  /** one-char operator images -> token type. @type {Map<string, TokenType>} */
   static OP1 = new Map(Object.entries({
     '+': TT.PLUS, '-': TT.MINUS, '*': TT.TIMES, '/': TT.DIVIDE, '%': TT.PERCENT,
     '=': TT.EQUALS, '<': TT.LESS_THAN, '&': TT.AND, '|': TT.OR, '!': TT.EXCLAM,

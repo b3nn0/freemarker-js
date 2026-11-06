@@ -14,14 +14,23 @@ export class Configuration {
   static VERSION = VERSION;
 
   // ← Configuration.java exact values:
+  /** @type {number} ← Configurable.AUTO_DETECT_TAG_SYNTAX */
   static AUTO_DETECT_TAG_SYNTAX = 0;
+  /** @type {number} ← Configurable.ANGLE_BRACKET_TAG_SYNTAX */
   static ANGLE_BRACKET_TAG_SYNTAX = 1;
+  /** @type {number} ← Configurable.SQUARE_BRACKET_TAG_SYNTAX */
   static SQUARE_BRACKET_TAG_SYNTAX = 2;
+  /** @type {number} ← Configurable.LEGACY_INTERPOLATION_SYNTAX */
   static LEGACY_INTERPOLATION_SYNTAX = 20;
+  /** @type {number} ← Configurable.DOLLAR_INTERPOLATION_SYNTAX */
   static DOLLAR_INTERPOLATION_SYNTAX = 21;
+  /** @type {number} ← Configurable.SQUARE_BRACKET_INTERPOLATION_SYNTAX */
   static SQUARE_BRACKET_INTERPOLATION_SYNTAX = 22;
+  /** @type {number} ← Configurable.AUTO_DETECT_NAMING_CONVENTION */
   static AUTO_DETECT_NAMING_CONVENTION = 10;
+  /** @type {number} ← Configurable.LEGACY_NAMING_CONVENTION */
   static LEGACY_NAMING_CONVENTION = 11;
+  /** @type {number} ← Configurable.CAMEL_CASE_NAMING_CONVENTION */
   static CAMEL_CASE_NAMING_CONVENTION = 12;
 
   /**
@@ -134,9 +143,13 @@ export class Configuration {
 
   // ← Configuration auto-escaping policy constants (strings instead of ints;
   // see UPSTREAM.md). "force" is not supported by this port.
+  /** @type {string} ← Configurable.DISABLE_AUTO_ESCAPING_POLICY */
   static DISABLE_AUTO_ESCAPING_POLICY = 'disable';
+  /** @type {string} ← Configurable.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY */
   static ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY = 'enableIfDefault';
+  /** @type {string} ← Configurable.ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY */
   static ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY = 'enableIfSupported';
+  /** @type {string} ← Configurable.FORCE_AUTO_ESCAPING_POLICY */
   static FORCE_AUTO_ESCAPING_POLICY = 'force'; // recognized, never settable via #ftl=false cases
 
   /**
