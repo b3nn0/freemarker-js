@@ -3,7 +3,7 @@
 import {
   TemplateException, InvalidReferenceException,
   NonStringException, NonNumericalException, NonBooleanException, NonHashException,
-  BreakInstructionException, ContinueInstructionException,
+  BreakInstructionException, ContinueInstructionException, ReturnInstructionException,
 } from './errors.js';
 import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from './model/templateModel.js';
@@ -24,9 +24,14 @@ export class Environment {
     this._scopes = []; // loop/macro scopes; innermost wins on read
     this._nsScope = new Map(); // current template namespace ← #assign target
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
+    this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
   }
 
   process() {
+    // ← Template's macros are part of the namespace from the very start.
+    for (const m of this.template.macros) {
+      if (!this._nsScope.has(m.name)) this._nsScope.set(m.name, m.macroModel);
+    }
     this.visit(this.rootElement);
   }
 
@@ -41,7 +46,9 @@ export class Environment {
         }
       }
     } catch (e) {
-      const marker = e instanceof BreakInstructionException || e instanceof ContinueInstructionException;
+      const marker = e instanceof BreakInstructionException
+        || e instanceof ContinueInstructionException
+        || e instanceof ReturnInstructionException;
       if (!marker && e instanceof TemplateException && e.errorStackTrace === null) {
         const name = e.templateName ?? this.template.name;
         e.withLocation(name,

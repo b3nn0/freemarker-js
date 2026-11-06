@@ -3,6 +3,7 @@
 import { TemplateElement } from '../templateElement.js';
 import {
   TemplateException, BreakInstructionException, ContinueInstructionException,
+  ReturnInstructionException,
 } from '../../../errors.js';
 
 export class AttemptBlock extends TemplateElement {
@@ -16,7 +17,10 @@ export class AttemptBlock extends TemplateElement {
     try {
       for (const c of this.children) env.visit(c);
     } catch (e) {
-      if (e instanceof BreakInstructionException || e instanceof ContinueInstructionException) throw e;
+      if (e instanceof BreakInstructionException || e instanceof ContinueInstructionException
+        || e instanceof ReturnInstructionException) {
+        throw e;
+      }
       if (!(e instanceof TemplateException)) throw e;
       for (const c of this.recoveryChildren) env.visit(c);
     }

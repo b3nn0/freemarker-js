@@ -72,10 +72,12 @@ describe('Directive: #switch/#case/#default/#break/#on', () => {
   it('no fall-through: body ends at next #case', async () => {
     snapshot(await out('<#switch v><#case 1>one<#case 2>two</#switch>', { v: 1 }), 'one');
   });
-  it('#on takes an expression list', async () => {
-    const t = '<#switch v><#on (1, 2)>low<#default>other</#switch>';
+  it('#on takes a positional argument list (commas optional)', async () => {
+    const t = '<#switch v><#on 1, 2>low<#default>other</#switch>';
     snapshot(await out(t, { v: 1 }), 'low');
+    snapshot(await out(t, { v: 2 }), 'low');
     snapshot(await out(t, { v: 3 }), 'other');
+    snapshot(await out('<#switch v><#on 1 2>x</#switch>', { v: 2 }), 'x');
   });
   it('whitespace before the first #case is dropped', async () => {
     snapshot(await out('<#switch v>   \n  <#case 1>x</#switch>', { v: 1 }), 'x');

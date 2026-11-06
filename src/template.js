@@ -15,9 +15,13 @@ export class Template {
   }
 
   _parse() {
-    const root = new Parser(this.source, this.configuration, this.name).parse();
-    const { line, column } = endPosition(this.source);
-    root.setLocation(this.name, 1, 1, line, column);
+    const parser = new Parser(this.source, this.configuration, this.name);
+    const root = parser.parse();
+    this.macros = parser.macros;
+    if (root.beginLine === -1) {
+      const { line, column } = endPosition(this.source);
+      root.setLocation(this.name, 1, 1, line, column);
+    }
     return root;
   }
 

@@ -29,6 +29,11 @@ export class MethodCall extends Expression {
         `The expression ${this.target.getCanonicalForm()} evaluated to null or missing `
         + '(can\'t be called as a method).');
     }
+    if (t.isFunctionModel === true) {
+      // ← Environment.invokeFunction: an FTL #function called as f(args)
+      const models = this.args.map((a) => a.evaluate(env));
+      return t.invoke(env, { positionalArgs: models, namedArgs: new Map() });
+    }
     if (!(t instanceof MethodModel)) {
       throw new NonMethodException(
         `Can't call ${this.target.getCanonicalForm()}: it is a ${env.typeLabel(t)}, not a method.`);

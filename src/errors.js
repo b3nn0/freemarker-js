@@ -58,6 +58,13 @@ export class StopException extends TemplateException {}
 // Internal control-flow markers (← BreakException/ContinueException); not exported publicly.
 export class BreakInstructionException extends TemplateException {}
 export class ContinueInstructionException extends TemplateException {}
+// ← ReturnInstructionException: internal #return marker, carries the returned value.
+export class ReturnInstructionException extends TemplateException {
+  constructor(value) {
+    super('return-marker');
+    this.value = value ?? null;
+  }
+}
 export class UnsupportedFeatureException extends FreeMarkerException {}
 export class BugException extends FreeMarkerException {}
 

@@ -25,7 +25,7 @@ export class On extends TemplateElement {
   }
   getCanonicalForm() {
     const args = this.exps.map((e) => e.getCanonicalForm()).join(', ');
-    return `<#on(${args})>` + this.children.map((c) => c.getCanonicalForm()).join('');
+    return `<#on ${args}>` + this.children.map((c) => c.getCanonicalForm()).join('');
   }
 }
 

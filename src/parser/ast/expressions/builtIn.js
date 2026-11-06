@@ -2,7 +2,33 @@
 
 import { Expression } from './expression.js';
 import { getBuiltIn } from '../../../builtins/registry.js';
-import { TemplateException } from '../../../errors.js';
+import { HashModel } from '../../../model/models.js';
+import { InvalidReferenceException, TemplateException } from '../../../errors.js';
+
+// ← freemarker.core.BuiltinVariable: the leading-dot special variables. Only .args lands in M9.
+export class BuiltinVariable extends Expression {
+  constructor(name) {
+    super();
+    this.name = name;
+  }
+  getCanonicalForm() {
+    return `.${this.name}`;
+  }
+  evaluate(env) {
+    if (this.name === 'args') {
+      for (let i = env._scopes.length - 1; i >= 0; i--) {
+        const s = env._scopes[i];
+        if (s.isMacroScope) {
+          const v = s.get('__args__');
+          return v === undefined ? new HashModel(new Map()) : v;
+        }
+      }
+      throw new InvalidReferenceException(
+        'The "args" special variable is only available inside a macro or function.');
+    }
+    throw new TemplateException(`Unsupported special variable .${this.name}`);
+  }
+}
 
 export class BuiltIn extends Expression {
   constructor(target, key) {

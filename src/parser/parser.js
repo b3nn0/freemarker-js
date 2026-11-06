@@ -26,6 +26,10 @@ import { AttemptBlock } from './ast/directives/attempt.js';
 import { SwitchBlock, Case, On } from './ast/directives/switch.js';
 import { BreakInstruction, ContinueInstruction } from './ast/directives/control.js';
 import { Assignment, AssignmentInstruction } from './ast/directives/assign.js';
+import { Macro } from './ast/directives/macro.js';
+import { UnifiedCall, NestedInstruction, FallbackInstruction } from './ast/directives/unifiedCall.js';
+import { ReturnInstruction } from './ast/directives/control.js';
+import { BuiltinVariable } from './ast/expressions/builtIn.js';
 import { unescapeFTLStringLiteral } from '../utility/stringUtil.js';
 
 const STATIC_TYPES = new Set([TT.STATIC_TEXT_WS, TT.STATIC_TEXT_NON_WS, TT.STATIC_TEXT_FALSE_ALARM]);
@@ -55,6 +59,10 @@ export class Parser {
     this.breakableDepth = 0;
     this.continuableDepth = 0;
     this.inMacroOrFunction = false; // ← #local is only legal inside macros/functions (M9)
+    this.inMacro = false;
+    this.inFunction = false;
+    this.macros = []; // ← template.addMacro equivalent; collected Macro nodes
+    this._argsFlag = false; // set when `.args` is parsed inside the current macro/function
   }
 
   parse() {
@@ -246,6 +254,30 @@ export class Parser {
         case TT.LOCALASSIGN:
           this._next();
           group.addChild(this._parseAssign(t));
+          continue;
+        case TT.MACRO:
+        case TT.FUNCTION:
+          this._next();
+          group.addChild(this._parseMacro(t));
+          continue;
+        case TT.UNIFIED_CALL:
+          this._next();
+          group.addChild(this._parseUnifiedCall(t));
+          continue;
+        case TT.RETURN:
+        case TT.SIMPLE_RETURN:
+          this._next();
+          group.addChild(this._parseReturn(t));
+          continue;
+        case TT.NESTED:
+        case TT.SIMPLE_NESTED:
+          this._next();
+          group.addChild(this._parseNested(t));
+          continue;
+        case TT.FALLBACK:
+          this._next();
+          if (!this.inMacro) throw this._error('Cannot fall back outside a macro.', t);
+          group.addChild(this._span(new FallbackInstruction(), t, t));
           continue;
         default:
           break;
@@ -527,6 +559,201 @@ export class Parser {
       children.children), startTok, endTok);
   }
 
+  // ---- M9: macros / functions / calls ----
+
+  // ← FTL.jj Macro()
+  _parseMacro(startTok) {
+    const isFunction = startTok.type === TT.FUNCTION;
+    if (this.inMacro || this.inFunction) {
+      throw this._error('Macro or function definitions can\'t be nested into each other.', startTok);
+    }
+    const savedInMacro = this.inMacro;
+    const savedInFunction = this.inFunction;
+    const savedBreakable = this.breakableDepth;
+    const savedContinuable = this.continuableDepth;
+    const savedIterCtx = this._iterCtx;
+    this._iterCtx = [];
+    this.breakableDepth = 0;
+    this.continuableDepth = 0;
+    if (isFunction) this.inFunction = true; else this.inMacro = true;
+    this.inMacroOrFunction = true;
+    this._argsFlag = false;
+    try {
+      const name = this._assignName();
+      const params = [];
+      let catchAll = null;
+      const hadParen = this._peek().type === TT.OPEN_PAREN;
+      if (hadParen) this._next();
+      while (this._peek().type === TT.ID) {
+        const pTok = this._next();
+        let defExp = null;
+        let isCatch = false;
+        if (this._peek().type === TT.ELLIPSIS) {
+          this._next();
+          isCatch = true;
+        }
+        if (catchAll !== null) {
+          throw this._error('There may only be one "catch-all" parameter in a macro '
+            + 'declaration, and it must be the last parameter.', pTok);
+        }
+        if (this._peek().type === TT.EQUALS) {
+          this._next();
+          if (isCatch) {
+            throw this._error('"Catch-all" macro parameter may not have a default value.', pTok);
+          }
+          defExp = this._parseExpression();
+        }
+        if (isCatch) {
+          catchAll = pTok.image;
+        } else {
+          if (params.some((p) => p.defaultExp !== null) && defExp === null) {
+            throw this._error('In a macro declaration, parameters without a default value '
+              + 'must all occur before the parameters with default values.', pTok);
+          }
+          params.push({ name: pTok.image, defaultExp: defExp });
+        }
+        if (this._peek().type === TT.COMMA) this._next();
+      }
+      if (hadParen) this._expect(TT.CLOSE_PAREN, '")"');
+      this._expect(TT.DIRECTIVE_END, '">"');
+      const endType = isFunction ? TT.END_FUNCTION : TT.END_MACRO;
+      const children = this._parseMixedContent(new Set([endType]));
+      const closeTok = this._expect(endType, isFunction ? '"</#function>"' : '"</#macro>"');
+      const node = new Macro(name, params, catchAll, isFunction, children.children);
+      node.argsNeeded = this._argsFlag;
+      this.macros.push(node);
+      return this._span(node, startTok, closeTok);
+    } finally {
+      this.inMacro = savedInMacro;
+      this.inFunction = savedInFunction;
+      this.inMacroOrFunction = this.inMacro || this.inFunction;
+      this.breakableDepth = savedBreakable;
+      this.continuableDepth = savedContinuable;
+      this._iterCtx = savedIterCtx;
+    }
+  }
+
+  // ← FTL.jj PositionalArgs(): whitespace separated; the comma between two args is optional
+  _parsePositionalArgs() {
+    const args = [];
+    for (;;) {
+      args.push(this._parseExpression());
+      if (this._peek().type === TT.COMMA) {
+        this._next();
+        if (!EXPRESSION_START.has(this._peek().type)) {
+          throw this._error('Expected an argument after ",".', this._peek());
+        }
+      }
+      if (!EXPRESSION_START.has(this._peek().type)) break;
+    }
+    return args;
+  }
+
+  // ← FTL.jj UnifiedCall() (the `<@name ...>` form; legacy `<#call>` stays unsupported)
+  _parseUnifiedCall(startTok) {
+    const target = this._parseExpression();
+    const simpleName = target instanceof Identifier ? target.name : null;
+    let positional = null;
+    let named = null;
+    const t = this._peek();
+    if (t.type === TT.ID && this._peek(1).type === TT.EQUALS) {
+      // ← NamedArgs(): `name=value` pairs separated by whitespace only (no commas)
+      named = new Map();
+      for (;;) {
+        const id = this._expect(TT.ID, 'an argument name');
+        this._expect(TT.EQUALS, '"="');
+        named.set(id.image, this._parseExpression());
+        if (this._peek().type === TT.ID && this._peek(1).type === TT.EQUALS) continue;
+        break;
+      }
+    } else if (t.type !== TT.DIRECTIVE_END && t.type !== TT.EMPTY_DIRECTIVE_END
+      && t.type !== TT.SEMICOLON) {
+      positional = this._parsePositionalArgs();
+    }
+    let bodyParamNames = null;
+    if (this._peek().type === TT.SEMICOLON) {
+      this._next();
+      bodyParamNames = [];
+      for (;;) {
+        const id = this._expect(TT.ID, 'a body parameter name');
+        bodyParamNames.push(id.image);
+        if (this._peek().type === TT.COMMA) {
+          this._next();
+          continue;
+        }
+        break;
+      }
+    }
+    const closer = this._peek();
+    if (closer.type === TT.EMPTY_DIRECTIVE_END) {
+      this._next();
+      return this._span(new UnifiedCall(target, positional, named, bodyParamNames, []),
+        startTok, closer);
+    }
+    this._expect(TT.DIRECTIVE_END, '">"');
+    const children = this._parseMixedContent(new Set([TT.UNIFIED_CALL_END]));
+    const endTok = this._expect(TT.UNIFIED_CALL_END, 'the end tag for the <@...> call');
+    if (simpleName !== null) {
+      const at = endTok.image.indexOf('@');
+      const gt = endTok.image.lastIndexOf('>');
+      const endName = endTok.image.slice(at + 1, gt).trim();
+      if (endName !== simpleName) {
+        throw this._error(
+          `Expected end tag for <@${simpleName}> here, but found ${this._desc(endTok)}.`, endTok);
+      }
+    }
+    return this._span(new UnifiedCall(target, positional, named, bodyParamNames, children.children),
+      startTok, endTok);
+  }
+
+  // ← FTL.jj Return()
+  _parseReturn(startTok) {
+    let exp = null;
+    let endTok = startTok;
+    if (startTok.type === TT.RETURN) {
+      exp = this._parseExpression();
+      const c = this._peek();
+      if (c.type === TT.DIRECTIVE_END || c.type === TT.EMPTY_DIRECTIVE_END) {
+        this._next();
+        endTok = c;
+      } else {
+        throw this._error(`Expected the directive close, but got ${this._desc(c)}.`, c);
+      }
+    }
+    if (this.inMacro) {
+      if (exp !== null) throw this._error('A macro cannot return a value', startTok);
+    } else if (this.inFunction) {
+      if (exp === null) throw this._error('A function must return a value', startTok);
+    } else if (exp === null) {
+      throw this._error('A return instruction can only occur inside a macro or function', startTok);
+    }
+    return this._span(new ReturnInstruction(exp), startTok, endTok);
+  }
+
+  // ← FTL.jj Nested()
+  _parseNested(startTok) {
+    if (!this.inMacro) {
+      throw this._error('Cannot use a "#nested" instruction outside a macro.', startTok);
+    }
+    let params = null;
+    let endTok = startTok;
+    if (startTok.type === TT.NESTED) {
+      params = [];
+      if (EXPRESSION_START.has(this._peek().type)) {
+        params = this._parsePositionalArgs();
+      }
+      const c = this._peek();
+      if (c.type === TT.DIRECTIVE_END || c.type === TT.EMPTY_DIRECTIVE_END) {
+        this._next();
+        endTok = c;
+      } else {
+        throw this._error(`Expected the directive close, but got ${this._desc(c)}.`, c);
+      }
+    }
+    return this._span(new NestedInstruction(
+      startTok.type === TT.NESTED && params.length === 0 ? null : params), startTok, endTok);
+  }
+
   _parseAttempt(startTok) {
     const stop = new Set([TT.RECOVER, TT.END_ATTEMPT]);
     const children = this._parseMixedContent(stop);
@@ -569,17 +796,8 @@ export class Parser {
           cases.push(new Case(null, this._parseMixedContent(caseStop).children));
         } else if (t.type === TT.ON) {
           this._next();
-          this._expect(TT.OPEN_PAREN, '"(" (the #on argument list)');
-          const exps = [];
-          for (;;) {
-            exps.push(this._parseExpression());
-            if (this._peek().type === TT.COMMA) {
-              this._next();
-              continue;
-            }
-            break;
-          }
-          this._expect(TT.CLOSE_PAREN, '")"');
+          // ← FTL.jj On(): exps = PositionalArgs() — no parens; commas optional
+          const exps = this._parsePositionalArgs();
           this._expect(TT.DIRECTIVE_END, '">"');
           ons.push(new On(exps, this._parseMixedContent(caseStop).children));
         } else if (t.type === TT.END_SWITCH) {
@@ -803,6 +1021,26 @@ export class Parser {
   _parseAtomic() {
     const t = this._peek();
     switch (t.type) {
+      case TT.DOT: {
+        // ← FTL.jj BuiltinVariable(): a leading "." + id is a special variable (.args here)
+        const nt = this._peek(1);
+        if (nt.type !== TT.ID) {
+          throw this._error(`Expected a special-variable name after ".", but got ${this._desc(nt)}.`, nt);
+        }
+        this._next();
+        this._next();
+        if (nt.image === 'args') {
+          if (!this.inMacro && !this.inFunction) {
+            throw this._error('The "args" special variable must be inside a macro or function '
+              + 'in the template source code.', nt);
+          }
+          this._argsFlag = true;
+        } else {
+          throw new UnsupportedFeatureException(
+            `Special variable ".${nt.image}" is not supported in this milestone yet.`);
+        }
+        return this._span(new BuiltinVariable('args'), t, nt);
+      }
       case TT.INTEGER:
         this._next();
         return this._span(new NumberLiteral(Number.parseInt(t.image, 10)), t, t);
