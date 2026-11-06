@@ -10,4 +10,5 @@ export const TEST_FILES = [
   './utility/stringUtil.test.js',
   './model/objectWrapper.test.js',
   './runtime/interpolation.test.js',
+  './runtime/dynamicAccess.test.js',
 ];

@@ -5,7 +5,7 @@
 - [x] M2 Token/TokenType/TokenManager: DEFAULT state, text, ${...}, comments, positions, lexical-state skeleton
 - [x] M3 Expression parser: precedence chain, literals, ranges, escaped ids, .x vars, !/?exists, canonical form
 - [x] M4 Model layer v1 + ObjectWrapper primitives/arrays, ${...} output, coercion, NonXxxException
-- [ ] M5 Dot/DynamicKeyName/MethodCall, introspection cache, bean readers, deep unwrap
+- [x] M5 Dot/DynamicKeyName/MethodCall, introspection cache, bean readers, deep unwrap
 - [ ] M6 ZeroArgumentNonVoidMethodPolicy (3 values, BeforeMethodCall nodes, bean-reader carve-out)
 - [ ] M7 #if/#elseif/#else, #attempt/#recover, #switch/#case/#default/#on/#break, #list/#items/#sep/#else, #foreach, #continue, loop vars
 - [ ] M8 #assign (block, compound), #global, #local, scope stack, #import/#namespace

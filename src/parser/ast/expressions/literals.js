@@ -67,7 +67,9 @@ export class HashLiteral extends Expression {
   }
   evaluate(env) {
     const map = new Map();
-    this.keys.forEach((k, i) => map.set(k.value, this.values[i].evaluate(env)));
+    this.keys.forEach((k, i) => {
+      map.set(env.coerceToString(k.evaluate(env), ' used as a hash-literal key'), this.values[i].evaluate(env));
+    });
     return env.wrap(map);
   }
 }

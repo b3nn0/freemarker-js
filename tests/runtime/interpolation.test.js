@@ -86,6 +86,7 @@ describe('Interpolation: operators', () => {
     snapshot(await out('${"n" + 2}', {}), 'n2');
     snapshot(await out('${2 + 2}'), '4');
     snapshot(await out('${((0..2) + (3..4))??}'), 'true'); // ranges concatenate
+    snapshot(await out('${(h + {n: v}).nn}', { h: {}, n: 'nn', v: 3 }), '3'); // identifier hash keys evaluate
   });
   it('comparisons', async () => {
     snapshot(await out('${1 < 2}'), 'true');

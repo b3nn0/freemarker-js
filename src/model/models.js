@@ -103,8 +103,9 @@ export class MethodModel extends TemplateMethodModel {
     this.fn = fn;
     this.name = name;
   }
-  exec() {
-    throw new UnsupportedFeatureException('Method invocation lands in M5.');
+  // args arrive already unwrapped to plain JS values (← MethodCall).
+  exec(env, args = []) {
+    return env.wrap(this.fn(...args));
   }
 }
 

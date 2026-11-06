@@ -12,7 +12,8 @@ import { Interpolation } from './ast/interpolation.js';
 import { TerseComment } from './ast/terseComment.js';
 import { CommentDirective } from './ast/commentDirective.js';
 import { NumberLiteral, StringLiteral, BooleanLiteral, ListLiteral, HashLiteral } from './ast/expressions/literals.js';
-import { Identifier, Dot } from './ast/expressions/variables.js';
+import { Identifier, Dot, DynamicKeyName } from './ast/expressions/variables.js';
+import { MethodCall } from './ast/expressions/calls.js';
 import {
   ParentheticalExpression, AddConcatExpression, ArithmeticExpression, UnaryPlusMinusExpression,
   NotExpression, ComparisonExpression, Range, AndExpression, OrExpression,
@@ -364,13 +365,39 @@ export class Parser {
         const rhs = EXPRESSION_START.has(this._peek().type) ? this._parseExpression() : null;
         exp = this._span(new DefaultToExpression(exp, rhs), exp, rhs ?? t);
       } else if (t.type === TT.OPEN_PAREN) {
-        throw new UnsupportedFeatureException('Method calls land in M5.');
+        exp = this._parseMethodCall(exp);
       } else if (t.type === TT.OPEN_BRACKET) {
-        throw new UnsupportedFeatureException('Dynamic key access ([expr]) lands in M5.');
+        this._next();
+        const key = EXPRESSION_START.has(this._peek().type) ? this._parseExpression() : null;
+        const close = this._next();
+        if (close.type !== TT.CLOSE_BRACKET) {
+          throw this._error(`Expected "]" to close the dynamic key access, but got ${this._desc(close)}.`, close);
+        }
+        exp = this._span(new DynamicKeyName(exp, key), exp, close);
       } else {
         return exp;
       }
     }
+  }
+
+  _parseMethodCall(target) {
+    this._next(); // "("
+    const args = [];
+    if (EXPRESSION_START.has(this._peek().type)) {
+      for (;;) {
+        args.push(this._parseExpression());
+        if (this._peek().type === TT.COMMA) {
+          this._next();
+          continue;
+        }
+        break;
+      }
+    }
+    const close = this._next();
+    if (close.type !== TT.CLOSE_PAREN) {
+      throw this._error(`Expected ")" to close the method call, but got ${this._desc(close)}.`, close);
+    }
+    return this._span(new MethodCall(target, args), target, close);
   }
 
   _parseAtomic() {
@@ -424,9 +451,14 @@ export class Parser {
         if (this._peek().type !== TT.CLOSING_CURLY_BRACKET) {
           for (;;) {
             const key = this._parseExpression();
-            if (!(key instanceof StringLiteral)) {
-              throw this._errorAt(
-                `Hash literal keys must be string literals, but got ${key.constructor.name}.`, key);
+            // ← FTL.jj stringLiteralOnly(key): number/list/hash/boolean literals excluded;
+            // identifiers and other expressions stay legal (evaluated at render time).
+            for (const [cls, kind] of [[NumberLiteral, 'number'], [ListLiteral, 'list'],
+              [HashLiteral, 'hash'], [BooleanLiteral, 'boolean']]) {
+              if (key instanceof cls) {
+                throw this._errorAt(
+                  `Hash literal key ${key.getCanonicalForm()} can't be a ${kind} literal.`, key);
+              }
             }
             const sep = this._peek();
             if (sep.type !== TT.COMMA && sep.type !== TT.COLON) {

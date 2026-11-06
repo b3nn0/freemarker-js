@@ -53,10 +53,14 @@ describe('parser: literals', () => {
     eq(canonBare('[1, "a", [2]]'), '[1, "a", [2]]');
     eq(name(bare('[1]')), 'ListLiteral');
   });
-  it('hash literals need string keys', () => {
+  it('hash literal keys: any expression except number/list/hash/boolean literals', () => {
     eq(canonBare('{"a": 1, "b": [2, 3]}'), '{"a": 1, "b": [2, 3]}');
     eq(canonBare('{"a", 1}'), '{"a": 1}');
-    throwsMatch(() => bare('{a: 1}'), ParseException, ['string literal']);
+    eq(canonBare('{k: 1}'), '{k: 1}'); // identifier key, evaluated at render time (FTL.jj)
+    throwsMatch(() => bare('{1: 2}'), ParseException, ['number', 'literal']);
+    throwsMatch(() => bare('{[1]: 2}'), ParseException, ['list', 'literal']);
+    throwsMatch(() => bare('{{"k": 1}: 2}'), ParseException, ['hash', 'literal']);
+    throwsMatch(() => bare('{true: 2}'), ParseException, ['boolean', 'literal']);
   });
 });
 
@@ -153,11 +157,16 @@ describe('parser: variables and built-ins', () => {
   it('built-in arguments land in M11', () => {
     throwsMatch(() => exprOf('x?string("y","n")'), UnsupportedFeatureException, ['M11']);
   });
-  it('dynamic key access lands in M5', () => {
-    throwsMatch(() => exprOf('x["k"]'), UnsupportedFeatureException, ['M5']);
+  it('dynamic key access', () => {
+    eq(canon('x["k"]'), 'x["k"]');
+    eq(canon('x[1 + 1]'), 'x[1 + 1]');
+    eq(canon('x[]'), 'x[]');
+    eq(name(exprOf('x[]')), 'DynamicKeyName');
   });
-  it('method calls land in M5', () => {
-    throwsMatch(() => exprOf('x.m()'), UnsupportedFeatureException, ['M5']);
+  it('method calls', () => {
+    eq(canon('x.m()'), 'x.m()');
+    eq(canon('x.m("a", 2)'), 'x.m("a", 2)');
+    eq(canon('f() + 1'), 'f() + 1');
   });
 });
 

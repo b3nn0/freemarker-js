@@ -69,6 +69,12 @@ describe('ObjectWrapper: collections', () => {
     eq(h.keys(), ['n', 's']);
     eq(h.size(), 2);
   });
+  it('same object wraps to the same model (identity cache)', () => {
+    const o = { a: 1 };
+    eq(w.wrap(o), w.wrap(o));
+    const arr = [1];
+    eq(w.wrap(arr), w.wrap(arr));
+  });
   it('nested structures wrap lazily on access', () => {
     const s = w.wrap([{ v: 1 }, { v: 2 }]);
     const h = s.getByIndex(1);

@@ -1,9 +1,14 @@
 // ← SimpleObjectWrapper-like default wrapper (see UPSTREAM.md decisions).
+// WeakMap identity cache ← the IntrospectionCache analogue: one model per wrapped object.
 
 import { TemplateModel } from './templateModel.js';
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';
 
 export class SimpleObjectWrapper {
+  constructor() {
+    this._cache = new WeakMap();
+  }
+
   wrap(value) {
     if (value === null || value === undefined) return null;
     if (value instanceof TemplateModel) return value;
@@ -15,9 +20,14 @@ export class SimpleObjectWrapper {
       default: break;
     }
     if (value instanceof Date) return new DateModel(value);
-    if (Array.isArray(value)) return new SequenceModel(value, this);
-    if (value instanceof Map) return new HashModel(value, this);
-    if (typeof value === 'object') return new HashModel(value, this);
-    return null;
+    const cached = this._cache.get(value);
+    if (cached) return cached;
+    let model;
+    if (Array.isArray(value)) model = new SequenceModel(value, this);
+    else if (value instanceof Map) model = new HashModel(value, this);
+    else if (typeof value === 'object') model = new HashModel(value, this);
+    else return null;
+    this._cache.set(value, model);
+    return model;
   }
 }
