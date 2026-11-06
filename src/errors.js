@@ -78,6 +78,8 @@ export class ReturnInstructionException extends TemplateException {
 export class UnsupportedFeatureException extends FreeMarkerException {}
 // ← freemarker.template.UnregisteredOutputFormatException
 export class UnregisteredOutputFormatException extends FreeMarkerException {}
+// ← freemarker.template.InvalidSettingException
+export class InvalidSettingException extends TemplateException {}
 export class BugException extends FreeMarkerException {}
 
 // ← javacc TokenMgrError: lexer-level failure, wrapped into ParseException at parse time.

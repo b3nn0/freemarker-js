@@ -30,7 +30,7 @@ No runtime/dev dependencies, no build step. Run tests: `node tests/cli.mjs` or o
 | Whitespace stripping, `#t #lt #rt #nt`, `#compress`, `#noparse` (M13) | done | |
 | `#include`/`#import` via `setIncludeResolver`/`options.includeResolver`, `#stop`, `#flush` (M14) | done | sync resolver; name-only parse cache |
 | Output formats + escaping (M15) | done | HTML/XHTML/XML escapers; auto-esc; built-in escapers |
-| Number/date formatting subset (M16) | planned | named formats + pattern subset |
+| Number/date formatting subset (M16) | done | #setting; #{exp;m2M4}; named+pattern number formats; SimpleDateFormat+ISO subset; ?string |
 | Zero-arg method policy (M6) | done | all 3 policy values |
 | TemplateLoader / filesystem / URL loading | out of scope | |
 | XML/DOM nodes, `#visit`, `#recurse`, `?node_*`, `?new`, `?api` | out of scope | parse OK, runtime `UnsupportedFeatureException` |

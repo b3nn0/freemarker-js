@@ -37,8 +37,18 @@ export class Configuration {
     // ← Configuration.java:566-567 defaults
     this._autoEscapingPolicy = Configuration.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY;
     this._outputFormat = UndefinedOutputFormat.INSTANCE;
-    this._numberFormat = null;
-    this._dateFormat = null;
+    // ← Configurable format defaults (en_US locale fixed; see UPSTREAM.md):
+    this._numberFormat = 'number';
+    this._booleanFormat = 'true,false';
+    this._cFormat = 'c';
+    this._dateFormat = 'M/d/yy';
+    this._timeFormat = 'H:mm:ss';
+    this._dateTimeFormat = 'M/d/yy H:mm:ss';
+    this._locale = null;
+    this._timeZone = null; // accepted but inert (browser-local times)
+    this._outputEncoding = null; // inert in the browser
+    this._urlEscapingCharset = null; // inert: ?url is always UTF-8
+    this._classicCompatible = false;
     this._tabSize = 8;
     this._objectWrapper = new SimpleObjectWrapper();
     // ← ClassIntrospectorBuilder defaults at baseline 2.3.36:
@@ -146,9 +156,24 @@ export class Configuration {
   /** @returns {string} a *_AUTO_ESCAPING_POLICY constant */
   getAutoEscapingPolicy() { return this._autoEscapingPolicy; }
 
-  setNumberFormat(f) { this._numberFormat = f; }
+  setNumberFormat(f) { this._numberFormat = String(f); }
   getNumberFormat() { return this._numberFormat; }
 
-  setDateFormat(f) { this._dateFormat = f; }
+  setDateFormat(f) { this._dateFormat = String(f); }
   getDateFormat() { return this._dateFormat; }
+
+  setTimeFormat(f) { this._timeFormat = String(f); }
+  getTimeFormat() { return this._timeFormat; }
+
+  setDateTimeFormat(f) { this._dateTimeFormat = String(f); }
+  getDateTimeFormat() { return this._dateTimeFormat; }
+
+  setBooleanFormat(f) { this._booleanFormat = String(f); }
+  getBooleanFormat() { return this._booleanFormat; }
+
+  setCFormat(f) { this._cFormat = String(f); }
+  getCFormat() { return this._cFormat; }
+
+  setLocale(l) { this._locale = l == null ? null : String(l); }
+  getLocale() { return this._locale; }
 }

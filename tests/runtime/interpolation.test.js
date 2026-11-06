@@ -23,9 +23,8 @@ describe('Interpolation: basic output', () => {
     snapshot(await out('${a.b.c}', { a: { b: { c: 'deep' } } }), 'deep');
     snapshot(await out('${m.k}', { m: new Map([['k', 'v']]) }), 'v');
   });
-  it('dates use the interim ISO format (M16 replaces)', async () => {
-    snapshot(await out('${d}', { d: new Date(Date.UTC(2020, 0, 2, 10, 30)) }),
-      '2020-01-02T10:30:00.000Z');
+  it('dates use the default en_US-style datetime format', async () => {
+    snapshot(await out('${d}', { d: new Date(2020, 0, 2, 10, 30) }), '1/2/20 10:30:00');
   });
 });
 

@@ -4,7 +4,10 @@ import {
   TemplateException, InvalidReferenceException,
   NonStringException, NonNumericalException, NonBooleanException, NonHashException,
   BreakInstructionException, ContinueInstructionException, ReturnInstructionException,
+  InvalidSettingException,
 } from './errors.js';
+import { formatNumber } from './format/numberFormat.js';
+import { formatDate } from './format/dateFormat.js';
 import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
 import { TemplateSequenceModel, TemplateHashModel, TemplateMethodModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
@@ -49,6 +52,55 @@ export class Environment {
     // ← Environment.outputFormat (built-ins consult it; interpolations carry
     // their own parse-time binding instead)
     this.outputFormat = template.outputFormat ?? this.configuration.getOutputFormat();
+    // ← Environment settings layer (Configurable parent = the Configuration);
+    // #setting mutates this copy (no automatic restore, like upstream 2.3).
+    const cfg = this.configuration;
+    this._settings = {
+      numberFormat: cfg.getNumberFormat(),
+      booleanFormat: cfg.getBooleanFormat(),
+      cFormat: cfg.getCFormat(),
+      dateFormat: cfg.getDateFormat(),
+      timeFormat: cfg.getTimeFormat(),
+      dateTimeFormat: cfg.getDateTimeFormat(),
+      locale: cfg.getLocale(),
+      timeZone: null,
+      outputEncoding: null,
+      urlEscapingCharset: null,
+      classicCompatible: false,
+    };
+  }
+
+  // ← Configurable.setSetting, restricted to the subset this port supports.
+  /**
+   * @param {string} name - setting name as written in #setting
+   * @param {string} value - the evaluated string value
+   * @returns {void}
+   * @throws {import('./errors.js').InvalidSettingException}
+   */
+  setSetting(name, value) {
+    const s = this._settings;
+    if (name === 'number_format' || name === 'numberFormat') s.numberFormat = value;
+    else if (name === 'boolean_format' || name === 'booleanFormat') {
+      validateBooleanFormat(value);
+      s.booleanFormat = value;
+    } else if (name === 'c_format' || name === 'cFormat') s.cFormat = value;
+    else if (name === 'date_format' || name === 'dateFormat') s.dateFormat = value;
+    else if (name === 'time_format' || name === 'timeFormat') s.timeFormat = value;
+    else if (name === 'datetime_format' || name === 'datetimeFormat') {
+      s.dateTimeFormat = value;
+    } else if (name === 'locale') s.locale = value;
+    else if (name === 'time_zone' || name === 'timeZone') s.timeZone = value; // inert
+    else if (name === 'output_encoding' || name === 'outputEncoding') s.outputEncoding = value; // inert
+    else if (name === 'url_escaping_charset' || name === 'urlEscapingCharset') s.urlEscapingCharset = value; // inert
+    else if (name === 'classic_compatible' || name === 'classicCompatible') {
+      // inert in this port; still parsed ← Configurable.setSetting
+      const isNum = [...value].some((c) => c >= '0' && c <= '9');
+      s.classicCompatible = value === 'true' || (isNum && Number(value) !== 0);
+    } else if (name === 'sql_date_and_time_time_zone' || name === 'sqlDateAndTimeTimeZone') {
+      // inert
+    } else {
+      throw new InvalidSettingException(`Unknown setting name: ${JSON.stringify(name)}.`);
+    }
   }
 
   /**
@@ -325,30 +377,62 @@ export class Environment {
   coerceToString(model, context = '') {
     if (model instanceof StringModel) return model.getAsString();
     if (model instanceof NumberModel) return this._formatNumber(model.getAsNumber());
-    if (model instanceof BooleanModel) return model.getAsBoolean() ? 'true' : 'false';
-    if (model instanceof DateModel) return this._formatDate(model.getAsDate());
+    if (model instanceof BooleanModel) return this._formatBoolean(model.getAsBoolean());
+    if (model instanceof DateModel) return this._formatDate(model.getAsDate(), model.dateType);
     throw new NonStringException(
       `Can't convert to string${context}: the value is a ${this.typeLabel(model)}.`);
   }
 
   /**
-   * M16 lands real number formats; default mirrors the "number" format (plain decimal).
+   * ← Environment.formatNumberModel with the env number_format setting.
    * @param {number} v
+   * @param {{ minFrac?: number, maxFrac?: number }} [fracOpts] - from #{exp;mN}
    * @returns {string}
    */
-  _formatNumber(v) {
-    if (!Number.isFinite(v)) {
-      throw new TemplateException(`The number ${String(v)} can't be converted to a string.`);
-    }
-    return String(v);
+  _formatNumber(v, fracOpts) {
+    return formatNumber(v, this._settings.numberFormat, fracOpts);
   }
 
   /**
-   * M16 lands real date formats; interim default is the ISO form (deviation noted in UPSTREAM.md).
-   * @param {Date} d
+   * ← BooleanFormat: a "true,false"-style comma-separated pair, or "c".
+   * @param {boolean} v
+   * @param {string|null} [formatString] - override (from ?string(fmt))
    * @returns {string}
    */
-  _formatDate(d) {
-    return d.toISOString();
+  _formatBoolean(v, formatString = null) {
+    const pair = validateBooleanFormat(formatString ?? this._settings.booleanFormat);
+    return v ? pair[0] : pair[1];
   }
+
+  /**
+   * ← Environment.formatDateFormatModel with the env date/time/datetime formats.
+   * @param {Date} d
+   * @param {number} [dateType] - DateModel.DATE / TIME / DATE_TIME
+   * @param {string|null} [formatString] - explicit (?string("x")); null = default
+   * @returns {string}
+   */
+  _formatDate(d, dateType = DateModel.DATE_TIME, formatString = null) {
+    return formatDate(d, formatString, dateType, {
+      date: this._settings.dateFormat,
+      time: this._settings.timeFormat,
+      datetime: this._settings.dateTimeFormat,
+    });
+  }
+}
+
+/**
+ * ← Configurable.parseBooleanFormat: "a,b" or "c"/"true,false" defaults.
+ * @param {string} booleanFormat
+ * @returns {[string, string]}
+ * @throws {import('./errors.js').InvalidSettingException}
+ */
+export function validateBooleanFormat(booleanFormat) {
+  if (booleanFormat === 'c' || booleanFormat === 'true,false') return ['true', 'false'];
+  const comma = booleanFormat.indexOf(',');
+  if (comma === -1) {
+    throw new InvalidSettingException(
+      'Setting value must be a string that contains two comma-separated values for true and false, '
+      + 'or it must be "c", but it was ' + JSON.stringify(booleanFormat) + '.');
+  }
+  return [booleanFormat.slice(0, comma), booleanFormat.slice(comma + 1)];
 }

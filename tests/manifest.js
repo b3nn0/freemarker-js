@@ -16,6 +16,7 @@ export const TEST_FILES = [
   './runtime/whitespace.test.js',
   './runtime/includeImport.test.js',
   './runtime/outputFormats.test.js',
+  './runtime/formatting.test.js',
   './directives/control.test.js',
   './directives/list.test.js',
   './directives/assign.test.js',

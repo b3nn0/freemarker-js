@@ -98,9 +98,9 @@ describe('Lambda expressions and ?filter/?map/?sort/?sort_by', () => {
       ['exactly 1 parameter', 'declared 2']);
     ok(e.message.includes('?filter'));
   });
-  it('built-in arguments are parsed now; ?string itself lands in M16', async () => {
+  it('built-in arguments are parsed now; ?string takes at most one argument', async () => {
     parse('${x?string("y", "n")}'); // parses fine since M11
     await rejectsMatch(out('${x?string("y", "n")}', { x: 1 }), TemplateException,
-      ['no such built-in']);
+      ['expects 0 or 1 argument', 'received 2 arguments']);
   });
 });

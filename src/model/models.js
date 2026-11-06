@@ -80,15 +80,25 @@ BooleanModel.FALSE = new BooleanModel(false);
 
 /** A date/time value. */
 export class DateModel extends TemplateDateModel {
-  /** @param {Date} value */
-  constructor(value) {
+  /**
+   * @param {Date} value
+   * @param {number} [dateType] - TemplateDateModel-style type (date-only/time-only
+   *   vs. date-time); defaults to date-time ← wrapped java.util.Date
+   */
+  constructor(value, dateType = DateModel.DATE_TIME) {
     super();
     this.value = value;
+    this.dateType = dateType;
   }
   getAsDate() {
     return this.value;
   }
 }
+// ← TemplateDateModel constants (the port's values differ; names kept):
+DateModel.NONE = 0;
+DateModel.DATE = 1;
+DateModel.TIME = 2;
+DateModel.DATE_TIME = 3;
 
 /** A list of already-converted models (items), optionally re-wrapping raw values. */
 export class SequenceModel extends TemplateSequenceModel {

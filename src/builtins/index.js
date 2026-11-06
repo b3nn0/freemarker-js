@@ -3,3 +3,4 @@ import './sequences.js';
 import './strings.js';
 import './misc.js';
 import './encoding.js';
+import './date.js';

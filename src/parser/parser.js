@@ -40,6 +40,7 @@ import { ImportDirective } from './ast/directives/importDir.js';
 import { StopInstruction, FlushInstruction } from './ast/directives/stop.js';
 import { AutoEscBlock, NoAutoEscBlock } from './ast/directives/autoEsc.js';
 import { OutputFormatBlock } from './ast/directives/outputFormat.js';
+import { PropertySetting, SETTING_NAMES, CAMEL_SETTING_NAMES } from './ast/directives/setting.js';
 import { BuiltinVariable } from './ast/expressions/builtIn.js';
 import { unescapeFTLStringLiteral, isTrimmableToEmpty } from '../utility/stringUtil.js';
 
@@ -75,7 +76,7 @@ const EXPRESSION_START = new Set([
 const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1]]);
 // ← BuiltInWithParseTimeParameters with unevaluated (lazy) parameters: these consume
 // "(args)" at parse time. All other built-ins return first; "(args)" is a MethodCall.
-const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default']);
+const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string']);
 
 /**
  * Recursive-descent parser mirroring the upstream JavaCC grammar (current syntax only).
@@ -367,6 +368,22 @@ export class Parser {
         || t.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING) {
         this._next();
         const expression = this._parseExpression();
+        let fracOpts = null;
+        // ← FTL.jj NumericalOutput(): #{exp; mN M2M4 format specifier
+        if (t.type === TT.HASH_INTERPOLATION_OPENING) {
+          this._checkNumericInterpolationLiteral(expression);
+          if (this._peek().type === TT.SEMICOLON) {
+            this._next();
+            const fmt = this._peek();
+            if (fmt.type !== TT.ID) {
+              throw this._error(
+                'Expected a format specifier like "m2M4" after the ";" in "#{...}", but got '
+                + `${this._desc(fmt)}.`, fmt);
+            }
+            this._next();
+            fracOpts = this._parseHashInterpolationFormat(fmt);
+          }
+        }
         const closer = this._peek();
         const expected = t.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING
           ? TT.CLOSE_BRACKET : TT.CLOSING_CURLY_BRACKET;
@@ -385,7 +402,7 @@ export class Parser {
         }
         // ← DollarVariable captures the format/auto-escape state at parse time
         group.addChild(this._span(
-          new Interpolation(expression, this.outputFormat, this.autoEscaping), t, closer));
+          new Interpolation(expression, this.outputFormat, this.autoEscaping, fracOpts), t, closer));
         continue;
       }
 
@@ -548,6 +565,10 @@ export class Parser {
           continue;
         case TT.OUTPUTFORMAT:
           group.addChild(this._parseOutputFormatBlock(t));
+          continue;
+        case TT.SETTING:
+          this._next();
+          group.addChild(this._parseSetting(t));
           continue;
         default:
           break;
@@ -773,6 +794,102 @@ export class Parser {
       this.outputFormat = savedFormat;
       this.autoEscaping = savedAutoEscaping;
     }
+  }
+
+  // ---- #{...} numeric interpolation helpers ← FTL.jj NumericalOutput() ----
+
+  // ← numberLiteralOnly(): string/list/hash/boolean literals are rejected.
+  _checkNumericInterpolationLiteral(exp) {
+    if (exp instanceof StringLiteral) {
+      throw this._errorAt(`Found string literal: ${exp.getCanonicalForm()}. Expecting: number`, exp);
+    }
+    if (exp instanceof NumberLiteral) return;
+    if (exp instanceof ListLiteral) {
+      throw this._errorAt(`Found list literal: ${exp.getCanonicalForm()}. Expecting: number`, exp);
+    }
+    if (exp instanceof HashLiteral) {
+      throw this._errorAt(`Found hash literal: ${exp.getCanonicalForm()}. Expecting: number`, exp);
+    }
+    if (exp instanceof BooleanLiteral) {
+      throw this._errorAt(`Found boolean literal: ${exp.getCanonicalForm()}. Expecting: number`, exp);
+    }
+  }
+
+  /**
+   * Parses an "m2M4"-style format specifier ← FTL.jj NumericalOutput() inline parse.
+   * @param {import('./token.js').Token} fmt - the ID token holding the specifier
+   * @returns {{ minFrac: number, maxFrac: number }}
+   */
+  _parseHashInterpolationFormat(fmt) {
+    const s = fmt.image;
+    let minFrac = -1;
+    let maxFrac = -1;
+    let type = null;
+    let i = 0;
+    while (i < s.length) {
+      const c = s[i];
+      if (c === 'm' || c === 'M') {
+        if (type !== null) throw this._error(`Invalid format specifier ${fmt.image}`, fmt);
+        type = c;
+        i++;
+        const numStart = i;
+        while (i < s.length && s[i] >= '0' && s[i] <= '9') i++;
+        if (numStart === i) throw this._error(`Invalid format specifier ${fmt.image}`, fmt);
+        const num = Number(s.slice(numStart, i));
+        if (Number.isNaN(num)) throw this._error(`Invalid number in the format specifier ${fmt.image}`, fmt);
+        if (type === 'm') {
+          if (minFrac !== -1) throw this._error('Invalid formatting string', fmt);
+          minFrac = num;
+        } else {
+          if (maxFrac !== -1) throw this._error('Invalid formatting string', fmt);
+          maxFrac = num;
+        }
+        type = null;
+      } else {
+        throw this._error(`Invalid format specifier ${fmt.image}`, fmt);
+      }
+    }
+    if (maxFrac === -1) {
+      if (minFrac === -1) {
+        throw this._error('Invalid format specification, at least one of m and M must be specified!', fmt);
+      }
+      maxFrac = minFrac;
+    } else if (minFrac === -1) {
+      minFrac = 0;
+    }
+    if (minFrac > maxFrac) {
+      throw this._error('Invalid format specification, min cannot be greater than max!', fmt);
+    }
+    return { minFrac, maxFrac };
+  }
+
+  // ---- #setting ← FTL.jj Setting() + PropertySetting constructor ----
+
+  _parseSetting(startTok) {
+    const kt = this._peek();
+    if (kt.type !== TT.ID) {
+      throw this._error(`Expected a setting name after "#setting", but got ${this._desc(kt)}.`, kt);
+    }
+    this._next();
+    const eq = this._peek();
+    if (eq.type !== TT.EQUALS) {
+      throw this._error(`Expected "=" after the "#setting" setting name "${kt.image}".`, eq);
+    }
+    this._next();
+    const value = this._parseExpression();
+    // ← LooseDirectiveEnd(): #setting is an empty element; both ">" and "/>" end it
+    const end = this._peek();
+    if (end.type !== TT.DIRECTIVE_END && end.type !== TT.EMPTY_DIRECTIVE_END) {
+      throw this._error(`Expected ">" or "/>" after the "#setting" directive, but got ${this._desc(end)}.`, end);
+    }
+    this._next();
+    const k = kt.image;
+    if (!SETTING_NAMES.includes(k) && !CAMEL_SETTING_NAMES.includes(k)) {
+      throw this._error(
+        `Unknown setting name: ${JSON.stringify(k)}. The allowed setting names are: ${SETTING_NAMES.join(', ')}.`,
+        kt);
+    }
+    return this._span(new PropertySetting(k, value), startTok, end);
   }
 
   // ---- M7 directives ----

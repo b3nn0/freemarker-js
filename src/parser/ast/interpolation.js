@@ -1,7 +1,7 @@
 // ${...} (and [=...], canonicalized to ${...}). ← freemarker.core.DollarVariable (Interpolation).
 
 import { TemplateElement } from './templateElement.js';
-import { MarkupModel } from '../../model/models.js';
+import { MarkupModel, NumberModel } from '../../model/models.js';
 import { InvalidReferenceException, TemplateException } from '../../errors.js';
 
 export class Interpolation extends TemplateElement {
@@ -10,12 +10,14 @@ export class Interpolation extends TemplateElement {
    * @param {import('../../outputFormat.js').OutputFormat|null} [outputFormat] -
    *   the format bound at parse time ← DollarVariable.outputFormat
    * @param {boolean} [autoEscape] - ← DollarVariable.autoEscape
+   * @param {{ minFrac?: number, maxFrac?: number }|null} [fracOpts] - ← NumericalOutput #{exp;mN}
    */
-  constructor(expression, outputFormat = null, autoEscape = false) {
+  constructor(expression, outputFormat = null, autoEscape = false, fracOpts = null) {
     super();
     this.expression = expression;
     this.outputFormat = outputFormat;
     this.autoEscape = autoEscape;
+    this.fracOpts = fracOpts;
   }
 
   /**
@@ -29,6 +31,13 @@ export class Interpolation extends TemplateElement {
     if (value === null || value === undefined) {
       throw new InvalidReferenceException(
         `The following has evaluated to null or missing: ==> ${this.expression.getCanonicalForm()}`);
+    }
+    if (this.fracOpts !== null && value instanceof NumberModel) {
+      const s = env._formatNumber(value.getAsNumber(), this.fracOpts);
+      env.output.write(
+        this.autoEscape && this.outputFormat !== null && this.outputFormat.isMarkup
+          ? this.outputFormat.escapePlainText(s) : s);
+      return null;
     }
     if (value instanceof MarkupModel) {
       const cur = this.outputFormat ?? env.outputFormat ?? env.configuration.getOutputFormat();
