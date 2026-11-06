@@ -1,6 +1,7 @@
 // Settings object mirroring upstream Configuration names/defaults (behavior lands with milestones).
 
 import { VERSION } from './version.js';
+import { SimpleObjectWrapper } from './model/objectWrapper.js';
 
 export class Configuration {
   static VERSION = VERSION;
@@ -26,7 +27,11 @@ export class Configuration {
     this._numberFormat = null;
     this._dateFormat = null;
     this._tabSize = 8;
+    this._objectWrapper = new SimpleObjectWrapper();
   }
+
+  setObjectWrapper(w) { this._objectWrapper = w; }
+  getObjectWrapper() { return this._objectWrapper; }
 
   setTabSize(size) {
     if (size < 1 || size > 256) throw new RangeError(`tabSize must be 1..256, but it was ${size}.`);

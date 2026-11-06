@@ -27,4 +27,10 @@ export class Expression {
   getCanonicalForm() {
     throw new Error(`getCanonicalForm() not implemented for ${this.constructor.name}`);
   }
+
+  // Returns a TemplateModel, or null for missing values (← Expression.visit semantics;
+  // missing-as-error conversion happens at consumption points).
+  evaluate(env) {
+    throw new Error(`evaluate() not implemented for ${this.constructor.name}`);
+  }
 }

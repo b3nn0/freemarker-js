@@ -1,7 +1,7 @@
 // ${...} (and [=...], canonicalized to ${...}). ← freemarker.core.DollarVariable (Interpolation).
 
 import { TemplateElement } from './templateElement.js';
-import { UnsupportedFeatureException } from '../../errors.js';
+import { InvalidReferenceException } from '../../errors.js';
 
 export class Interpolation extends TemplateElement {
   constructor(expression) {
@@ -10,7 +10,13 @@ export class Interpolation extends TemplateElement {
   }
 
   execute(env) {
-    throw new UnsupportedFeatureException('Interpolation output lands in M4.');
+    const value = this.expression.evaluate(env);
+    if (value === null || value === undefined) {
+      throw new InvalidReferenceException(
+        `The following has evaluated to null or missing: ==> ${this.expression.getCanonicalForm()}`);
+    }
+    env.output.write(env.coerceToString(value, ' (output of an interpolation)'));
+    return null;
   }
 
   getCanonicalForm() {
