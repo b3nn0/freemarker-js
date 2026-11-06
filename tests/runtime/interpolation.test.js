@@ -119,7 +119,7 @@ describe('Interpolation: coercion errors', () => {
     await rejectsMatch(out('${!s}', { s: 'a' }), NonBooleanException, ['string']);
   });
   it('unknown builtin', async () => {
-    await rejectsMatch(out('${s?foo}', { s: 'a' }), TemplateException, ['Unknown builtin', 'foo']);
+    await rejectsMatch(out('${s?foo}', { s: 'a' }), TemplateException, ['no such built-in', 'foo']);
   });
 });
 

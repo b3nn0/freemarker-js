@@ -98,7 +98,9 @@ describe('Lambda expressions and ?filter/?map/?sort/?sort_by', () => {
       ['exactly 1 parameter', 'declared 2']);
     ok(e.message.includes('?filter'));
   });
-  it('other built-in arguments still defer to M11', () => {
-    throwsMatch(() => parse('${x?string("y", "n")}'), UnsupportedFeatureException, ['M11']);
+  it('built-in arguments are parsed now; ?string itself lands in M16', async () => {
+    parse('${x?string("y", "n")}'); // parses fine since M11
+    await rejectsMatch(out('${x?string("y", "n")}', { x: 1 }), TemplateException,
+      ['no such built-in']);
   });
 });

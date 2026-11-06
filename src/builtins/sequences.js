@@ -2,52 +2,15 @@
 // ← freemarker.core.BuiltInsForSequences (sortBI 601, sort_byBI 548, filterBI 1051, mapBI 1207)
 
 import { registerBuiltIn } from './registry.js';
+import { BuiltinArgMethod, sequenceItems, nonSequenceError } from './common.js';
 import {
-  SequenceModel, RangeModel, StringModel, NumberModel, BooleanModel, DateModel,
-  HashModel,
+  SequenceModel, StringModel, NumberModel, BooleanModel, DateModel, HashModel,
 } from '../model/models.js';
 import { TemplateMethodModel } from '../model/templateModel.js';
 import { LocalLambdaExpression } from '../parser/ast/expressions/lambda.js';
 import { InvalidReferenceException, TemplateException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
 
-/**
- * Materializes the elements through getByIndex so raw data-model values become models.
- * @param {Object} target
- * @returns {Object[]|null} the element models, or null when not a sequence
- */
-function sequenceItems(target) {
-  if (target instanceof SequenceModel) {
-    const n = target.size();
-    const out = new Array(n);
-    for (let i = 0; i < n; i++) out[i] = target.getByIndex(i);
-    return out;
-  }
-  if (target instanceof RangeModel) {
-    const n = target.size();
-    const out = new Array(n);
-    for (let i = 0; i < n; i++) out[i] = target.getByIndex(i);
-    return out;
-  }
-  return null;
-}
-
-/**
- * @param {string} key - built-in name for the message
- * @param {Object} target
- * @param {import('../environment.js').Environment} env
- * @returns {import('../errors.js').TemplateException}
- */
-function nonSequenceError(key, target, env) {
-  return new TemplateException(
-    `The "?${key}" built-in can only be used on sequences (lists), `
-    + `but the target is a ${env.typeLabel(target)}.`);
-}
-
-/**
- * @param {Object|null} key - a model used as a sort key
- * @returns {[string, string]|null} [singular label, plural label], null if not sortable
- */
 function keyTypeName(key) {
   if (key instanceof StringModel) return ['string', 'strings'];
   if (key instanceof NumberModel) return ['number', 'numbers'];
@@ -106,6 +69,7 @@ function sortItems(items, keyOf, env, biLabel, valueWord, valueWordPlural) {
 }
 
 registerBuiltIn('sort', {
+  acceptsMissing: true, // own "not a sequence" error covers null targets
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('sort', target, env);
@@ -175,6 +139,9 @@ class SortByMethodModel extends TemplateMethodModel {
 }
 
 registerBuiltIn('sort_by', {
+  acceptsMissing: true,
+  minArgs: 1,
+  maxArgs: 1,
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('sort_by', target, env);
@@ -213,6 +180,9 @@ function makeTransformer(argExp, env, key) {
 
 // ?filter: ← filterBI + FilterLikeBI.elementMatches
 registerBuiltIn('filter', {
+  minArgs: 1,
+  maxArgs: 1,
+  acceptsMissing: true,
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('filter', target, env);
@@ -237,6 +207,9 @@ registerBuiltIn('filter', {
 
 // ?map: ← mapBI.fetchAndMapNextElement
 registerBuiltIn('map', {
+  minArgs: 1,
+  maxArgs: 1,
+  acceptsMissing: true,
   impl(target, argExprs, env) {
     const items = sequenceItems(target);
     if (items === null) throw nonSequenceError('map', target, env);
@@ -251,5 +224,65 @@ registerBuiltIn('map', {
       out.push(v);
     }
     return new SequenceModel(out);
+  },
+});
+
+// ← BuiltInsForSequences: ?join / ?seq_contains / ?seq_index_of / ?reverse
+// (DirectCallOptimization in upstream: the built-in evaluates to a method, and
+// the "(args)" arrives through MethodCall, like the BIMethod built-ins).
+registerBuiltIn('join', {
+  minArgs: 1,
+  maxArgs: 1,
+  acceptsMissing: true,
+  impl(target, argExprs, env) {
+    const items = sequenceItems(target);
+    if (items === null) throw nonSequenceError('join', target, env);
+    return new BuiltinArgMethod('join', 1, 1, (e, a) => {
+      const sep = typeof a[0] === 'string' ? a[0] : e.coerceToString(e.wrap(a[0]), ' as the separator');
+      return new StringModel(items.map((it) => e.coerceToString(it, ' as a ?join element')).join(sep));
+    });
+  },
+});
+
+registerBuiltIn('seq_contains', {
+  minArgs: 1,
+  maxArgs: 1,
+  acceptsMissing: true,
+  impl(target, argExprs, env) {
+    const items = sequenceItems(target);
+    if (items === null) throw nonSequenceError('seq_contains', target, env);
+    return new BuiltinArgMethod('seq_contains', 1, 1, (e, a) => {
+      const needle = e.wrap(a[0]);
+      for (const it of items) {
+        if (e.equals(it, needle)) return BooleanModel.TRUE;
+      }
+      return BooleanModel.FALSE;
+    });
+  },
+});
+
+registerBuiltIn('seq_index_of', {
+  minArgs: 1,
+  maxArgs: 1,
+  acceptsMissing: true,
+  impl(target, argExprs, env) {
+    const items = sequenceItems(target);
+    if (items === null) throw nonSequenceError('seq_index_of', target, env);
+    return new BuiltinArgMethod('seq_index_of', 1, 1, (e, a) => {
+      const needle = e.wrap(a[0]);
+      for (let i = 0; i < items.length; i++) {
+        if (e.equals(items[i], needle)) return new NumberModel(i);
+      }
+      return null; // ← upstream returns null; outputting it needs an ! or ?if_exists
+    });
+  },
+});
+
+registerBuiltIn('reverse', {
+  acceptsMissing: true,
+  impl(target, argExprs, env) {
+    const items = sequenceItems(target);
+    if (items === null) throw nonSequenceError('reverse', target, env);
+    return new SequenceModel([...items].reverse());
   },
 });

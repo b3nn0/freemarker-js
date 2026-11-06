@@ -1,8 +1,8 @@
-// ← freemarker.core.BuiltIn: target?key (named-argument form lands with M10/M11).
+// ← freemarker.core.BuiltIn: target?key; positional (args) consumption landed with M10/M11.
 
 import { Expression } from './expression.js';
 import { getBuiltIn } from '../../../builtins/registry.js';
-import '../../../builtins/sequences.js'; // registers the sequence built-ins (side effect)
+import '../../../builtins/index.js'; // registers the milestone's built-ins (side effect)
 import { HashModel } from '../../../model/models.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 
@@ -51,7 +51,7 @@ export class BuiltIn extends Expression {
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    const args = this.args === null || this.args.length === 0
+    const args = this.args === null
       ? '' : `(${this.args.map((a) => a.getCanonicalForm()).join(', ')})`;
     return `${this.target.getCanonicalForm()}?${this.key}${args}`;
   }
@@ -62,10 +62,28 @@ export class BuiltIn extends Expression {
   evaluate(env) {
     const spec = getBuiltIn(this.key);
     if (!spec) {
-      throw new TemplateException(`Unknown builtin: ${this.key}`);
+      // ← upstream reports unknown built-ins at parse time; the registry fills by
+      // milestone, so this port detects at run time (deviation in UPSTREAM.md).
+      throw new TemplateException(`There is no such built-in: ${this.key}`);
     }
-    const target = this.target.evaluate(env);
-    if (target === null || target === undefined) return null; // null propagation
+    let target;
+    if (spec.acceptsMissing) {
+      // ← ExistenceBuiltIn.evalMaybeNonexistentTarget: a missing target becomes null
+      try {
+        target = this.target.evaluate(env);
+      } catch (e) {
+        if (e instanceof InvalidReferenceException) target = null;
+        else throw e;
+      }
+    } else {
+      target = this.target.evaluate(env);
+      if (target === null || target === undefined) {
+        // ← the type-bound BuiltInForXxx classes reject null targets
+        throw new InvalidReferenceException(
+          `The "?${this.key}" built-in needs a value, but its target has evaluated to `
+          + 'null or missing.');
+      }
+    }
     return spec.impl(target, this.args === null ? [] : this.args, env);
   }
 }

@@ -52,9 +52,9 @@ const EXPRESSION_START = new Set([
 // (name -> required lambda parameter count) ← BuiltInWithParseTimeParameters
 // isLocalLambdaParameterSupported (filterBI, mapBI).
 const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1]]);
-// Built-ins that evaluate to a method; their "(...)" is a MethodCall on the built-in
-// result ← BuiltInWithDirectCallOptimization (sort_byBI in 2.3.36).
-const METHOD_LIKE_BUILTINS = new Set(['sort_by']);
+// ← BuiltInWithParseTimeParameters with unevaluated (lazy) parameters: these consume
+// "(args)" at parse time. All other built-ins return first; "(args)" is a MethodCall.
+const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default']);
 
 /**
  * Recursive-descent parser mirroring the upstream JavaCC grammar (current syntax only).
@@ -1010,11 +1010,18 @@ export class Parser {
           }
           this._next();
           args = [arg];
-        } else if (hasParen && !METHOD_LIKE_BUILTINS.has(name.image)) {
-          throw new UnsupportedFeatureException(
-            `Built-in arguments (as in ?${name.image}(...)) land in M11.`);
+        } else if (hasParen && LAZY_ARG_BUILTINS.has(name.image)) {
+          // ← BuiltInWithParseTimeParameters: the args must arrive unevaluated
+          this._next(); // "("
+          args = this._peek().type === TT.CLOSE_PAREN ? [] : this._parsePositionalArgs();
+          const c = this._peek();
+          if (c.type !== TT.CLOSE_PAREN) {
+            throw this._error(`Expected ")" to close "?${name.image}(...)", but got ${this._desc(c)}.`, c);
+          }
+          this._next();
         }
-        // METHOD_LIKE_BUILTINS: the "(" is left for the primary loop to parse as a MethodCall.
+        // Otherwise the "(" is left for the primary loop to parse as a MethodCall
+        // ← upstream: plain built-ins return immediately and the "(...)" is a call.
         exp = this._span(new BuiltIn(exp, name.image, args), exp, name);
       } else if (t.type === TT.EXCLAM) {
         this._next();

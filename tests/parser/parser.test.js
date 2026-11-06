@@ -158,8 +158,12 @@ describe('parser: variables and built-ins', () => {
     eq(canon('x?has_content'), 'x?has_content');
     eq(name(exprOf('x?c')), 'BuiltIn');
   });
-  it('built-in arguments land in M11', () => {
-    throwsMatch(() => exprOf('x?string("y","n")'), UnsupportedFeatureException, ['M11']);
+  it('built-in arguments are parsed since M11', () => {
+    eq(canon('x?string("y","n")'), 'x?string("y", "n")');
+    eq(canon('x?join(", ")'), 'x?join(", ")');
+    eq(canon('x?then(a, b)'), 'x?then(a, b)');
+    eq(canon('x?switch("a", "b", "c")'), 'x?switch("a", "b", "c")');
+    eq(canon('x?default()'), 'x?default()');
   });
   it('dynamic key access', () => {
     eq(canon('x["k"]'), 'x["k"]');

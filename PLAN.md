@@ -11,7 +11,7 @@
 - [x] M8 #assign (block, compound), #global, #local, scope stack (namespace-target `in ns` + #import deferred to M14)
 - [x] M9 #macro (defaults, catch-all), #nested (+ body params), #return, #fallback, <@...> calls, .args
 - [x] M10 lambdas + ?filter ?map ?sort ?sort_by
-- [ ] M11 built-ins: existence, string, hash, number, ?then/?also, type checks
+- [x] M11 built-ins: existence, string, hash, number, ?then/?also, type checks
 - [ ] M12 tag syntax modes + interpolation modes + naming convention (auto/camel/legacy)
 - [ ] M13 whitespace stripping (+ stripText, #t/#lt/#rt/#nt, #compress), #noparse, loose directive ends
 - [ ] M14 #include/#import via includeResolver, #stop, #flush no-op, UnsupportedFeatureException set

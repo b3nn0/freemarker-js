@@ -4,8 +4,11 @@ const BUILTINS = new Map();
 
 /**
  * @typedef {Object} BuiltInSpec
- * @property {number} [minArgs] - reserved for M11+ argument validation
- * @property {number} [maxArgs] - reserved for M11+ argument validation
+ * @property {number} [minArgs] - argument validation support
+ * @property {number} [maxArgs] - argument validation support
+ * @property {boolean} [acceptsMissing] - true when the built-in handles a null/missing
+ *   target itself (existence built-ins, type checks); otherwise a null target throws
+ *   ← BuiltInsForExistenceHandling vs the type-bound BuiltInForXxx classes
  * @property {(target: import('../model/templateModel.js').TemplateModel,
  *   argExprs: Object[]|null, env: import('../environment.js').Environment) =>
  *   import('../model/templateModel.js').TemplateModel} impl
