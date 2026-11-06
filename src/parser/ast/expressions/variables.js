@@ -6,6 +6,9 @@ import {
   UnassignedVariableException, InvalidPropertyException, NonHashException, InvalidReferenceException,
 } from '../../../errors.js';
 import { TemplateHashModel, TemplateSequenceModel } from '../../../model/templateModel.js';
+import { HashModel } from '../../../model/models.js';
+import { unwrap } from '../../../model/unwrap.js';
+import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
 
 export class Identifier extends Expression {
   constructor(name) {
@@ -51,7 +54,38 @@ export class Dot extends Expression {
         `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
         + 'has not been found (it is missing).');
     }
+    // ZeroArgumentNonVoidMethodPolicy: property-like read of a 0-arg function ← get()/getBeforeMethodCall.
+    if (t instanceof HashModel && zeroArgFunctionIsProperty(env.configuration, t.source, this.key, v && v.fn)) {
+      return env.wrap(v.fn());
+    }
     return v;
+  }
+
+  // ← the parse-time BeforeMethodCall trick: a directly enclosing MethodCall routes through here.
+  // Returns [model, preCalled]; preCalled=true when the policy already produced the value.
+  _evaluateForMethodCall(env, argExprs) {
+    const t = this.target.evaluate(env);
+    if (t === null || t === undefined) {
+      throw new InvalidPropertyException(
+        `Can't read the ${JSON.stringify(this.key)} key: the parent expression `
+        + `${this.target.getCanonicalForm()} evaluated to null or missing.`);
+    }
+    if (!(t instanceof TemplateHashModel)) {
+      throw new NonHashException(
+        `Can't read the ${JSON.stringify(this.key)} key: ${this.target.getCanonicalForm()} `
+        + `is not a hash (it is a ${env.typeLabel(t)}).`);
+    }
+    const v = t.get(this.key);
+    if (v === null || v === undefined) {
+      throw new InvalidPropertyException(
+        `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
+        + 'has not been found (it is missing).');
+    }
+    if (t instanceof HashModel && zeroArgFunctionIsProperty(env.configuration, t.source, this.key, v.fn)) {
+      const raw = argExprs.map((a) => unwrap(a.evaluate(env)));
+      return [env.wrap(v.fn(...raw)), true];
+    }
+    return [v, false];
   }
 }
 
@@ -85,10 +119,37 @@ export class DynamicKeyName extends Expression {
       return t.getByIndex(Math.trunc(n));
     }
     if (t instanceof TemplateHashModel) {
-      return t.get(env.coerceToString(k, ' used as a hash key'));
+      const s = env.coerceToString(k, ' used as a hash key');
+      const v = t.get(s);
+      if (v !== null && v !== undefined && t instanceof HashModel
+          && zeroArgFunctionIsProperty(env.configuration, t.source, s, v.fn)) {
+        return env.wrap(v.fn());
+      }
+      return v;
     }
     throw new NonHashException(
       `Can't read: ${this.target.getCanonicalForm()} is a ${env.typeLabel(t)}, `
       + 'not a hash or sequence.');
+  }
+
+  _evaluateForMethodCall(env, argExprs) {
+    const t = this.target.evaluate(env);
+    if (t === null || t === undefined) throw new InvalidPropertyException(
+      `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
+      + '(use the ! or ?? operator to define a default).');
+    if (this.key === null) throw new InvalidPropertyException(
+      `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
+      + '(use the ! or ?? operator to define a default).');
+    const k = this.key.evaluate(env);
+    if (t instanceof TemplateHashModel && k !== null && k !== undefined) {
+      const s = env.coerceToString(k, ' used as a hash key');
+      const v = t.get(s);
+      if (v !== null && v !== undefined && t instanceof HashModel
+          && zeroArgFunctionIsProperty(env.configuration, t.source, s, v.fn)) {
+        const raw = argExprs.map((a) => unwrap(a.evaluate(env)));
+        return [env.wrap(v.fn(...raw)), true];
+      }
+    }
+    return [this.evaluate(env), false];
   }
 }

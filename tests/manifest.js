@@ -11,4 +11,5 @@ export const TEST_FILES = [
   './model/objectWrapper.test.js',
   './runtime/interpolation.test.js',
   './runtime/dynamicAccess.test.js',
+  './runtime/zeroArgPolicy.test.js',
 ];

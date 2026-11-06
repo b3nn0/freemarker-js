@@ -15,7 +15,15 @@ export class MethodCall extends Expression {
     return `${this.target.getCanonicalForm()}(${this.args.map(a => a.getCanonicalForm()).join(', ')})`;
   }
   evaluate(env) {
-    const t = this.target.evaluate(env);
+    let t;
+    let preCalled = false;
+    if (typeof this.target._evaluateForMethodCall === 'function') {
+      // ← BeforeMethodCall path (ZeroArgumentNonVoidMethodPolicy at Dot/DynamicKeyName).
+      [t, preCalled] = this.target._evaluateForMethodCall(env, this.args);
+      if (preCalled) return t;
+    } else {
+      t = this.target.evaluate(env);
+    }
     if (t === null || t === undefined) {
       throw new InvalidReferenceException(
         `The expression ${this.target.getCanonicalForm()} evaluated to null or missing `

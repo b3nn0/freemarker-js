@@ -79,9 +79,13 @@ export class HashModel extends TemplateHashModelEx {
     if (this.isMap) {
       return this.source.has(key) ? this._wrap(this.source.get(key)) : null;
     }
-    return Object.prototype.hasOwnProperty.call(this.source, key)
-      ? this._wrap(this.source[key])
-      : null;
+    // Walk the prototype chain but never past Object.prototype (← class methods are members).
+    let obj = this.source;
+    while (obj !== null && obj !== Object.prototype) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) return this._wrap(obj[key]);
+      obj = Object.getPrototypeOf(obj);
+    }
+    return null;
   }
   keys() {
     return this.isMap ? [...this.source.keys()].map(String) : Object.keys(this.source);

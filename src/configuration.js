@@ -2,6 +2,7 @@
 
 import { VERSION } from './version.js';
 import { SimpleObjectWrapper } from './model/objectWrapper.js';
+import { ZeroArgumentNonVoidMethodPolicy } from './model/policy.js';
 
 export class Configuration {
   static VERSION = VERSION;
@@ -28,6 +29,30 @@ export class Configuration {
     this._dateFormat = null;
     this._tabSize = 8;
     this._objectWrapper = new SimpleObjectWrapper();
+    // ← ClassIntrospectorBuilder defaults at baseline 2.3.36:
+    this._defaultZeroArgumentNonVoidMethodPolicy = ZeroArgumentNonVoidMethodPolicy.METHOD_ONLY;
+    this._recordZeroArgumentNonVoidMethodPolicy
+      = ZeroArgumentNonVoidMethodPolicy.BOTH_METHOD_AND_PROPERTY_UNLESS_BEAN_PROPERTY_READ_METHOD;
+  }
+
+  setDefaultZeroArgumentNonVoidMethodPolicy(p) {
+    this._assertPolicy(p);
+    this._defaultZeroArgumentNonVoidMethodPolicy = p;
+  }
+  getDefaultZeroArgumentNonVoidMethodPolicy() {
+    return this._defaultZeroArgumentNonVoidMethodPolicy;
+  }
+  setRecordZeroArgumentNonVoidMethodPolicy(p) {
+    this._assertPolicy(p);
+    this._recordZeroArgumentNonVoidMethodPolicy = p;
+  }
+  getRecordZeroArgumentNonVoidMethodPolicy() {
+    return this._recordZeroArgumentNonVoidMethodPolicy;
+  }
+  _assertPolicy(p) {
+    if (!Object.values(ZeroArgumentNonVoidMethodPolicy).includes(p)) {
+      throw new TypeError(`Invalid ZeroArgumentNonVoidMethodPolicy: ${String(p)}`);
+    }
   }
 
   setObjectWrapper(w) { this._objectWrapper = w; }
