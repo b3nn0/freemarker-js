@@ -25,7 +25,15 @@ export class Configuration {
     this._outputFormat = null;
     this._numberFormat = null;
     this._dateFormat = null;
+    this._tabSize = 8;
   }
+
+  setTabSize(size) {
+    if (size < 1 || size > 256) throw new RangeError(`tabSize must be 1..256, but it was ${size}.`);
+    this._tabSize = size;
+  }
+
+  getTabSize() { return this._tabSize; }
 
   setTagSyntax(v) { this._tagSyntax = v; }
   getTagSyntax() { return this._tagSyntax; }

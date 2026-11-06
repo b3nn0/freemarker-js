@@ -56,3 +56,15 @@ export class InvalidFormatStringException extends TemplateException {}
 export class StopException extends TemplateException {}
 export class UnsupportedFeatureException extends FreeMarkerException {}
 export class BugException extends FreeMarkerException {}
+
+// ← javacc TokenMgrError: lexer-level failure, wrapped into ParseException at parse time.
+export class TokenMgrError extends Error {
+  constructor(message, beginLine = -1, beginColumn = -1, endLine = -1, endColumn = -1) {
+    super(message);
+    this.name = this.constructor.name;
+    this.beginLine = beginLine;
+    this.beginColumn = beginColumn;
+    this.endLine = endLine;
+    this.endColumn = endColumn;
+  }
+}
