@@ -29,7 +29,7 @@ No runtime/dev dependencies, no build step. Run tests: `node tests/cli.mjs` or o
 | Tag/interpolation syntax modes, naming conventions (M12) | done | angle + square bracket |
 | Whitespace stripping, `#t #lt #rt #nt`, `#compress`, `#noparse` (M13) | done | |
 | `#include`/`#import` via `setIncludeResolver`/`options.includeResolver`, `#stop`, `#flush` (M14) | done | sync resolver; name-only parse cache |
-| Output formats + escaping (M15) | planned | HTML escaper; others passthrough |
+| Output formats + escaping (M15) | done | HTML/XHTML/XML escapers; auto-esc; built-in escapers |
 | Number/date formatting subset (M16) | planned | named formats + pattern subset |
 | Zero-arg method policy (M6) | done | all 3 policy values |
 | TemplateLoader / filesystem / URL loading | out of scope | |

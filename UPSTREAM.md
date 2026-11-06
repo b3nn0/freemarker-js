@@ -75,3 +75,9 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M14: #include ignore_missing suppresses both missing-source and parse failures, matching 2.3.x (documented upstream quirk).
 - M14: #stop throws StopException whose message mirrors StopException.printStackTrace ("Encountered stop instruction" + "Cause given: ...").
 - M14: #import namespaces are per-Environment (loadedLibs) keyed by resolved name, registered before initialization (cycle-tolerant like upstream); #import "x" as auto is not part of 2.3.36 directive syntax (API-only), so only `as ID` is supported.
+- M15: auto-escaping and output formats bind at parse time per interpolation, like DollarVariable; the runtime env.outputFormat stack exists only so ?no_esc/legacy-bypass see the enclosing #outputformat block.
+- M15: RTF/CSS/JSON output formats and CombinedMarkupOutputFormat ("{outer{inner}}" and "{outer}name") are unsupported (UnsupportedFeatureException on the {...} form).
+- M15: Configuration.setOutputFormat takes a format name string (resolved via the standard registry); custom OutputFormat registration is not supported. autoEscapingPolicy uses string constants; FORCE_AUTO_ESCAPING_POLICY is recognized but not settable, so the force-related errors are not reachable.
+- M15: #outputformat's parameter must be a string literal (upstream accepts any parse-time literal, incl. non-string constants coerced to string).
+- M15: ?url is fixed to UTF-8 (no charset argument/setting in the browser). ?js_string/?json_string follow the 2.3.32+ jsStringEnc rules exactly (no legacy pre-2.3.32 variant).
+- M15: MarkupModel concatenation inside expressions is not ported (markup values behave as their escaped string form in string contexts); the DollarVariable.accept format-mixing rules for markup values are ported verbatim.

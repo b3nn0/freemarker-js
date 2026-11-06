@@ -18,6 +18,40 @@ export class StringModel extends TemplateScalarModel {
   }
 }
 
+// ← TemplateMarkupOutputModel (CommonTemplateMarkupOutputModel flavor): a value
+// that is either already markup, or plain text to be escaped by its format.
+export class MarkupModel extends StringModel {
+  /**
+   * @param {string|null} plainText - the unescaped source text (nullable once markup is known)
+   * @param {import('../outputFormat.js').OutputFormat} outputFormat
+   * @param {string|null} [markup] - pre-escaped markup content
+   */
+  constructor(plainText, outputFormat, markup = null) {
+    super(markup ?? outputFormat.escapePlainText(plainText ?? ''));
+    this.plainText = plainText;
+    this.markup = markup;
+    this.outputFormat = outputFormat;
+  }
+
+  /**
+   * @param {string|null} plainText
+   * @param {import('../outputFormat.js').OutputFormat} outputFormat
+   * @returns {MarkupModel} ← fromPlainTextByEscaping
+   */
+  static fromPlainText(plainText, outputFormat) {
+    return new MarkupModel(plainText, outputFormat, null);
+  }
+
+  /**
+   * @param {string} markup
+   * @param {import('../outputFormat.js').OutputFormat} outputFormat
+   * @returns {MarkupModel} ← fromMarkup
+   */
+  static fromMarkup(markup, outputFormat) {
+    return new MarkupModel(null, outputFormat, markup);
+  }
+}
+
 /** A numeric value (any finite or non-finite JS number). */
 export class NumberModel extends TemplateNumberModel {
   /** @param {number} value */

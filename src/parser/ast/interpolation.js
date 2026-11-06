@@ -1,15 +1,26 @@
 // ${...} (and [=...], canonicalized to ${...}). ← freemarker.core.DollarVariable (Interpolation).
 
 import { TemplateElement } from './templateElement.js';
-import { InvalidReferenceException } from '../../errors.js';
+import { MarkupModel } from '../../model/models.js';
+import { InvalidReferenceException, TemplateException } from '../../errors.js';
 
 export class Interpolation extends TemplateElement {
-  constructor(expression) {
+  /**
+   * @param {import('./expressions/expression.js').Expression} expression
+   * @param {import('../../outputFormat.js').OutputFormat|null} [outputFormat] -
+   *   the format bound at parse time ← DollarVariable.outputFormat
+   * @param {boolean} [autoEscape] - ← DollarVariable.autoEscape
+   */
+  constructor(expression, outputFormat = null, autoEscape = false) {
     super();
     this.expression = expression;
+    this.outputFormat = outputFormat;
+    this.autoEscape = autoEscape;
   }
 
   /**
+   * ← DollarVariable.accept: markup values follow the format-mixing rules,
+   * plain values are escaped iff this interpolation was parse-bound to autoEscape.
    * @param {import('../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
@@ -19,7 +30,29 @@ export class Interpolation extends TemplateElement {
       throw new InvalidReferenceException(
         `The following has evaluated to null or missing: ==> ${this.expression.getCanonicalForm()}`);
     }
-    env.output.write(env.coerceToString(value, ' (output of an interpolation)'));
+    if (value instanceof MarkupModel) {
+      const cur = this.outputFormat ?? env.outputFormat ?? env.configuration.getOutputFormat();
+      const moOF = value.outputFormat;
+      if (moOF === cur) {
+        env.output.write(value.markup ?? cur.escapePlainText(value.plainText));
+      } else if (!cur.isOutputFormatMixingAllowed) {
+        const src = value.plainText;
+        if (src === null) {
+          throw new TemplateException(
+            `The value to print is in ${moOF.name} format, which differs from the current `
+            + `output format, ${cur.name}. Format conversion wasn't possible.`);
+        }
+        env.output.write(cur.isMarkup ? cur.escapePlainText(src) : src);
+      } else {
+        env.output.write(value.markup ?? moOF.escapePlainText(value.plainText));
+      }
+      return null;
+    }
+    const s = env.coerceToString(value, ' (output of an interpolation)');
+    env.output.write(
+      this.autoEscape && this.outputFormat !== null && this.outputFormat.isMarkup
+        ? this.outputFormat.escapePlainText(s)
+        : s);
     return null;
   }
 

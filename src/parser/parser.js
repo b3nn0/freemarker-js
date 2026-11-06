@@ -5,7 +5,9 @@
 import { TokenManager } from './tokenManager.js';
 import { TT } from './tokenType.js';
 import * as LEX from './lexicalStates.js';
-import { ParseException, TokenMgrError, UnsupportedFeatureException } from '../errors.js';
+import { ParseException, TokenMgrError, UnsupportedFeatureException,
+  UnregisteredOutputFormatException } from '../errors.js';
+import { getStandardOutputFormat } from '../outputFormat.js';
 import { MixedContentElements } from './ast/mixedContentElements.js';
 import { TextBlock } from './ast/textBlock.js';
 import { Interpolation } from './ast/interpolation.js';
@@ -36,6 +38,8 @@ import { CompressedBlock } from './ast/directives/compress.js';
 import { IncludeDirective } from './ast/directives/include.js';
 import { ImportDirective } from './ast/directives/importDir.js';
 import { StopInstruction, FlushInstruction } from './ast/directives/stop.js';
+import { AutoEscBlock, NoAutoEscBlock } from './ast/directives/autoEsc.js';
+import { OutputFormatBlock } from './ast/directives/outputFormat.js';
 import { BuiltinVariable } from './ast/expressions/builtIn.js';
 import { unescapeFTLStringLiteral, isTrimmableToEmpty } from '../utility/stringUtil.js';
 
@@ -102,6 +106,27 @@ export class Parser {
     this.stripText = false; // only the #ftl header can set it (2.3)
     this.preventStrippings = false; // ← Configuration.preventStrippings (not exposed by this port)
     this.mixedContentNesting = 0; // ← FTL.jj mixedContentNesting (for stripText)
+    // ← FTL.jj outputFormat / autoEscapingPolicy / autoEscaping parser fields
+    this.outputFormat = configuration.getOutputFormat();
+    this.autoEscapingPolicy = configuration.getAutoEscapingPolicy();
+    this.autoEscaping = this._recalculateAutoEscaping();
+  }
+
+  // ← FTL.jj recalculateAutoEscapingField()
+  _recalculateAutoEscaping() {
+    if (this.outputFormat.isMarkup) {
+      switch (this.autoEscapingPolicy) {
+        case 'enableIfDefault': return this.outputFormat.isAutoEscapedByDefault;
+        case 'enableIfSupported':
+        case 'force':
+          return true;
+        case 'disable':
+          return false;
+        default:
+          throw new Error(`Unhandled autoEscaping policy: ${this.autoEscapingPolicy}`);
+      }
+    }
+    return false;
   }
 
   /**
@@ -234,10 +259,22 @@ export class Parser {
       settings.strictSyntax = this._evalHeaderBoolean(keyTok.image, exp);
     } else if (matches('auto_esc', 'autoEsc')) {
       settings.autoEsc = this._evalHeaderBoolean(keyTok.image, exp);
+      // ← FTL.jj header: auto_esc=true/false picks the policy, then recalculate.
+      this.autoEscapingPolicy = settings.autoEsc
+        ? 'enableIfSupported'
+        : (this.autoEscapingPolicy === 'force' ? this.autoEscapingPolicy : 'disable');
+      this.autoEscaping = this._recalculateAutoEscaping();
     } else if (matches('output_format', 'outputFormat')) {
       const v = this._evalHeaderConstant(exp);
       if (typeof v !== 'string') throw this._errorAt(`Expected a string constant for "${keyTok.image}".`, exp);
-      settings.outputFormat = v;
+      try {
+        this.outputFormat = getStandardOutputFormat(v);
+      } catch (e) {
+        if (e instanceof UnregisteredOutputFormatException) throw this._errorAt(e.message, exp);
+        throw e;
+      }
+      this.autoEscaping = this._recalculateAutoEscaping();
+      settings.outputFormat = this.outputFormat.name;
     } else if (matches('ns_prefixes', 'nsPrefixes') || ks === 'attributes') {
       throw new UnsupportedFeatureException(
         `The "#ftl ${keyTok.image}" parameter is not supported by this port yet.`);
@@ -346,7 +383,9 @@ export class Parser {
         if (expression instanceof ListLiteral) {
           throw this._errorAt('A list literal has no string form; it can\'t be interpolated with ${...}.', expression);
         }
-        group.addChild(this._span(new Interpolation(expression), t, closer));
+        // ← DollarVariable captures the format/auto-escape state at parse time
+        group.addChild(this._span(
+          new Interpolation(expression, this.outputFormat, this.autoEscaping), t, closer));
         continue;
       }
 
@@ -503,6 +542,13 @@ export class Parser {
           this._next();
           group.addChild(this._span(new FlushInstruction(), t, t));
           continue;
+        case TT.AUTOESC:
+        case TT.NOAUTOESC:
+          group.addChild(this._parseAutoEsc(t));
+          continue;
+        case TT.OUTPUTFORMAT:
+          group.addChild(this._parseOutputFormatBlock(t));
+          continue;
         default:
           break;
       }
@@ -648,6 +694,85 @@ export class Parser {
     const block = new CompressedBlock(children.children);
     this._span(block, startTok, end);
     return block;
+  }
+
+  // ---- output format / auto-escape blocks ← FTL.jj AutoEscapeBlock(),
+  // NoAutoEscBlock(), OutputFormatBlock() ----
+
+  _parseAutoEsc(startTok) {
+    const isAuto = startTok.type === TT.AUTOESC;
+    this._next();
+    // ← checkCurrentOutputFormatCanEscape(start): only for #autoesc
+    if (isAuto && !this.outputFormat.isMarkup) {
+      throw this._error(
+        `The current output format can't do escaping: ${this.outputFormat}`, startTok);
+    }
+    const endType = isAuto ? TT.END_AUTOESC : TT.END_NOAUTOESC;
+    const endName = isAuto ? '</#autoesc>' : '</#noautoesc>';
+    const savedPolicy = this.autoEscapingPolicy;
+    const savedAutoEscaping = this.autoEscaping;
+    this.autoEscapingPolicy = isAuto ? 'enableIfSupported' : 'disable';
+    this.autoEscaping = this._recalculateAutoEscaping();
+    try {
+      const children = this._parseMixedContent(new Set([endType]));
+      const end = this._peek();
+      if (end.type !== endType) {
+        throw this._error(`Missing end tag: "${endName}" expected.`, end);
+      }
+      this._next();
+      const block = isAuto
+        ? new AutoEscBlock(children.children)
+        : new NoAutoEscBlock(children.children);
+      return this._span(block, startTok, end);
+    } finally {
+      this.autoEscapingPolicy = savedPolicy;
+      this.autoEscaping = savedAutoEscaping;
+    }
+  }
+
+  _parseOutputFormatBlock(startTok) {
+    this._next();
+    const exp = this._parseExpression();
+    if (!(exp instanceof StringLiteral)) {
+      throw this._errorAt(
+        'Parameter expression must be parse-time evaluable (constant): ' + exp.getCanonicalForm(),
+        exp);
+    }
+    const name = exp.value;
+    if (name.startsWith('{')) {
+      throw new UnsupportedFeatureException(
+        'Combined output format names ("{outer{inner}}") are not supported by this port.');
+    }
+    let format;
+    try {
+      format = getStandardOutputFormat(name);
+    } catch (e) {
+      if (e instanceof UnregisteredOutputFormatException) throw this._errorAt(e.message, exp);
+      throw e;
+    }
+    if (this._peek().type === TT.EMPTY_DIRECTIVE_END) {
+      const emptyEnd = this._next();
+      return this._span(new OutputFormatBlock([], name, format), startTok, emptyEnd);
+    }
+    this._expect(TT.DIRECTIVE_END, '">"');
+    // ← FTL.jj OutputFormatBlock(): the parser-level format switches for the
+    // whole block (its interpolations bind to it), then restores.
+    const savedFormat = this.outputFormat;
+    const savedAutoEscaping = this.autoEscaping;
+    this.outputFormat = format;
+    this.autoEscaping = this._recalculateAutoEscaping();
+    try {
+      const children = this._parseMixedContent(new Set([TT.END_OUTPUTFORMAT]));
+      const end = this._peek();
+      if (end.type !== TT.END_OUTPUTFORMAT) {
+        throw this._error('Missing end tag: "</#outputformat>" expected.', end);
+      }
+      this._next();
+      return this._span(new OutputFormatBlock(children.children, name, format), startTok, end);
+    } finally {
+      this.outputFormat = savedFormat;
+      this.autoEscaping = savedAutoEscaping;
+    }
   }
 
   // ---- M7 directives ----

@@ -46,6 +46,9 @@ export class Environment {
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
     this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
     this.loadedLibs = new Map(); // imported-template namespaces ← Environment.loadedLibs
+    // ← Environment.outputFormat (built-ins consult it; interpolations carry
+    // their own parse-time binding instead)
+    this.outputFormat = template.outputFormat ?? this.configuration.getOutputFormat();
   }
 
   /**

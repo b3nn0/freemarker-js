@@ -3,6 +3,7 @@
 import { VERSION } from './version.js';
 import { SimpleObjectWrapper } from './model/objectWrapper.js';
 import { ZeroArgumentNonVoidMethodPolicy } from './model/policy.js';
+import { UndefinedOutputFormat, getStandardOutputFormat } from './outputFormat.js';
 
 /**
  * Settings object mirroring upstream `freemarker.core.Configuration` names/defaults;
@@ -33,7 +34,9 @@ export class Configuration {
     this._interpolationSyntax = Configuration.LEGACY_INTERPOLATION_SYNTAX;
     this._namingConvention = Configuration.AUTO_DETECT_NAMING_CONVENTION;
     this._whitespaceStripping = true;
-    this._outputFormat = null;
+    // ← Configuration.java:566-567 defaults
+    this._autoEscapingPolicy = Configuration.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY;
+    this._outputFormat = UndefinedOutputFormat.INSTANCE;
     this._numberFormat = null;
     this._dateFormat = null;
     this._tabSize = 8;
@@ -115,8 +118,33 @@ export class Configuration {
   getIncludeResolver() { return this._includeResolver; }
   getWhitespaceStripping() { return this._whitespaceStripping; }
 
-  setOutputFormat(name) { this._outputFormat = name; }
+  setOutputFormat(name) { this._outputFormat = getStandardOutputFormat(String(name)); }
   getOutputFormat() { return this._outputFormat; }
+
+  // ← Configuration auto-escaping policy constants (strings instead of ints;
+  // see UPSTREAM.md). "force" is not supported by this port.
+  static DISABLE_AUTO_ESCAPING_POLICY = 'disable';
+  static ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY = 'enableIfDefault';
+  static ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY = 'enableIfSupported';
+  static FORCE_AUTO_ESCAPING_POLICY = 'force'; // recognized, never settable via #ftl=false cases
+
+  /**
+   * @param {string} p - one of the *_AUTO_ESCAPING_POLICY constants
+   * @throws {TypeError} on an unknown constant
+   */
+  setAutoEscapingPolicy(p) {
+    const ok = [
+      Configuration.DISABLE_AUTO_ESCAPING_POLICY,
+      Configuration.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY,
+      Configuration.ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY,
+      Configuration.FORCE_AUTO_ESCAPING_POLICY,
+    ];
+    if (!ok.includes(p)) throw new TypeError(`Invalid autoEscapingPolicy: ${String(p)}`);
+    this._autoEscapingPolicy = p;
+  }
+
+  /** @returns {string} a *_AUTO_ESCAPING_POLICY constant */
+  getAutoEscapingPolicy() { return this._autoEscapingPolicy; }
 
   setNumberFormat(f) { this._numberFormat = f; }
   getNumberFormat() { return this._numberFormat; }
