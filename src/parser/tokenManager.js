@@ -339,10 +339,15 @@ export class TokenManager {
    * @returns {void}
    */
   startInterpolation(tok) {
-    const sq = this.interpolationSyntax === Configuration.SQUARE_BRACKET_INTERPOLATION_SYNTAX;
+    const syntax = this.interpolationSyntax;
     const isSquOpen = tok.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING;
     const isDollarOpen = tok.type === TT.DOLLAR_INTERPOLATION_OPENING;
-    if (sq ? !isSquOpen : !isDollarOpen) {
+    // ← FTL.jj startInterpolation: LEGACY accepts ${ and #{ but demotes [=;
+    // DOLLAR accepts only ${; SQUARE accepts only [=
+    const demoted = (syntax === Configuration.LEGACY_INTERPOLATION_SYNTAX && isSquOpen)
+      || (syntax === Configuration.DOLLAR_INTERPOLATION_SYNTAX && !isDollarOpen)
+      || (syntax === Configuration.SQUARE_BRACKET_INTERPOLATION_SYNTAX && !isSquOpen);
+    if (demoted) {
       tok.type = TT.STATIC_TEXT_NON_WS; // this interpolation syntax is disabled
       return;
     }

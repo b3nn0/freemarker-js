@@ -4,6 +4,7 @@ export const TEST_FILES = [
   './io/writer.test.js',
   './syntax/textBlock.test.js',
   './syntax/interpolationSyntax.test.js',
+  './syntax/modes.test.js',
   './parser/tokenManager.test.js',
   './parser/lexerPositions.test.js',
   './parser/parser.test.js',

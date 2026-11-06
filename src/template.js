@@ -31,6 +31,7 @@ export class Template {
     const parser = new Parser(this.source, this.configuration, this.name);
     const root = parser.parse();
     this.macros = parser.macros;
+    this.ftlHeader = parser.headerElement;
     if (root.beginLine === -1) {
       const { line, column } = endPosition(this.source);
       root.setLocation(this.name, 1, 1, line, column);

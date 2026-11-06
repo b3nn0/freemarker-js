@@ -53,9 +53,10 @@ describe('lexer: interpolation syntax', () => {
     ]);
   });
 
-  it('hash interpolation always reclassified to static text', () => {
+  it('hash interpolation: starts under the LEGACY default syntax', () => {
     eq(tokenize('A#{}B'), [
-      'STATIC_TEXT_NON_WS[A]', 'STATIC_TEXT_NON_WS[#{]', 'STATIC_TEXT_NON_WS[}B]', 'EOF[]',
+      'STATIC_TEXT_NON_WS[A]', 'HASH_INTERPOLATION_OPENING[#{]', 'CLOSING_CURLY_BRACKET[}]',
+      'STATIC_TEXT_NON_WS[B]', 'EOF[]',
     ]);
   });
 

@@ -20,6 +20,7 @@ function openings(source, interpolationSyntax) {
 
 const D = Configuration.DOLLAR_INTERPOLATION_SYNTAX;
 const S = Configuration.SQUARE_BRACKET_INTERPOLATION_SYNTAX;
+const L = Configuration.LEGACY_INTERPOLATION_SYNTAX;
 
 describe('lexer: interpolation syntax matrix', () => {
   it('DOLLAR: ${ starts it', () => {
@@ -48,11 +49,22 @@ describe('lexer: interpolation syntax matrix', () => {
     ]);
   });
 
-  it('hash interpolation never starts an interpolation in any syntax', () => {
+  it('hash interpolation starts an interpolation only under LEGACY syntax', () => {
     for (const syntax of [D, S]) {
       const t = openings('#{a}', syntax);
       eq(t[0], 'STATIC_TEXT_NON_WS[#{]');
     }
+    eq(openings('#{a}', L)[0], 'HASH_INTERPOLATION_OPENING[#{]');
+  });
+
+  it('LEGACY: ${ and #{ both start interpolations; [= stays static text', () => {
+    eq(openings('${a}#{b}', L), [
+      'DOLLAR_INTERPOLATION_OPENING[${]', 'ID[a]', 'CLOSING_CURLY_BRACKET[}]',
+      'HASH_INTERPOLATION_OPENING[#{]', 'ID[b]', 'CLOSING_CURLY_BRACKET[}]', 'EOF[]',
+    ]);
+    eq(openings('[=a]', L), [
+      'STATIC_TEXT_NON_WS[[=]', 'STATIC_TEXT_NON_WS[a]]', 'EOF[]',
+    ]);
   });
 
   it('disabled openings merge into one static-text run', () => {

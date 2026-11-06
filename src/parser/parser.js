@@ -30,10 +30,22 @@ import { Assignment, AssignmentInstruction } from './ast/directives/assign.js';
 import { Macro } from './ast/directives/macro.js';
 import { UnifiedCall, NestedInstruction, FallbackInstruction } from './ast/directives/unifiedCall.js';
 import { ReturnInstruction } from './ast/directives/control.js';
+import { FTLHeader } from './ast/directives/ftlHeader.js';
 import { BuiltinVariable } from './ast/expressions/builtIn.js';
 import { unescapeFTLStringLiteral } from '../utility/stringUtil.js';
 
 const STATIC_TYPES = new Set([TT.STATIC_TEXT_WS, TT.STATIC_TEXT_NON_WS, TT.STATIC_TEXT_FALSE_ALARM]);
+
+// ← FTL.jj HeaderElement() "you may meant" suggestions for unknown #ftl params
+const FTL_HEADER_PARAM_SUGGESTIONS = new Map([
+  ['charset', 'encoding'],
+  ['xmlns', 'ns_prefixes'],
+  ['auto_escape', 'auto_esc'],
+  ['auto_escaping', 'auto_esc'],
+  ['autoesc', 'auto_esc'],
+  ['autoescape', 'autoEsc'],
+  ['autoescaping', 'autoEsc'],
+]);
 
 const EQUALITY_OPS = new Set([TT.EQUALS, TT.DOUBLE_EQUALS, TT.NOT_EQUALS]);
 const RELATIONAL_OPS = new Set([
@@ -80,6 +92,7 @@ export class Parser {
     this.inFunction = false;
     this.macros = []; // ← template.addMacro equivalent; collected Macro nodes
     this._argsFlag = false; // set when `.args` is parsed inside the current macro/function
+    this.headerElement = null; // ← FTL.jj Root(): at most one header
   }
 
   /**
@@ -143,6 +156,121 @@ export class Parser {
     return node;
   }
 
+  // ---- FTL header (at most one, at the start) ← FTL.jj Root() header branch ----
+
+  /**
+   * @param {import('./token.js').Token} t - the TRIVIAL_FTL_HEADER token
+   * @returns {FTLHeader}
+   */
+  _parseTrivialFTLHeader(t) {
+    this.headerElement = this._span(new FTLHeader([], {}), t, t);
+    return this.headerElement;
+  }
+
+  /**
+   * Parameters and closing of the non-trivial header.
+   * Upstream evaluates parameter expressions at parse time; this port restricts
+   * them to literal constants (see UPSTREAM.md).
+   * @param {import('./token.js').Token} startTok - the FTL_HEADER token
+   * @returns {FTLHeader}
+   */
+  _parseFTLHeader(startTok) {
+    const params = [];
+    const settings = {};
+    for (;;) {
+      const kt = this._peek();
+      if (kt.type === TT.DIRECTIVE_END || kt.type === TT.EMPTY_DIRECTIVE_END) {
+        this._next();
+        this.headerElement = this._span(new FTLHeader(params, settings), startTok, kt);
+        return this.headerElement;
+      }
+      if (kt.type !== TT.ID) {
+        throw this._error(`Expected a "#ftl" parameter name or the end of the directive, but got ${this._desc(kt)}.`, kt);
+      }
+      this._next();
+      const eq = this._peek();
+      if (eq.type !== TT.EQUALS) {
+        throw this._error(`Expected "=" after the "#ftl" parameter name "${kt.image}".`, eq);
+      }
+      this._next();
+      const exp = this._parseExpression();
+      params.push({ key: kt.image, exp });
+      this._applyFTLHeaderParam(kt, exp, settings);
+    }
+  }
+
+  /**
+   * @param {import('./token.js').Token} keyTok - the parameter name token
+   * @param {import('./ast/expressions/expression.js').Expression} exp
+   * @param {Object} settings - evaluated values, accumulated here
+   * @returns {void}
+   */
+  _applyFTLHeaderParam(keyTok, exp, settings) {
+    const k = keyTok.image;
+    const ks = k.toLowerCase();
+    // ← FTL.jj: equalsIgnoreCase(snake_case) || equals(camelCase)
+    const matches = (snake, camel) => ks === snake || k === camel;
+    if (ks === 'encoding') {
+      const v = this._evalHeaderConstant(exp);
+      if (typeof v !== 'string') throw this._errorAt(`Expected a string constant for "${keyTok.image}".`, exp);
+      settings.encoding = v;
+    } else if (matches('strip_whitespace', 'stripWhitespace')) {
+      settings.stripWhitespace = this._evalHeaderBoolean(keyTok.image, exp);
+    } else if (matches('strip_text', 'stripText')) {
+      settings.stripText = this._evalHeaderBoolean(keyTok.image, exp);
+    } else if (matches('strict_syntax', 'strictSyntax')) {
+      settings.strictSyntax = this._evalHeaderBoolean(keyTok.image, exp);
+    } else if (matches('auto_esc', 'autoEsc')) {
+      settings.autoEsc = this._evalHeaderBoolean(keyTok.image, exp);
+    } else if (matches('output_format', 'outputFormat')) {
+      const v = this._evalHeaderConstant(exp);
+      if (typeof v !== 'string') throw this._errorAt(`Expected a string constant for "${keyTok.image}".`, exp);
+      settings.outputFormat = v;
+    } else if (matches('ns_prefixes', 'nsPrefixes') || ks === 'attributes') {
+      throw new UnsupportedFeatureException(
+        `The "#ftl ${keyTok.image}" parameter is not supported by this port yet.`);
+    } else {
+      const suggested = FTL_HEADER_PARAM_SUGGESTIONS.get(ks) ?? null;
+      throw this._error(
+        `Unknown FTL header parameter: ${keyTok.image}`
+        + (suggested === null ? '' : `. You may meant: ${suggested}`),
+        keyTok);
+    }
+  }
+
+  /**
+   * @param {import('./ast/expressions/expression.js').Expression} exp
+   * @returns {string|number|boolean} the literal value
+   */
+  _evalHeaderConstant(exp) {
+    if (exp instanceof StringLiteral || exp instanceof NumberLiteral || exp instanceof BooleanLiteral) {
+      return exp.value;
+    }
+    throw this._errorAt(
+      `Could not evaluate expression (on parse-time): ${exp.getCanonicalForm()}`
+      + ' - the "#ftl" parameter must be a constant literal.',
+      exp);
+  }
+
+  /**
+   * ← FTL.jj getBoolean(): true/false constants, or string "true"/"false".
+   * @param {string} name - parameter name (for messages)
+   * @param {import('./ast/expressions/expression.js').Expression} exp
+   * @returns {boolean}
+   */
+  _evalHeaderBoolean(name, exp) {
+    if (exp instanceof BooleanLiteral) return exp.value;
+    if (exp instanceof StringLiteral) {
+      const s = exp.value.toLowerCase();
+      if (s === 'true') return true;
+      if (s === 'false') return false;
+    }
+    throw this._errorAt(
+      `Expected a boolean constant (true/false or "true"/"false") for "${name}", `
+      + `but got ${exp.getCanonicalForm()}.`,
+      exp);
+  }
+
   // ---- root (mixed content) ← FTL.jj MixedContentElements() ----
 
   _parseRoot() {
@@ -183,7 +311,8 @@ export class Parser {
 
       flush();
 
-      if (t.type === TT.DOLLAR_INTERPOLATION_OPENING || t.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING) {
+      if (t.type === TT.DOLLAR_INTERPOLATION_OPENING || t.type === TT.HASH_INTERPOLATION_OPENING
+        || t.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING) {
         this._next();
         const expression = this._parseExpression();
         const closer = this._peek();
@@ -231,7 +360,17 @@ export class Parser {
       }
 
       if (t.type === TT.TRIVIAL_FTL_HEADER || t.type === TT.FTL_HEADER) {
-        throw new UnsupportedFeatureException('The #ftl directive is not supported in this milestone yet.');
+        // ← FTL.jj Root(): the header is only allowed at the start (after optional whitespace).
+        if (this.headerElement !== null || group.children.length > 0 || pending.trim() !== '') {
+          throw this._error('The "#ftl" directive is only allowed once, at the start of the template.', t);
+        }
+        flush();
+        this._next();
+        const header = t.type === TT.TRIVIAL_FTL_HEADER
+          ? this._parseTrivialFTLHeader(t)
+          : this._parseFTLHeader(t);
+        group.addChild(header);
+        continue;
       }
 
       switch (t.type) {

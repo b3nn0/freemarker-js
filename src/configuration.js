@@ -16,6 +16,7 @@ export class Configuration {
   static AUTO_DETECT_TAG_SYNTAX = 0;
   static ANGLE_BRACKET_TAG_SYNTAX = 1;
   static SQUARE_BRACKET_TAG_SYNTAX = 2;
+  static LEGACY_INTERPOLATION_SYNTAX = 20;
   static DOLLAR_INTERPOLATION_SYNTAX = 21;
   static SQUARE_BRACKET_INTERPOLATION_SYNTAX = 22;
   static AUTO_DETECT_NAMING_CONVENTION = 10;
@@ -28,8 +29,8 @@ export class Configuration {
   constructor(version = VERSION) {
     this.version = version;
     this._tagSyntax = Configuration.ANGLE_BRACKET_TAG_SYNTAX;
-    // Upstream default is LEGACY (${} + #{}); #{} is out of scope, so default is DOLLAR.
-    this._interpolationSyntax = Configuration.DOLLAR_INTERPOLATION_SYNTAX;
+    // ← Configuration.java:573 — 2.3.x default is LEGACY (${} and #{}).
+    this._interpolationSyntax = Configuration.LEGACY_INTERPOLATION_SYNTAX;
     this._namingConvention = Configuration.AUTO_DETECT_NAMING_CONVENTION;
     this._whitespaceStripping = true;
     this._outputFormat = null;
