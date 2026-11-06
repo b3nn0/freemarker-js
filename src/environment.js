@@ -9,6 +9,7 @@ import { StringModel, NumberModel, BooleanModel, DateModel } from './model/model
 import { TemplateSequenceModel, TemplateHashModel, TemplateMethodModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
 import { unwrap } from './model/unwrap.js';
+import { Template } from './template.js';
 
 /**
  * @typedef {import('./model/templateModel.js').TemplateModel} TemplateModel
@@ -44,6 +45,7 @@ export class Environment {
     this._nsScope = new Map(); // current template namespace ← #assign target
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
     this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
+    this.loadedLibs = new Map(); // imported-template namespaces ← Environment.loadedLibs
   }
 
   /**
@@ -106,6 +108,56 @@ export class Environment {
         + `in line ${el.beginLine}, column ${el.beginColumn}]`);
     }
     return 'FTL stack trace ("~" means nesting-related):\n' + frames.join('\n');
+  }
+
+  // ---- template references (#include / #import) ----
+
+  /**
+   * Resolves a template's source text via the includeResolver. ← TemplateLoader.getSource
+   * (synchronous in this port; see UPSTREAM.md).
+   * @param {string} name
+   * @returns {string} source text
+   */
+  _resolveTemplateSource(name) {
+    const resolver = this.includeResolver ?? this.configuration.getIncludeResolver();
+    if (resolver == null) {
+      throw new TemplateException(
+        `Could not find the included template "${name}".\n`
+        + 'Hint: no includeResolver was set on the Configuration (setIncludeResolver) '
+        + 'or passed to the processing.');
+    }
+    let src;
+    try {
+      src = resolver(name);
+    } catch (e) {
+      if (e instanceof TemplateException) throw e;
+      throw new TemplateException(
+        `Could not find the included template "${name}".\n`
+        + `Hint: the includeResolver threw: ${e.message}`);
+    }
+    if (typeof src !== 'string') {
+      throw new TemplateException(
+        `Could not find the included template "${name}".\n`
+        + 'Hint: the includeResolver returned no source for this name.');
+    }
+    return src;
+  }
+
+  /**
+   * Parse-once per Configuration cache of referenced templates. ← TemplateCache
+   * (keyed by name only in this port - no locale/encoding variants).
+   * @param {string} name
+   * @returns {Template} the parsed template
+   */
+  loadIncludedTemplate(name) {
+    const cfg = this.configuration;
+    let t = cfg._templateCache.get(name);
+    if (t === undefined) {
+      const src = this._resolveTemplateSource(name);
+      t = new Template(name, src, cfg);
+      cfg._templateCache.set(name, t);
+    }
+    return t;
   }
 
   // ---- model plumbing ----

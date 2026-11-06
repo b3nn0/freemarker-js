@@ -42,6 +42,8 @@ export class Configuration {
     this._defaultZeroArgumentNonVoidMethodPolicy = ZeroArgumentNonVoidMethodPolicy.METHOD_ONLY;
     this._recordZeroArgumentNonVoidMethodPolicy
       = ZeroArgumentNonVoidMethodPolicy.BOTH_METHOD_AND_PROPERTY_UNLESS_BEAN_PROPERTY_READ_METHOD;
+    this._includeResolver = null;
+    this._templateCache = new Map(); // referenced-template parse cache ← TemplateCache
   }
 
   /**
@@ -100,6 +102,17 @@ export class Configuration {
   getNamingConvention() { return this._namingConvention; }
 
   setWhitespaceStripping(v) { this._whitespaceStripping = !!v; }
+
+  /**
+   * Sets the sync source resolver used by #include/#import. ← Configuration.setTemplateLoader
+   * (a function of name -> source string in this port; see UPSTREAM.md).
+   * @param {((name: string) => string)|null} fn
+   * @returns {void}
+   */
+  setIncludeResolver(fn) { this._includeResolver = fn ?? null; }
+
+  /** @returns {((name: string) => string)|null} */
+  getIncludeResolver() { return this._includeResolver; }
   getWhitespaceStripping() { return this._whitespaceStripping; }
 
   setOutputFormat(name) { this._outputFormat = name; }

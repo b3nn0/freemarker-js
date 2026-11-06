@@ -33,6 +33,9 @@ import { ReturnInstruction } from './ast/directives/control.js';
 import { FTLHeader } from './ast/directives/ftlHeader.js';
 import { TrimInstruction } from './ast/directives/trim.js';
 import { CompressedBlock } from './ast/directives/compress.js';
+import { IncludeDirective } from './ast/directives/include.js';
+import { ImportDirective } from './ast/directives/importDir.js';
+import { StopInstruction, FlushInstruction } from './ast/directives/stop.js';
 import { BuiltinVariable } from './ast/expressions/builtIn.js';
 import { unescapeFTLStringLiteral, isTrimmableToEmpty } from '../utility/stringUtil.js';
 
@@ -480,6 +483,26 @@ export class Parser {
           if (!this.inMacro) throw this._error('Cannot fall back outside a macro.', t);
           group.addChild(this._span(new FallbackInstruction(), t, t));
           continue;
+        case TT._INCLUDE:
+          this._next();
+          group.addChild(this._parseInclude(t));
+          continue;
+        case TT.IMPORT:
+          this._next();
+          group.addChild(this._parseImport(t));
+          continue;
+        case TT.STOP:
+          this._next();
+          group.addChild(this._parseStop(t));
+          continue;
+        case TT.HALT:
+          this._next();
+          group.addChild(this._span(new StopInstruction(null), t, t));
+          continue;
+        case TT.FLUSH:
+          this._next();
+          group.addChild(this._span(new FlushInstruction(), t, t));
+          continue;
         default:
           break;
       }
@@ -504,6 +527,87 @@ export class Parser {
     flush();
     this.mixedContentNesting--;
     return group;
+  }
+
+  // ---- #include / #import / #stop (FTL.jj Include(), Import(), Stop()) ----
+
+  /**
+   * @param {import('./token.js').Token} startTok - the INCLUDE token
+   * @returns {IncludeDirective}
+   */
+  _parseInclude(startTok) {
+    const nameExp = this._parseExpression();
+    if (this._peek().type === TT.SEMICOLON) this._next(); // ← [<SEMICOLON>]
+    let parseExp = null;
+    let encodingExp = null;
+    let ignoreMissingExp = null;
+    for (;;) {
+      const kt = this._peek();
+      if (kt.type === TT.DIRECTIVE_END || kt.type === TT.EMPTY_DIRECTIVE_END) {
+        this._next();
+        return this._span(new IncludeDirective(nameExp, parseExp, encodingExp, ignoreMissingExp), startTok, kt);
+      }
+      if (kt.type !== TT.ID) {
+        throw this._error(`Expected an "#include" parameter or the end of the directive, but got ${this._desc(kt)}.`, kt);
+      }
+      this._next();
+      if (this._peek().type !== TT.EQUALS) {
+        throw this._error(`Expected "=" after the "#include" parameter "${kt.image}".`, this._peek());
+      }
+      this._next();
+      const exp = this._parseExpression();
+      const a = kt.image;
+      const al = a.toLowerCase();
+      if (al === 'parse') parseExp = exp;
+      else if (al === 'encoding') encodingExp = exp;
+      else if (al === 'ignore_missing' || a === 'ignoreMissing') {
+        this.tm.checkNamingConvention(kt);
+        ignoreMissingExp = exp;
+      } else {
+        const corrected = a === 'ignoreMissing' ? 'ignore_missing' : null;
+        throw this._error('Unsupported named #include parameter: "' + a
+          + '". Supported parameters are: "parse", "encoding", "ignore_missing".'
+          + (corrected === null ? '' : ` Did you mean "${corrected}"?`), kt);
+      }
+    }
+  }
+
+  /**
+   * @param {import('./token.js').Token} startTok - the IMPORT token
+   * @returns {ImportDirective}
+   */
+  _parseImport(startTok) {
+    const nameExp = this._parseExpression();
+    const asTok = this._peek();
+    if (asTok.type !== TT.AS) {
+      throw this._error(`Expected "as" after the imported template name, but got ${this._desc(asTok)}.`, asTok);
+    }
+    this._next();
+    const idTok = this._peek();
+    if (idTok.type !== TT.ID) {
+      throw this._error(`Expected a namespace variable name after "as", but got ${this._desc(idTok)}.`, idTok);
+    }
+    this._next();
+    const kt = this._peek();
+    if (kt.type !== TT.DIRECTIVE_END && kt.type !== TT.EMPTY_DIRECTIVE_END) {
+      throw this._error(`Expected the end of the "#import" directive, but got ${this._desc(kt)}.`, kt);
+    }
+    this._next();
+    return this._span(new ImportDirective(nameExp, idTok.image), startTok, kt);
+  }
+
+  /**
+   * @param {import('./token.js').Token} startTok - the STOP token (with expression)
+   * @returns {StopInstruction}
+   */
+  _parseStop(startTok) {
+    const exp = this._parseExpression();
+    const kt = this._peek();
+    if (kt.type !== TT.DIRECTIVE_END && kt.type !== TT.EMPTY_DIRECTIVE_END) {
+      throw this._error(`Expected the end of the "#stop" directive, but got ${this._desc(kt)}.`, kt);
+    }
+    this._next();
+    return this._span(new StopInstruction(exp), startTok, kt);
   }
 
   // ---- post-parse whitespace cleanup ← TemplateElement.postParseCleanup ----

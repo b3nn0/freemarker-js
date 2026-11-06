@@ -14,6 +14,7 @@ export const TEST_FILES = [
   './runtime/dynamicAccess.test.js',
   './runtime/zeroArgPolicy.test.js',
   './runtime/whitespace.test.js',
+  './runtime/includeImport.test.js',
   './directives/control.test.js',
   './directives/list.test.js',
   './directives/assign.test.js',

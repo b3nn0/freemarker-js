@@ -21,17 +21,17 @@ No runtime/dev dependencies, no build step. Run tests: `node tests/cli.mjs` or o
 
 | Feature | Status | Notes |
 |---|---|---|
-| Static text pass-through (M1) | planned | |
-| `${...}` interpolation, expression language (M2–M3) | planned | |
-| Directives `#if #list #items #sep #switch #attempt #assign #macro #function ...` (M7–M9) | planned | |
-| Lambdas, `?filter ?map ?sort ?sort_by` (M10) | planned | |
-| Built-ins ~60 target (M11) | planned | see section 3.3 of the plan |
-| Tag/interpolation syntax modes, naming conventions (M12) | planned | angle + square bracket |
-| Whitespace stripping, `#compress`, `#noparse` (M13) | planned | |
-| `#include`/`#import` via `options.includeResolver` (M14) | planned | no loaders/cache |
+| Static text pass-through (M1) | done | |
+| `${...}`/`#{...}` interpolation, expression language (M2–M3) | done | |
+| Directives `#if #list #items #sep #switch #attempt #assign #macro #function ...` (M7–M9) | done | |
+| Lambdas, `?filter ?map ?sort ?sort_by` (M10) | done | |
+| Built-ins ~60 target (M11) | done | deferred regex/flag variants (UPSTREAM.md) |
+| Tag/interpolation syntax modes, naming conventions (M12) | done | angle + square bracket |
+| Whitespace stripping, `#t #lt #rt #nt`, `#compress`, `#noparse` (M13) | done | |
+| `#include`/`#import` via `setIncludeResolver`/`options.includeResolver`, `#stop`, `#flush` (M14) | done | sync resolver; name-only parse cache |
 | Output formats + escaping (M15) | planned | HTML escaper; others passthrough |
 | Number/date formatting subset (M16) | planned | named formats + pattern subset |
-| Zero-arg method policy (M6) | planned | all 3 policy values |
+| Zero-arg method policy (M6) | done | all 3 policy values |
 | TemplateLoader / filesystem / URL loading | out of scope | |
 | XML/DOM nodes, `#visit`, `#recurse`, `?node_*`, `?new`, `?api` | out of scope | parse OK, runtime `UnsupportedFeatureException` |
 | `classic_compatible`, `?interpret`, locale-aware formatting | out of scope | |
