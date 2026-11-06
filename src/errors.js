@@ -54,6 +54,10 @@ export class NonDateException extends TemplateException {}
 export class InvalidFormatStringException extends TemplateException {}
 
 export class StopException extends TemplateException {}
+
+// Internal control-flow markers (← BreakException/ContinueException); not exported publicly.
+export class BreakInstructionException extends TemplateException {}
+export class ContinueInstructionException extends TemplateException {}
 export class UnsupportedFeatureException extends FreeMarkerException {}
 export class BugException extends FreeMarkerException {}
 

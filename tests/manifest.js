@@ -12,4 +12,6 @@ export const TEST_FILES = [
   './runtime/interpolation.test.js',
   './runtime/dynamicAccess.test.js',
   './runtime/zeroArgPolicy.test.js',
+  './directives/control.test.js',
+  './directives/list.test.js',
 ];

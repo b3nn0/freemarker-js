@@ -121,18 +121,7 @@ export class ComparisonExpression extends Expression {
   evaluate(env) {
     const l = this.left.evaluate(env);
     const r = this.right.evaluate(env);
-    let cmp; // -1/0/1
-    if (l && typeof l.getAsNumber === 'function' && r && typeof r.getAsNumber === 'function') {
-      cmp = Math.sign(l.getAsNumber() - r.getAsNumber());
-    } else if (l && typeof l.getAsDate === 'function' && r && typeof r.getAsDate === 'function') {
-      cmp = Math.sign(l.getAsDate().getTime() - r.getAsDate().getTime());
-    } else if (l instanceof BooleanModel && r instanceof BooleanModel) {
-      cmp = l.getAsBoolean() === r.getAsBoolean() ? 0 : (l.getAsBoolean() ? 1 : -1);
-    } else {
-      const ls = env.coerceToString(l);
-      const rs = env.coerceToString(r);
-      cmp = ls < rs ? -1 : ls > rs ? 1 : 0;
-    }
+    const cmp = env.compare(l, r);
     // Normalize the many operator spellings to a canonical comparator.
     const op = {
       '==': 'eq', '!=': 'neq',

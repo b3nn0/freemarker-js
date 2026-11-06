@@ -20,6 +20,11 @@ import {
   DefaultToExpression, ExistsExpression,
 } from './ast/expressions/operators.js';
 import { BuiltIn } from './ast/expressions/builtIn.js';
+import { IfBlock, ConditionalBlock } from './ast/directives/if.js';
+import { IteratorBlock, Items, Sep } from './ast/directives/list.js';
+import { AttemptBlock } from './ast/directives/attempt.js';
+import { SwitchBlock, Case, On } from './ast/directives/switch.js';
+import { BreakInstruction, ContinueInstruction } from './ast/directives/control.js';
 import { unescapeFTLStringLiteral } from '../utility/stringUtil.js';
 
 const STATIC_TYPES = new Set([TT.STATIC_TEXT_WS, TT.STATIC_TEXT_NON_WS, TT.STATIC_TEXT_FALSE_ALARM]);
@@ -44,6 +49,10 @@ export class Parser {
     this.templateName = templateName;
     this.tm = new TokenManager(source, configuration);
     this._buf = [];
+    // directive context tracking ← FTL.jj parserIteratorBlockContexts / *DirectiveNesting
+    this._iterCtx = [];
+    this.breakableDepth = 0;
+    this.continuableDepth = 0;
   }
 
   parse() {
@@ -105,13 +114,22 @@ export class Parser {
   // ---- root (mixed content) ← FTL.jj MixedContentElements() ----
 
   _parseRoot() {
-    const root = new MixedContentElements();
+    const root = this._parseMixedContent(new Set());
+    const t = this._peek();
+    if (t.type !== TT.EOF) {
+      throw this._error(`Unexpected ${this._desc(t)} at top level.`, t);
+    }
+    return root;
+  }
+
+  _parseMixedContent(stop) {
+    const group = new MixedContentElements();
     let pending = '';
     let pendingBegin = null;
     let pendingEnd = null;
     const flush = () => {
       if (pendingBegin !== null) {
-        root.addChild(this._span(new TextBlock(pending), pendingBegin, pendingEnd));
+        group.addChild(this._span(new TextBlock(pending), pendingBegin, pendingEnd));
         pending = '';
         pendingBegin = null;
       }
@@ -120,6 +138,7 @@ export class Parser {
     for (;;) {
       const t = this._peek();
       if (t.type === TT.EOF) break;
+      if (stop.has(t.type)) break;
 
       if (STATIC_TYPES.has(t.type)) {
         this._next();
@@ -150,7 +169,7 @@ export class Parser {
         if (expression instanceof ListLiteral) {
           throw this._errorAt('A list literal has no string form; it can\'t be interpolated with ${...}.', expression);
         }
-        root.addChild(this._span(new Interpolation(expression), t, closer));
+        group.addChild(this._span(new Interpolation(expression), t, closer));
         continue;
       }
 
@@ -159,7 +178,7 @@ export class Parser {
         const c = this.tm.readUnparsedContent();
         this.tm.switchTo(LEX.DEFAULT);
         if (!c.closed) throw this._error('Unclosed comment. (Missing "-->")', t);
-        root.addChild(new TerseComment(c.text)
+        group.addChild(new TerseComment(c.text)
           .setLocation(this.templateName, t.beginLine, t.beginColumn, c.endLine, c.endColumn));
         continue;
       }
@@ -174,12 +193,53 @@ export class Parser {
             t);
         }
         const node = t.type === TT.COMMENT ? new CommentDirective(c.text) : new TextBlock(c.text, true);
-        root.addChild(node.setLocation(this.templateName, t.beginLine, t.beginColumn, c.endLine, c.endColumn));
+        group.addChild(node.setLocation(this.templateName, t.beginLine, t.beginColumn, c.endLine, c.endColumn));
         continue;
       }
 
       if (t.type === TT.TRIVIAL_FTL_HEADER || t.type === TT.FTL_HEADER) {
         throw new UnsupportedFeatureException('The #ftl directive is not supported in this milestone yet.');
+      }
+
+      switch (t.type) {
+        case TT.IF:
+          this._next();
+          group.addChild(this._parseIf(t));
+          continue;
+        case TT.LIST:
+          this._next();
+          group.addChild(this._parseList(t));
+          continue;
+        case TT.FOREACH:
+          this._next();
+          group.addChild(this._parseForEach(t));
+          continue;
+        case TT.ATTEMPT:
+          this._next();
+          group.addChild(this._parseAttempt(t));
+          continue;
+        case TT.SWITCH:
+          this._next();
+          group.addChild(this._parseSwitch(t));
+          continue;
+        case TT.ITEMS:
+          this._next();
+          group.addChild(this._parseItems(t, stop));
+          continue;
+        case TT.SEP:
+          this._next();
+          group.addChild(this._parseSep(t, stop));
+          continue;
+        case TT.BREAK:
+          this._next();
+          group.addChild(this._parseBreak(t));
+          continue;
+        case TT.CONTINUE:
+          this._next();
+          group.addChild(this._parseContinue(t));
+          continue;
+        default:
+          break;
       }
 
       // remaining tag-starting tokens are directives not yet parseable
@@ -188,11 +248,245 @@ export class Parser {
           `Directive "${directiveTag(t)}" is not supported in this milestone yet.`);
       }
 
-      throw this._error(`Unexpected ${this._desc(t)} at top level.`, t);
+      throw this._error(`Unexpected ${this._desc(t)} in this context.`, t);
     }
 
     flush();
-    return root;
+    return group;
+  }
+
+  // ---- M7 directives ----
+
+  _parseIf(startTok) {
+    const condition = this._parseExpression();
+    this._expect(TT.DIRECTIVE_END, '">"');
+    const stop = new Set([TT.ELSE_IF, TT.ELSE, TT.END_IF]);
+    const blocks = [];
+    blocks.push(new ConditionalBlock(condition, this._parseMixedContent(stop).children, 'if'));
+    for (;;) {
+      const t = this._peek();
+      if (t.type === TT.ELSE_IF) {
+        this._next();
+        const c = this._parseExpression();
+        this._expect(TT.DIRECTIVE_END, '">"');
+        blocks.push(new ConditionalBlock(c, this._parseMixedContent(stop).children, 'else-if'));
+      } else if (t.type === TT.ELSE) {
+        this._next();
+        blocks.push(new ConditionalBlock(null, this._parseMixedContent(stop).children, 'else'));
+      } else if (t.type === TT.END_IF) {
+        const endTok = this._next();
+        return this._span(new IfBlock(blocks), startTok, endTok);
+      } else {
+        throw this._error('Missing end tag: "</#if>" expected.', t);
+      }
+    }
+  }
+
+  _expectIdName(what) {
+    const t = this._peek();
+    if (t.type !== TT.ID) {
+      throw this._error(`Expected an identifier for the ${what}, but got ${this._desc(t)}.`, t);
+    }
+    this._next();
+    return t.image;
+  }
+
+  _parseList(startTok) {
+    const exp = this._parseExpression();
+    let lv = null;
+    let lv2 = null;
+    if (this._peek().type === TT.AS) {
+      this._next();
+      lv = this._expectIdName('first loop variable');
+      if (this._peek().type === TT.COMMA) {
+        this._next();
+        lv2 = this._expectIdName('second loop variable');
+        if (lv2 === lv) {
+          throw this._error(
+            `The key and value loop variable names must differ, but both were: ${lv}`, startTok);
+        }
+      }
+    }
+    this._expect(TT.DIRECTIVE_END, '">"');
+    const ctx = { kind: 'list', loopVarName: lv, loopVar2Name: lv2 };
+    this._iterCtx.push(ctx);
+    if (lv !== null) {
+      this.breakableDepth++;
+      this.continuableDepth++;
+    }
+    let body;
+    try {
+      body = this._parseMixedContent(new Set([TT.END_LIST, TT.ELSE]));
+    } finally {
+      this._iterCtx.pop();
+      if (lv !== null) {
+        this.breakableDepth--;
+        this.continuableDepth--;
+      }
+    }
+    if (lv === null && ctx.kind !== 'items') {
+      throw this._error(
+        '#list must have either "as loopVar" parameter or nested #items that belongs to it.', startTok);
+    }
+    let elseChildren = null;
+    if (this._peek().type === TT.ELSE) {
+      this._next();
+      elseChildren = this._parseMixedContent(new Set([TT.END_LIST])).children;
+    }
+    const endTok = this._expect(TT.END_LIST, '"</#list>"');
+    return this._span(new IteratorBlock(exp, lv, lv2, body.children,
+      lv2 !== null || ctx.hashListing === true, false, elseChildren),
+      startTok, endTok);
+  }
+
+  _parseForEach(startTok) {
+    const lv = this._expectIdName('loop variable');
+    this._expect(TT.IN, '"in"');
+    const exp = this._parseExpression();
+    this._expect(TT.DIRECTIVE_END, '">"');
+    this._iterCtx.push({ kind: 'foreach', loopVarName: lv, loopVar2Name: null });
+    this.breakableDepth++;
+    this.continuableDepth++;
+    let body;
+    try {
+      body = this._parseMixedContent(new Set([TT.END_FOREACH]));
+    } finally {
+      this._iterCtx.pop();
+      this.breakableDepth--;
+      this.continuableDepth--;
+    }
+    const endTok = this._expect(TT.END_FOREACH, '"</#forEach>"');
+    return this._span(new IteratorBlock(exp, lv, null, body.children, false, true, null), startTok, endTok);
+  }
+
+  _parseItems(startTok, outerStop) {
+    const ctx = this._iterCtx.length ? this._iterCtx[this._iterCtx.length - 1] : null;
+    if (ctx === null) throw this._error('#items must be inside a #list block.', startTok);
+    if (ctx.kind === 'foreach') throw this._error("#forEach doesn't support nested #items.", startTok);
+    if (ctx.kind === 'items') {
+      throw this._error("Can't nest #items into each other when they belong to the same #list.", startTok);
+    }
+    if (ctx.loopVarName !== null) {
+      throw this._error('The parent #list of the #items must not have "as loopVar" parameter.', startTok);
+    }
+    const lv = this._expectIdName('first loop variable');
+    let lv2 = null;
+    if (this._peek().type === TT.COMMA) {
+      this._next();
+      lv2 = this._expectIdName('second loop variable');
+      if (lv2 === lv) {
+        throw this._error(`The key and value loop variable names must differ, but both were: ${lv}`, startTok);
+      }
+    }
+    this._expect(TT.DIRECTIVE_END, '">"');
+    if (lv2 !== null) ctx.hashListing = true;
+    ctx.kind = 'items';
+    ctx.loopVarName = lv;
+    ctx.loopVar2Name = lv2;
+    this.breakableDepth++;
+    this.continuableDepth++;
+    let body;
+    try {
+      body = this._parseMixedContent(new Set([...outerStop, TT.END_ITEMS, TT.ELSE]));
+    } finally {
+      this.breakableDepth--;
+      this.continuableDepth--;
+      ctx.loopVarName = null;
+      ctx.loopVar2Name = null;
+    }
+    const endTok = this._expect(TT.END_ITEMS, '"</#items>"');
+    return this._span(new Items(lv, lv2, body.children), startTok, endTok);
+  }
+
+  _parseSep(startTok, outerStop) {
+    if (this._iterCtx.length === 0) {
+      throw this._error('#sep must be inside a #list block.', startTok);
+    }
+    const body = this._parseMixedContent(new Set([...outerStop, TT.END_SEP]));
+    if (this._peek().type === TT.END_SEP) this._next();
+    return this._span(new Sep(body.children), startTok, startTok);
+  }
+
+  _parseBreak(startTok) {
+    if (this.breakableDepth === 0) {
+      throw this._error('You can\'t use the "#break" directive here.', startTok);
+    }
+    return this._span(new BreakInstruction(), startTok, startTok);
+  }
+
+  _parseContinue(startTok) {
+    if (this.continuableDepth === 0) {
+      throw this._error('You can\'t use the "#continue" directive here.', startTok);
+    }
+    return this._span(new ContinueInstruction(), startTok, startTok);
+  }
+
+  _parseAttempt(startTok) {
+    const stop = new Set([TT.RECOVER, TT.END_ATTEMPT]);
+    const children = this._parseMixedContent(stop);
+    const recTok = this._peek();
+    if (recTok.type !== TT.RECOVER) {
+      throw this._error('#attempt block must have a #recover part.', recTok);
+    }
+    this._next();
+    const recovery = this._parseMixedContent(new Set([TT.END_RECOVER, TT.END_ATTEMPT]));
+    const nt = this._peek();
+    if (nt.type === TT.END_RECOVER) this._next();
+    const endTok = this._expect(TT.END_ATTEMPT, '"</#attempt>"');
+    return this._span(new AttemptBlock(children.children, recovery.children), startTok, endTok);
+  }
+
+  _parseSwitch(startTok) {
+    const exp = this._parseExpression();
+    this._expect(TT.DIRECTIVE_END, '">"');
+    // ← ignoredSectionBeforeFirstCase: whitespace before the first case is dropped.
+    while (STATIC_TYPES.has(this._peek().type)) this._next();
+    const caseStop = new Set([TT.CASE, TT.DEFAUL, TT.ON, TT.END_SWITCH]);
+    const cases = [];
+    const ons = [];
+    let hadDefault = false;
+    this.breakableDepth++;
+    try {
+      for (;;) {
+        const t = this._peek();
+        if (t.type === TT.CASE) {
+          this._next();
+          const cexp = this._parseExpression();
+          this._expect(TT.DIRECTIVE_END, '">"');
+          cases.push(new Case(cexp, this._parseMixedContent(caseStop).children));
+        } else if (t.type === TT.DEFAUL) {
+          this._next();
+          if (hadDefault) {
+            throw this._error('You already had a #default in the #switch block', t);
+          }
+          hadDefault = true;
+          cases.push(new Case(null, this._parseMixedContent(caseStop).children));
+        } else if (t.type === TT.ON) {
+          this._next();
+          this._expect(TT.OPEN_PAREN, '"(" (the #on argument list)');
+          const exps = [];
+          for (;;) {
+            exps.push(this._parseExpression());
+            if (this._peek().type === TT.COMMA) {
+              this._next();
+              continue;
+            }
+            break;
+          }
+          this._expect(TT.CLOSE_PAREN, '")"');
+          this._expect(TT.DIRECTIVE_END, '">"');
+          ons.push(new On(exps, this._parseMixedContent(caseStop).children));
+        } else if (t.type === TT.END_SWITCH) {
+          break;
+        } else {
+          throw this._error(`Unexpected ${this._desc(t)} in #switch; "#case", "#default" or "#on" expected.`, t);
+        }
+      }
+    } finally {
+      this.breakableDepth--;
+    }
+    const endTok = this._expect(TT.END_SWITCH, '"</#switch>"');
+    return this._span(new SwitchBlock(exp, cases, ons), startTok, endTok);
   }
 
   // ---- expression precedence chain ← FTL.jj Expression/... productions ----

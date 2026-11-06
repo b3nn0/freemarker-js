@@ -7,7 +7,7 @@
 - [x] M4 Model layer v1 + ObjectWrapper primitives/arrays, ${...} output, coercion, NonXxxException
 - [x] M5 Dot/DynamicKeyName/MethodCall, introspection cache, bean readers, deep unwrap
 - [x] M6 ZeroArgumentNonVoidMethodPolicy (3 values, BeforeMethodCall nodes, bean-reader carve-out)
-- [ ] M7 #if/#elseif/#else, #attempt/#recover, #switch/#case/#default/#on/#break, #list/#items/#sep/#else, #foreach, #continue, loop vars
+- [x] M7 #if/#elseif/#else, #attempt/#recover, #switch/#case/#default/#on/#break, #list/#items/#sep/#else, #forEach, #continue, loop vars
 - [ ] M8 #assign (block, compound), #global, #local, scope stack, #import/#namespace
 - [ ] M9 #macro (defaults, catch-all), #nested (+ body params), #return, #fallback, <@...> calls, .args
 - [ ] M10 lambdas + ?filter ?map ?sort ?sort_by

@@ -3,6 +3,7 @@
 import {
   TemplateException, InvalidReferenceException,
   NonStringException, NonNumericalException, NonBooleanException, NonHashException,
+  BreakInstructionException, ContinueInstructionException,
 } from './errors.js';
 import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from './model/templateModel.js';
@@ -19,6 +20,8 @@ export class Environment {
       : (options.dataModel instanceof TemplateHashModel ? options.dataModel : this.wrap(options.dataModel));
     this.includeResolver = options.includeResolver ?? null;
     this.elementStack = [];
+    this._scopes = []; // ← nested scope stack (loop vars; #assign etc. land in M8)
+    this._iterStack = []; // innermost iterator item, for #list without "as" + #items
   }
 
   process() {
@@ -36,7 +39,8 @@ export class Environment {
         }
       }
     } catch (e) {
-      if (e instanceof TemplateException && e.errorStackTrace === null) {
+      const marker = e instanceof BreakInstructionException || e instanceof ContinueInstructionException;
+      if (!marker && e instanceof TemplateException && e.errorStackTrace === null) {
         e.withLocation(this.template.name, element.beginLine, element.beginColumn,
           this._errorStackTrace(element));
       }
@@ -64,8 +68,42 @@ export class Environment {
     return this.configuration.getObjectWrapper().wrap(value);
   }
 
+  pushScope() {
+    this._scopes.push(new Map());
+  }
+  popScope() {
+    this._scopes.pop();
+  }
+  setVariable(name, model) {
+    if (this._scopes.length === 0) this.pushScope();
+    this._scopes[this._scopes.length - 1].set(name, model);
+  }
+
   getVariable(name) {
+    for (let i = this._scopes.length - 1; i >= 0; i--) {
+      if (this._scopes[i].has(name)) return this._scopes[i].get(name);
+    }
     return this.dataModel ? this.dataModel.get(name) : null;
+  }
+
+  // Shared comparison ← ComparisonExpression.visit + #case/#on matching (M16 refines).
+  compare(l, r) {
+    if (l && typeof l.getAsNumber === 'function' && r && typeof r.getAsNumber === 'function') {
+      return Math.sign(l.getAsNumber() - r.getAsNumber());
+    }
+    if (l && typeof l.getAsDate === 'function' && r && typeof r.getAsDate === 'function') {
+      return Math.sign(l.getAsDate().getTime() - r.getAsDate().getTime());
+    }
+    if (l instanceof BooleanModel && r instanceof BooleanModel) {
+      return l.getAsBoolean() === r.getAsBoolean() ? 0 : (l.getAsBoolean() ? 1 : -1);
+    }
+    const ls = this.coerceToString(l);
+    const rs = this.coerceToString(r);
+    return ls < rs ? -1 : ls > rs ? 1 : 0;
+  }
+
+  equals(l, r) {
+    return this.compare(l, r) === 0;
   }
 
   typeLabel(model) {

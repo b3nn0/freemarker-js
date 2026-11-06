@@ -1,7 +1,7 @@
 // Expression parser: precedence chain, literals, ranges, escaped ids, .x vars, !/?exists,
 // canonical forms, root-level text + interpolation + comments. Directive bodies land later.
 
-import { describe, it, eq, ok, throwsMatch } from '../harness.js';
+import { describe, it, eq, ok, snapshot, throwsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import { ParseException, UnsupportedFeatureException } from '../../src/errors.js';
@@ -234,8 +234,11 @@ describe('parser: parse errors carry positions', () => {
     throwsMatch(() => parseTemplate('<#-- x'), ParseException, ['Unclosed comment']);
   });
 
-  it('directive not supported yet', () => {
-    throwsMatch(() => parseTemplate('<#if x>y</#if>'), UnsupportedFeatureException, ['#if']);
+  it('#if now parses (M7)', () => {
+    const t = parseTemplate('<#if x>y</#if>');
+    eq(t.rootElement.children.length, 1);
+    eq(t.rootElement.children[0].constructor.name, 'IfBlock');
+    snapshot(t.getCanonicalForm(), '<#if x>y</#if>');
   });
 
   it('multi-line error positions', () => {
