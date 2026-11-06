@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>freemarker-js — test suite</title>
+</head>
+<body>
+  <h1>freemarker-js tests</h1>
+  <pre id="out"></pre>
+  <script type="module">
+    import { run } from './harness.js';
+    import { TEST_FILES } from './manifest.js';
+
+    const out = document.getElementById('out');
+    const realLog = console.log;
+    console.log = (...a) => { out.textContent += a.join(' ') + '\n'; };
+    try {
+      for (const f of TEST_FILES) await import(f);
+      const { pass, fail } = await run();
+      out.textContent += fail
+        ? `\nFAIL: ${pass} passed, ${fail} failed\n`
+        : `\nPASS: all ${pass} tests passed\n`;
+    } catch (e) {
+      out.textContent += '\n' + (e && e.stack || e) + '\n';
+    } finally {
+      console.log = realLog;
+    }
+  </script>
+</body>
+</html>

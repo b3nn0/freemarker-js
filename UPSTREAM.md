@@ -1,0 +1,20 @@
+# UPSTREAM.md — decision log
+
+Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularised:
+`freemarker-core/src/main/java|test/java|test/resources`, grammar `freemarker-core/src/main/javacc`).
+
+## Version baseline
+
+- Baseline = FreeMarker **2.3.36** (latest `Configuration.VERSION_2_3_36` in the clone); hard-coded once in `src/version.js`.
+- Only current syntax: no `incompatibleImprovements` branches, no pre-2.3 quirks. `#set`/`#var`/`#elif`/`#else_if`/`#{...}`/`classic_compatible` are parse errors.
+
+## Decisions
+
+- `src/model/objectWrapper.js` ← `freemarker/ext/beans/BeansWrapper.wrap` + `DefaultObjectWrapper`: plain JS object → `GenericObjectModel`; Map → `HashModel` with items first and methods shadowed (SimpleObjectWrapper-like `simpleObjectWrapper=true` semantics as the default).
+- record-like vs class-like (for `recordZeroArgumentNonVoidMethodPolicy`): record-like = own prototype is `Object.prototype`/null AND own property value is a 0-arg function; everything else (custom prototype, Map/Set/Date/Array) uses the default policy. Upstream "record" concept has no JS equivalent, so this mapping stands in for `java.lang.Record` detection; overridable via `cfg.setRecordTest`.
+- `#flush` ← `FlushInstruction`: no-op (no streams in a pure logic module).
+- `ParseException` messages: upstream categories + exact positions kept, token-list wording ("Encountered X, was expecting...") intentionally simplified to human sentences.
+- Renderer core is synchronous; `process()` returns a Promise only at the API edge; thenable-returning data-model methods throw `TemplateException` (no async AST walk).
+- No TemplateLoader/cache: `#include`/`#import` resolve via per-render `options.includeResolver` callback.
+- Output formats: `plainText` + markup family with HTML as the real escaper; XML/XHTML share the HTML escaper; others accepted-but-passthrough; `{...}` format nesting → `UnsupportedFeatureException`.
+- `memberFilter(target, key)` hook replaces `MemberAccessPolicy` (allow-all default).

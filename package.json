@@ -1,0 +1,13 @@
+{
+  "name": "freemarker-js",
+  "version": "0.0.0",
+  "description": "Browser-targeted dependency-free port of the FreeMarker template engine",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node tests/cli.mjs"
+  }
+}
