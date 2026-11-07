@@ -492,3 +492,22 @@ describe('Upstream ?interpret (JVM-pinned)', () => {
       TemplateException, ['Template parsing with "?interpret" has failed']);
   });
 });
+
+describe('Upstream !/?? last-step-only semantics (JVM-pinned)', () => {
+  it('"!" covers only the failing last step', async () => {
+    snapshot(await out('${h.miss!"d"}', { h: {} }), 'd');
+    await rejectsMatch(out('${a.miss!"d"}', {}), InvalidReferenceException, ['==> a']);
+    await rejectsMatch(out('${h.miss.deeper!"d"}', { h: {} }), InvalidReferenceException,
+      ['==> h.miss']);
+    snapshot(await out('${(a.miss.deeper)!"d"}', {}), 'd');
+  });
+
+  it('bare "x!" prints empty like EmptyStringAndSequenceAndHash', async () => {
+    snapshot(await out('${x!}', {}), '');
+    snapshot(await out('${h.miss!}', { h: {} }), '');
+  });
+
+  it('"h[]" with empty key is a parse error', async () => {
+    throwsMatch(() => out('${h[]}', {}), ParseException, ['Expected an expression between']);
+  });
+});

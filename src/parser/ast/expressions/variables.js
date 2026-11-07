@@ -52,6 +52,12 @@ const FINAL_INDEX_TIP = 'Tip: It\'s the final [] step that caused this error, '
  * @param {string[]} tips
  * @returns {string}
  */
+/** Records the blamed canonical on an InvalidReference-family error for "!" rescue checks. */
+export function markBlame(e, canonical) {
+  e.blamedExpression = canonical;
+  return e;
+}
+
 export function blameText(node, canonical, tips = []) {
   let m = `The following has evaluated to null or missing:\n==> ${canonical}`;
   if (node.beginLine >= 0) {
@@ -102,6 +108,7 @@ export class Identifier extends Expression {
     const v = yield* env.getVariable(this.name);
     if (v === null || v === undefined) {
       const e = new UnassignedVariableException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+      e.blamedExpression = this.getCanonicalForm();
       // <- upstream carries the blamed expression's position on the exception
       e.templateName = this.templateName;
       e.beginLine = this.beginLine;
@@ -133,7 +140,10 @@ export class Dot extends Expression {
   * evaluate(env) {
     const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) {
-      throw new InvalidPropertyException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+      // <- JVM blames the TARGET for a null "." left-hand operand
+      throw markBlame(
+        new InvalidPropertyException(blameText(this, this.target.getCanonicalForm(), [GENERAL_MISSING_TIP])),
+        this.target.getCanonicalForm());
     }
     if (!(t instanceof TemplateHashModel)) {
       throw new NonHashException(
@@ -141,8 +151,10 @@ export class Dot extends Expression {
     }
     const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
     if (v === null || v === undefined) {
-      throw new InvalidPropertyException(
-        blameText(this, this.getCanonicalForm(), [LAST_DOT_TIP, GENERAL_MISSING_TIP]));
+      throw markBlame(
+        new InvalidPropertyException(
+          blameText(this, this.getCanonicalForm(), [LAST_DOT_TIP, GENERAL_MISSING_TIP])),
+        this.getCanonicalForm());
     }
     // ZeroArgumentPolicy: property-like read of a 0-arg function <- get()/getBeforeMethodCall.
     const [m] = yield* applyZeroArgPolicy(env, t, this.key, v, null);
@@ -155,7 +167,9 @@ export class Dot extends Expression {
   * _evaluateForMethodCall(env, argExprs) {
     const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) {
-      throw new InvalidPropertyException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+      throw markBlame(
+        new InvalidPropertyException(blameText(this, this.target.getCanonicalForm(), [GENERAL_MISSING_TIP])),
+        this.target.getCanonicalForm());
     }
     if (!(t instanceof TemplateHashModel)) {
       throw new NonHashException(
@@ -163,8 +177,10 @@ export class Dot extends Expression {
     }
     const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
     if (v === null || v === undefined) {
-      throw new InvalidPropertyException(
-        blameText(this, this.getCanonicalForm(), [LAST_DOT_TIP, GENERAL_MISSING_TIP]));
+      throw markBlame(
+        new InvalidPropertyException(
+          blameText(this, this.getCanonicalForm(), [LAST_DOT_TIP, GENERAL_MISSING_TIP])),
+        this.getCanonicalForm());
     }
     return yield* applyZeroArgPolicy(env, t, this.key, v, argExprs);
   }

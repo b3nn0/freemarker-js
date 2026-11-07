@@ -3,7 +3,7 @@
 import { Expression } from './expression.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 import { awaitOp, callOp } from '../../../async.js';
-import { BooleanModel, RangeModel } from '../../../model/models.js';
+import { BooleanModel, RangeModel, StringModel } from '../../../model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
 import { Decimal } from '../../../format/decimal.js';
 import { NumberModel } from '../../../model/models.js';
@@ -364,13 +364,28 @@ export class DefaultToExpression extends Expression {
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
   * evaluate(env) {
-    try {
-      const l = yield* this.left.evaluate(env);
-      if (l !== null && l !== undefined) return l;
-    } catch (e) {
-      if (!(e instanceof InvalidReferenceException)) throw e;
+    let l = null;
+    if (this.left instanceof ParentheticalExpression) {
+      // <- JVM: an exception is swallowed only through parentheses
+      try {
+        l = yield* this.left.evaluate(env);
+      } catch (e) {
+        if (!(e instanceof InvalidReferenceException)) throw e;
+      }
+    } else {
+      try {
+        l = yield* this.left.evaluate(env);
+      } catch (e) {
+        // "!" covers the failing step only when it is the whole left expression
+        // (JVM: Dot returns null for a missing last step; intermediate failures throw).
+        if (!(e instanceof InvalidReferenceException) || e.blamedExpression !== this.left.getCanonicalForm()) {
+          throw e;
+        }
+      }
     }
-    return this.right === null ? null : yield* this.right.evaluate(env);
+    if (l !== null && l !== undefined) return l;
+    // <- EMPTY_STRING_AND_SEQUENCE_AND_HASH for a bare "x!"
+    return this.right === null ? new StringModel('') : yield* this.right.evaluate(env);
   }
 }
 

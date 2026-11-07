@@ -3,8 +3,35 @@
 import { Expression } from './expression.js';
 import { getBuiltIn } from '../../../builtins/registry.js';
 import '../../../builtins/index.js'; // registers the milestone's built-ins (side effect)
-import { HashModel } from '../../../model/models.js';
+import { HashModel, StringModel } from '../../../model/models.js';
+import { TemplateHashModelEx } from '../../../model/templateModel.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
+
+// <- .vars: live view of scopes + namespace + data model
+class VarsModel extends TemplateHashModelEx {
+  /** @param {import('../../../environment.js').Environment} env */
+  constructor(env) {
+    super();
+    this.env = env;
+  }
+
+  * get(key) {
+    return yield* this.env.getVariable(key);
+  }
+
+  keys() {
+    const out = new Set();
+    for (const s of this.env._scopes) for (const k of s.keys()) out.add(k);
+    for (const k of this.env._nsScope.keys()) out.add(k);
+    const dm = this.env.dataModel;
+    if (dm && typeof dm.keys === 'function') for (const k of dm.keys()) out.add(k);
+    return [...out];
+  }
+
+  size() {
+    return this.keys().length;
+  }
+}
 
 // <- freemarker.core.BuiltinVariable: the leading-dot special variables. Only .args lands in M9.
 /** ?loop_var style builtin variable <- BuiltinVariable. */
@@ -25,6 +52,12 @@ export class BuiltinVariable extends Expression {
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
   * evaluate(env) {
+    if (this.name === 'data_model') return env.dataModel;
+    if (this.name === 'template_name') {
+      return env.template && env.template.name !== null
+        ? new StringModel(env.template.name) : null;
+    }
+    if (this.name === 'vars') return new VarsModel(env);
     if (this.name === 'args') {
       for (let i = env._scopes.length - 1; i >= 0; i--) {
         const s = env._scopes[i];

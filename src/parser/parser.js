@@ -89,6 +89,9 @@ const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1], ['take_while', 1
 /** builtins with parse-time (unevaluated) args. @type {Set<string>} */
 const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string', 'interpret']);
 
+// <- FTL.jj BuiltinVariable: dot special variables landing in the port.
+const DOT_VAR_NAMES = new Set(['args', 'data_model', 'template_name', 'vars']);
+
 // <- BuiltInForLoopVariable subclasses in BuiltInsForLoopVariables.java
 const LOOP_VAR_BUILT_INS = new Set(['index', 'counter', 'has_next', 'is_last', 'is_first',
   'is_odd_item', 'is_even_item', 'item_parity', 'item_parity_cap', 'item_cycle']);
@@ -1791,7 +1794,14 @@ export class Parser {
         exp = this._parseMethodCall(exp);
       } else if (t.type === TT.OPEN_BRACKET) {
         this._next();
-        const key = EXPRESSION_START.has(this._peek().type) ? this._parseExpression() : null;
+        // <- FTL.jj DynamicKeyName: an empty "[]" is a parse error upstream
+        let key;
+        if (EXPRESSION_START.has(this._peek().type)) {
+          key = this._parseExpression();
+        } else {
+          throw this._error('Expected an expression between "[" and "]", but got '
+            + `${this._desc(this._peek())}.`, this._peek());
+        }
         const close = this._next();
         if (close.type !== TT.CLOSE_BRACKET) {
           throw this._error(`Expected "]" to close the dynamic key access, but got ${this._desc(close)}.`, close);
@@ -1899,11 +1909,11 @@ export class Parser {
               + 'in the template source code.', nt);
           }
           this._argsFlag = true;
-        } else {
+        } else if (!DOT_VAR_NAMES.has(nt.image)) {
           throw new UnsupportedFeatureException(
             `Special variable ".${nt.image}" is not supported in this milestone yet.`);
         }
-        return this._span(new BuiltinVariable('args'), t, nt);
+        return this._span(new BuiltinVariable(nt.image), t, nt);
       }
       case TT.INTEGER:
         this._next();

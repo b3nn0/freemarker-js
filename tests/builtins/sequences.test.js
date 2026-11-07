@@ -50,10 +50,13 @@ describe('Lambda expressions and ?filter/?map/?sort/?sort_by', () => {
       ['exactly 1 parameter', 'declared 0']);
     await rejectsMatch(out('${[1, 2]?filter(it -> it)}'), TemplateException,
       ['boolean value', 'number']);
+    // <- JVM: missing! -> the empty-string model; a bare missing name throws at the Dot
     await rejectsMatch(out('${[1, 2]?filter(it -> nosuch!)}'), TemplateException,
-      ['no value']);
+      ['boolean value', 'string']);
     await rejectsMatch(out('${[1, 2]?map(it -> nosuch!)}'), TemplateException,
-      ['no return value']);
+      ['evaluated to a sequence']);
+    await rejectsMatch(out('${[1, 2]?map(it -> nosuch)}'), TemplateException,
+      ['null or missing']);
     await rejectsMatch(out('${{}?map(it -> it)}'), TemplateException, ['sequences']);
   });
   it('?sort sorts scalars; the first key type wins', async () => {

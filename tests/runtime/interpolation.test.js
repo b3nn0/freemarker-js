@@ -54,10 +54,11 @@ describe('Interpolation: ! and ??', () => {
     snapshot(await out('${x!"def"}', {}), 'def');
     snapshot(await out('${a.z!"d2"}', { a: {} }), 'd2');
     snapshot(await out('${(x + 1)!99}', {}), '99');
-    await rejectsMatch(out('${a.z!}', { a: {} }), InvalidReferenceException, ['null or missing']);
+    // <- JVM bare "x!" yields the empty string (EmptyStringAndSequenceAndHash)
+    snapshot(await out('${a.z!}', { a: {} }), '');
   });
-  it('bare ! with no default still errors', async () => {
-    await rejectsMatch(out('${x!}', {}), InvalidReferenceException, ['null or missing']);
+  it('bare ! with no default prints empty', async () => {
+    snapshot(await out('${x!}', {}), '');
   });
   it('exists', async () => {
     snapshot(await out('${x??}', {}), 'false');

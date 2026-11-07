@@ -1,8 +1,8 @@
-import { describe, it, snapshot, rejectsMatch } from '../harness.js';
+import { describe, it, snapshot, throwsMatch, rejectsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
-  InvalidReferenceException, InvalidPropertyException,
+  InvalidReferenceException, InvalidPropertyException, ParseException,
   NonHashException, NonNumericalException, NonMethodException,
 } from '../../src/errors.js';
 
@@ -27,12 +27,12 @@ describe('Dynamic keys', () => {
       ['null or missing']);
   });
   it('empty dynamic key', async () => {
-    await rejectsMatch(out('${h[]}', { h: { k: 'v' } }), InvalidPropertyException,
-      ['==> h[]']);
+    // <- JVM: "h[]" is a syntax error (an expression is required inside "[]")
+    throwsMatch(() => out('${h[]}', { h: { k: 'v' } }), ParseException, ['line 1, column 5']);
+    throwsMatch(() => out('${h[]!"d"}', { h: { k: 'v' } }), ParseException, ['line 1, column 5']);
     // <- upstream blames the null key expression itself (the m identifier throws)
     await rejectsMatch(out('${h[m]}', { h: { k: 'v' }, m: null }), InvalidReferenceException,
       ['==> m']);
-    snapshot(await out('${h[]!"d"}', { h: { k: 'v' } }), 'd');
     snapshot(await out('${h[m]??}', { h: { k: 'v' } }), 'false');
   });
   it('errors on wrong targets', async () => {

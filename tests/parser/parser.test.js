@@ -168,8 +168,7 @@ describe('parser: variables and built-ins', () => {
   it('dynamic key access', () => {
     eq(canon('x["k"]'), 'x["k"]');
     eq(canon('x[1 + 1]'), 'x[1 + 1]');
-    eq(canon('x[]'), 'x[]');
-    eq(name(exprOf('x[]')), 'DynamicKeyName');
+    throwsMatch(() => exprOf('x[]'), ParseException, ['Expected an expression between']);
   });
   it('method calls', () => {
     eq(canon('x.m()'), 'x.m()');
