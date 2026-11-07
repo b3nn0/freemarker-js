@@ -49,6 +49,11 @@ export class Configuration {
     // <- Configuration.java (pre-i22 default true): a null loop variable falls
     // back on an outer same-named variable instead of shadowing it.
     this._fallbackOnNullLoopVariable = true;
+    // <- autoIncludes/autoImports lists; lazy import flags (2.3.29/2.3.31).
+    this._autoIncludes = [];
+    this._autoImports = [];
+    this._lazyImports = false;
+    this._lazyAutoImports = null;
     // <- Configurable format defaults (en_US locale fixed; see UPSTREAM.md):
     this._numberFormat = 'number';
     this._booleanFormat = 'true,false';
@@ -118,6 +123,25 @@ export class Configuration {
    * @returns {void}
    */
   setIncludeResolver(fn) { this._includeResolver = fn ?? null; }
+
+  /** <- Configuration.addAutoInclude */
+  addAutoInclude(name) { this._autoIncludes.push(String(name)); return this; }
+  /** <- Configuration.addAutoImport */
+  addAutoImport(namespace, templateName) {
+    this._autoImports.push({ ns: String(namespace), template: String(templateName) });
+    return this;
+  }
+  getAutoIncludes() { return this._autoIncludes.slice(); }
+  getAutoImports() { return this._autoImports.slice(); }
+  /** <- Configuration.setLazyImports (2.3.29) */
+  setLazyImports(v) { this._lazyImports = !!v; return this; }
+  getLazyImports() { return this._lazyImports; }
+  /** <- Configuration.setLazyAutoImports, tri-state (2.3.31) */
+  setLazyAutoImports(v) {
+    this._lazyAutoImports = v === null || v === undefined ? null : !!v;
+    return this;
+  }
+  getLazyAutoImports() { return this._lazyAutoImports; }
 
   /** @returns {((name: string) => string)|null} */
   getIncludeResolver() { return this._includeResolver; }

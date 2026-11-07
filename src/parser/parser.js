@@ -2163,7 +2163,22 @@ export class Parser {
             + 'The alphabetical list of special variables:\n  '
             + [...DOT_VAR_NAMES].sort().join(', '), nt);
         }
-        return this._span(new BuiltinVariable(dvName, dvName === 'auto_esc' ? this.autoEscaping : null), t, nt);
+        const node = new BuiltinVariable(dvName, dvName === 'auto_esc' ? this.autoEscaping : null);
+        // <- .getOptionalTemplate(name, options) (BuiltinVariable arguments)
+        if (dvName === 'get_optional_template' && this._peek().type === TT.OPEN_PAREN) {
+          this._next();
+          const args = [];
+          if (this._peek().type !== TT.CLOSE_PAREN) {
+            args.push(this._parseExpression());
+            while (this._peek().type === TT.COMMA) {
+              this._next();
+              args.push(this._parseExpression());
+            }
+          }
+          this._expect(TT.CLOSE_PAREN, '")"');
+          node.args = args;
+        }
+        return this._span(node, t, nt);
       }
       case TT.INTEGER:
         this._next();

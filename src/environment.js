@@ -13,6 +13,9 @@ import { StringModel, NumberModel, BooleanModel, DateModel, MarkupModel } from '
 import { TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
 import { unwrap } from './model/unwrap.js';
+import { ImportDirective, normalizePath } from './parser/ast/directives/importDir.js';
+import { IncludeDirective } from './parser/ast/directives/include.js';
+import { StringLiteral } from './parser/ast/expressions/literals.js';
 import { Template } from './template.js';
 import { callOp, awaitOp } from './async.js';
 
@@ -81,6 +84,7 @@ export class Environment {
     this.elementStack = [];
     this._scopes = []; // loop/macro scopes; innermost wins on read
     this._nsScope = new Map(); // current template namespace <- #assign target
+    this._mainNsScope = this._nsScope; // main-template ns (import globals rule)
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
     this._escapeValueStack = []; // active #escape target values (innermost last)
     this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
@@ -152,6 +156,15 @@ export class Environment {
       m.macroModel.defTemplate = this.template;
       m.macroModel.defNsTemplate = this.template;
       if (!this._nsScope.has(m.name)) this._nsScope.set(m.name, m.macroModel);
+    }
+    // <- auto-imports first, then auto-includes, applied to the main template
+    // only (2.3.36 behavior)
+    const cfg = this.configuration;
+    for (const a of cfg.getAutoImports()) {
+      yield* this.visit(new ImportDirective(new StringLiteral(a.template), a.ns, true));
+    }
+    for (const incName of cfg.getAutoIncludes()) {
+      yield* this.visit(new IncludeDirective(new StringLiteral(incName), null, null, null));
     }
     yield* this.visit(this.rootElement);
   }
@@ -285,12 +298,13 @@ export class Environment {
    */
   _resolveTemplateName(rawName) {
     let name = rawName;
-    if (name.startsWith('/')) name = name.slice(1);
+    const absolute = name.startsWith('/');
+    if (absolute) name = name.slice(1);
     const rawBase = this.template && this.template.name != null ? this.template.name : null;
-    if (rawBase === null) return name;
+    if (absolute || rawBase === null) return normalizePath(name);
     const chain = rawBase.indexOf('->');
     const base = chain >= 0 ? rawBase.slice(0, chain) : rawBase;
-    if (!base.includes('/')) return name;
+    if (!base.includes('/')) return normalizePath(name);
     const dirSegs = base.split('/').slice(0, -1);
     const outSegs = [...dirSegs];
     for (const seg of name.split('/')) {

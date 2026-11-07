@@ -6,6 +6,7 @@ import '../../../builtins/index.js'; // registers the milestone's built-ins (sid
 import { HashModel, StringModel, BooleanModel, DateModel } from '../../../model/models.js';
 import { TemplateHashModelEx } from '../../../model/templateModel.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
+import { getOptionalTemplateValue } from './templateAccess.js';
 
 // <- .vars: live view of scopes + namespace + data model
 class VarsModel extends TemplateHashModelEx {
@@ -63,16 +64,18 @@ export class BuiltinVariable extends Expression {
    * @param {boolean|null} autoEscValue - parse-time auto-escaping state, bound
    *   for ".auto_esc" <- BuiltinVariable's parseTimeValue
    */
-  constructor(name, autoEscValue = null) {
+  constructor(name, autoEscValue = null, args = null) {
     super();
     this.name = name;
     this.autoEscValue = autoEscValue;
+    this.args = args;
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    return `.${this.name}`;
+    return `.${this.name}${this.args === null || this.args === undefined ? ''
+      : `(${this.args.map((a) => a.getCanonicalForm()).join(', ')})`}`;
   }
   /**
    * @param {import('../../../environment.js').Environment} env - rendering environment
@@ -162,7 +165,10 @@ export class BuiltinVariable extends Expression {
       throw new TemplateException(
         `Special variable ".${this.name}" isn't supported in this port (XML support is excluded).`);
     }
-    if (this.name === 'pass' || this.name === 'get_optional_template' || this.name === 'locale_object') {
+    if (this.name === 'get_optional_template') {
+      return yield* getOptionalTemplateValue(env, this.args);
+    }
+    if (this.name === 'pass' || this.name === 'locale_object') {
       throw new TemplateException(
         `Special variable ".${this.name}" isn't supported in this port.`);
     }
