@@ -8,6 +8,7 @@ import {
 import { StringWriter } from '../../../io/writer.js';
 import { StringModel, MarkupModel, HashModel } from '../../../model/models.js';
 import { AddConcatExpression } from '../expressions/operators.js';
+import { LazySequence } from '../../../builtins/sequences.js';
 import { Identifier } from '../expressions/variables.js';
 
 /** @type {{ NAMESPACE: string, GLOBAL: string, LOCAL: string }} */
@@ -45,6 +46,17 @@ export class Assignment extends TemplateElement {
     switch (this.opKind) {
       case '=':
         value = yield* this.exp.evaluate(env);
+        // <- #assign is an "eager context": a lazy ?filter/?map result is
+        // materialized into a plain sequence at assignment time (2.3.36).
+        if (value instanceof LazySequence) {
+          const items = [];
+          for (let i = 0;; i++) {
+            const v = yield* value.getByIndex(i);
+            if (v === null || v === undefined) break;
+            items.push(v);
+          }
+          value = env.wrap(items);
+        }
         break;
       case 'block': {
         const captured = yield* this._capture(env);

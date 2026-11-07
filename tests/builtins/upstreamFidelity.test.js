@@ -2108,3 +2108,45 @@ describe('Upstream WhitespaceStrippingTest (ported)', () => {
     await both(' a \n\t<#-- --> \n b ', ' a \n\t b ', ' a \n\t \n b ');
   });
 });
+
+describe('Upstream ListWithStreamLikeBuiltinsTest (ported)', () => {
+  const run = (src) => {
+    const cfg = new Configuration();
+    cfg.setNumberFormat('0.####');
+    cfg.setBooleanFormat('c');
+    return new Template('t', src, cfg).processToString({});
+  };
+  it('testLambdaScope', async () => {
+    // loop variables are not visible during lazy result generation
+    snapshot(await run("<#list (1..3)?map(p -> p * 10 + it!'x') as v>${v}<#sep>, </#list>"),
+      '10x, 20x, 30x');
+    snapshot(await run("<#list (1..3)?map(p -> p * 10 + it_has_next!'x') as v>${v}<#sep>, </#list>"),
+      '10x, 20x, 30x');
+    snapshot(await run(
+      "<#list (1..3)?map(p -> p * 10 + it!'x')><#items as v>${v}<#sep>, </#items></#list>"),
+    '10x, 20x, 30x');
+    snapshot(await run("<#list []?map(p -> p) as v>${v}<#else>${it_has_next!'x'}</#list>"), 'x');
+  });
+  it('testListEnablesLaziness', async () => {
+    snapshot(await run(
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x}->'><#return x * 10></#function>"
+      + '<#list (1..3)?map(tenTimes) as x><#assign s += x><#sep><#assign s += \', \'></#list>${s}'),
+    '1->10, 2->20, 3->30');
+    // most other contexts force eager generation
+    snapshot(await run(
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x}->'><#return x * 10></#function>"
+      + '<#assign xs = (1..3)?map(tenTimes)>'
+      + '<#list xs as x><#assign s += x><#sep><#assign s += \', \'></#list>${s}'),
+    '1->2->3->10, 20, 30');
+    snapshot(await run(
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x}->'><#return x * 10></#function>"
+      + '<#list (1..3)?map(tenTimes)?map(tenTimes)?map(tenTimes) as x>'
+      + '<#assign s += x><#sep><#assign s += \', \'></#list>${s}'),
+    '1->10->100->1000, 2->20->200->2000, 3->30->300->3000');
+    snapshot(await run(
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x}->'><#return x * 10></#function>"
+      + '<#list (1..3)?map(tenTimes) as x><#assign s += x><#sep><#assign s += \', \'>'
+      + '<#if x == 20><#break></#if></#list>${s}'),
+    '1->10, 2->20, ');
+  });
+});

@@ -210,7 +210,7 @@ function* makeTransformer(argExp, env, key) {
 // <- Filtered/MappedSequence (FilterLikeBI): lazy transformation; elements are
 // pulled from the source and transformed only as far as the consumer asks,
 // and each source element is visited (and the function called) at most once.
-class LazySequence extends TemplateSequenceModel {
+export class LazySequence extends TemplateSequenceModel {
   /**
    * @param {Object} target - the source sequence model
    * @param {(el: Object) => Generator} transform - element transformer
@@ -271,6 +271,12 @@ class LazySequence extends TemplateSequenceModel {
     return i < this.cache.length ? this.cache[i] : null;
   }
   size() {
+    if (this.mode === 'map') {
+      const raw = this.target.size();
+      // <- JVM's lazy mapped list: the size is the source's size and is known
+      // without generating any element (#list over it stays element-lazy).
+      if (!isGenerator(raw)) return raw;
+    }
     const self = this;
     return (function* () {
       while (!self.exhausted) yield* self._pullNext();
