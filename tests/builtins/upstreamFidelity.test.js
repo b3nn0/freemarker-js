@@ -1076,3 +1076,27 @@ describe('Upstream ListBreakContinueTest (ported subset)', () => {
       'B(a=1) A(a=1), B(b=2) A(b=2), B(c=3) Continue! B(d=4) A(d=4), B(e=5) A(e=5)');
   });
 });
+
+describe('Upstream ConcatenatedSequenceTest (ported subset)', () => {
+  it('concatenation across empty and non-empty segments', async () => {
+    snapshot(await out('<#assign s = [] + ["b"]>${s?size}=${s[0]}'), '1=b');
+    snapshot(await out('<#assign s = ["a"] + []>${s?size}=${s[0]}'), '1=a');
+    snapshot(await out('<#assign s = [] + []>${s?size}'), '0');
+    snapshot(await out('<#assign s = ["a"] + ["b"]>${s?size}'), '2');
+  });
+  it('nested concatenation trees flatten like upstream does', async () => {
+    snapshot(await out('<#assign s = (["a"] + ["b"]) + (["c"] + [])>${s?size}|<#list s as i>${i}</#list>'),
+      '4|abc');
+    snapshot(await out('<#assign s = ([] + (["a"] + ["b"])) + ([] + [])>${s?size}|<#list s as i>${i}</#list>'),
+      '2|ab');
+    snapshot(await out('<#assign s = ["a"] + ["b"] + ["c"] + ["d"] + ["e"]>${s?size}|${s?first}|${s?last}'),
+      '5|a|e');
+  });
+  it('index access and string coercion of concatenated sequences', async () => {
+    snapshot(await out('${([1] + [2] + [3])?join(",")}'), '1,2,3');
+    snapshot(await out('<#assign s = [1,2] + [3] + ["a"]>${s[2]}'), '3');
+  });
+  // (The JVM test drives AddConcatExpression.ConcatenatedSequence directly with
+  // TemplateCollectionModel/Iterator segments and asserts TemplateModelIterator
+  // contracts - JVM model-layer internals outside the port's scope.)
+});
