@@ -1496,9 +1496,12 @@ export class Parser {
     }
     this._next();
     const recovery = this._parseMixedContent(new Set([TT.END_RECOVER, TT.END_ATTEMPT]));
-    const nt = this._peek();
-    if (nt.type === TT.END_RECOVER) this._next();
-    const endTok = this._expect(TT.END_ATTEMPT, '"</#attempt>"');
+    // <- FTL.jj Attempt(): exactly one of END_RECOVER / END_ATTEMPT closes.
+    const endTok = this._peek();
+    if (endTok.type !== TT.END_RECOVER && endTok.type !== TT.END_ATTEMPT) {
+      throw this._error('Expected "</#recover>" or "</#attempt>".', endTok);
+    }
+    this._next();
     return this._span(new AttemptBlock(children.children, recovery.children), startTok, endTok);
   }
 

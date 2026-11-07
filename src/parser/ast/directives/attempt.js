@@ -39,6 +39,6 @@ export class AttemptBlock extends TemplateElement {
   getCanonicalForm() {
     const body = this.children.map((c) => c.getCanonicalForm()).join('');
     const rec = this.recoveryChildren.map((c) => c.getCanonicalForm()).join('');
-    return `<#attempt>${body}<#recover>${rec}</#recover></#attempt>`;
+    return `<#attempt>${body}<#recover>${rec}</#attempt>`;
   }
 }

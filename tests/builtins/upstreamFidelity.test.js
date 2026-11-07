@@ -382,3 +382,35 @@ describe('time_zone setting (JVM-pinned, Drv26)', () => {
       '2020-09');
   });
 });
+
+describe('#attempt/#recover (JVM-pinned, FTL.jj Attempt/Recover)', () => {
+  it('runs recovery body once on failure; #recover required', async () => {
+    snapshot(await out('[<#attempt>${s.missing}<#recover>rec</#attempt>]', { s: 'abc' }), '[rec]');
+    snapshot(await out('[<#attempt>before<#recover>after</#attempt>]', { s: 'abc' }), '[before]');
+    snapshot(await out('[<#attempt>${s.x}<#recover><#if false>y</#if></#attempt>]', { s: 'abc' }), '[]');
+  });
+
+  it('exactly one of </#recover> / </#attempt> closes; both is a parse error', async () => {
+    throwsMatch(() => new Template('t.ftl',
+      '[<#attempt>${s.missing}<#recover>${nosuch}</#recover></#attempt>]', new Configuration()),
+      ParseException, ['line 1, column 54']);
+    throwsMatch(() => new Template('t.ftl',
+      '[<#attempt><#if true>${s.y}<#else>x</#if><#recover>seen</#recover></#attempt>]',
+      new Configuration()), ParseException, ['line 1, column 67']);
+  });
+
+  it('#attempt without #recover is a parse error; recover-body errors propagate', async () => {
+    throwsMatch(() => new Template('t.ftl', '[<#attempt>z</#attempt>]', new Configuration()),
+      ParseException, ['line 1']);
+    await rejectsMatch(
+      out('[<#attempt>x${s.q}<#recover>a${s.r}b</#attempt>]', { s: 'abc' }),
+      TemplateException, ['Expected a hash']);
+  });
+
+  it('break/continue inside #attempt propagate to the enclosing loop', async () => {
+    snapshot(await out('[<#list [1,2,3] as i><#attempt><#if i==2><#break></#if>${i}'
+      + '<#recover>r</#attempt></#list>]', {}), '[1]');
+    snapshot(await out('[<#list [1,2,3] as i><#attempt><#if i==2><#continue></#if>${i}'
+      + '<#recover>r</#attempt></#list>]', {}), '[13]');
+  });
+});

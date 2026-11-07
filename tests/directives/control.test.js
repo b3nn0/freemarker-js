@@ -40,8 +40,8 @@ describe('Directive: #if', () => {
 
 describe('Directive: #attempt/#recover', () => {
   it('recovery runs on error', async () => {
-    snapshot(await out('<#attempt>${missing}<#recover>oops</#recover></#attempt>', {}), 'oops');
-    snapshot(await out('<#attempt>fine<#recover>oops</#recover></#attempt>', {}), 'fine');
+    snapshot(await out('<#attempt>${missing}<#recover>oops</#attempt>', {}), 'oops');
+    snapshot(await out('<#attempt>fine<#recover>oops</#attempt>', {}), 'fine');
   });
   it('recovery without end tag also works', async () => {
     snapshot(await out('<#attempt>${missing}<#recover>oops</#attempt>', {}), 'oops');
@@ -50,7 +50,7 @@ describe('Directive: #attempt/#recover', () => {
     throwsMatch(() => parse('<#attempt>x</#attempt>'), ParseException, ['#recover']);
   });
   it('break/continue markers are not swallowed by recover', async () => {
-    snapshot(await out('<#list xs as x><#attempt>${x}<#break><#recover>r</#recover></#attempt></#list>',
+    snapshot(await out('<#list xs as x><#attempt>${x}<#break><#recover>r</#attempt></#list>',
       { xs: [1, 2] }), '1');
   });
 });
