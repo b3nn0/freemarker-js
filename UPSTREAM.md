@@ -200,12 +200,10 @@ Fifth fidelity round (JVM-pinned, same differential corpus, now 144 cases):
   IndentAndWrapBuiltInTest, TruncateBuiltInTest /
   DefaultTruncateBuiltinAlgorithmTest, LinesBuiltInTest, MinMaxBITest
   (wording adjusted to the port; behavior JVM-pinned).
-- Not ported (documented surface gaps):
-  special
-  variables `.template_name` / `.data_model` (and the `#import`/`#recover`
-  nuances they interact with) are not implemented; FTL has no
-  scientific-notation number literals upstream either (`1e20` is a parse
-  error on both sides).
+- Not ported (documented surface gaps): the `.output_format` special variable
+  (`.data_model`, `.template_name`, `.vars`, `.args` are ported, JVM-pinned);
+  FTL has no scientific-notation number literals upstream either (`1e20` is a
+  parse error on both sides).
 
 Sixth fidelity round (JVM-pinned, corpus now 160 cases):
 - items-form `#list` (no "as") now matches IteratorBlock/Items: the body is
