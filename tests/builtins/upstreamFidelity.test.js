@@ -14,6 +14,8 @@ import {
 } from '../../src/errors.js';
 import { SETTING_NAMES, CAMEL_SETTING_NAMES } from '../../src/parser/ast/directives/setting.js';
 import { DOT_VAR_NAMES } from '../../src/parser/parser.js';
+import { MarkupModel } from '../../src/model/models.js';
+import { getStandardOutputFormat } from '../../src/outputFormat.js';
 
 function out(src, model) {
   return new Template('t.ftl', src, new Configuration()).processToString(model ?? {});
@@ -1988,5 +1990,93 @@ describe('Upstream CapturingAssignmentTest (ported)', () => {
       '<p>2&');
     snapshot(await cap("<#ftl outputFormat='HTML'>"
       + "<#macro m><#local x><p>${1 + 1}</#local>${x + '&'}</#macro><@m/>${x!}"), '<p>2&amp;');
+  });
+});
+
+describe('Upstream CoercionToTextualTest (ported)', () => {
+  // upstream uses test-local custom format factories (@G printf-markup numbers,
+  // @HI HTML-ISO dates) -- custom formats are out of port scope, so the portable
+  // subset is mirrored with standard formats (verified against live 2.3.36).
+  const T = new Date(1441540800000);
+  const root = () => ({
+    s: 'abc', n: 1500, dt: T, b: true,
+    m: new MarkupModel(null, getStandardOutputFormat('HTML'), '<p>M</p>'),
+  });
+  const base = () => {
+    const cfg = new Configuration();
+    cfg.setNumberFormat('number');
+    if (cfg.setLocale) cfg.setLocale('en_US');
+    cfg.setDateTimeFormat('yyyy-MM-dd HH:mm:ss');
+    cfg.setBooleanFormat('y,n');
+    return cfg;
+  };
+  const run = (src, cfg) => new Template('t', src, cfg ?? base()).processToString(root());
+  it('basic string built-ins coerce scalars, not markup', async () => {
+    snapshot(await run('${s?upper_case}'), 'ABC');
+    snapshot(await run('${n?string?lower_case}'), '1,500');
+    // live 2.3.36 coerces standard-format numbers/dates to string for string BIs
+    // (upstream's error case only holds because its custom format produced markup)
+    snapshot(await run('${n?lower_case}'), '1,500');
+    snapshot(await run('${dt?string?lower_case}'), '2015-09-06 12:00:00');
+    snapshot(await run('${dt?lower_case}'), '2015-09-06 12:00:00');
+    snapshot(await run('${b?upper_case}'), 'Y');
+    // port class: NonStringException (JVM: NonStringOrTemplateOutputException);
+    // both are TemplateException subclasses -- wording/class-name deviation
+    await rejectsMatch(run('${m?upper_case}'), TemplateException,
+      ['upper_case', 'markup_output']);
+  });
+  it('esc built-in converts to the current output format', async () => {
+    const cfg = base();
+    cfg.setOutputFormat('HTML');
+    cfg.setAutoEscapingPolicy(Configuration.DISABLE_AUTO_ESCAPING_POLICY);
+    cfg.setBooleanFormat('<y>,<n>');
+    snapshot(await run("${'a<b'?esc}", cfg), 'a&lt;b');
+    snapshot(await run('${n?string?esc}', cfg), '1,500');
+    snapshot(await run('${n?esc}', cfg), '1,500');
+    snapshot(await run('${dt?string?esc}', cfg), '2015-09-06 12:00:00');
+    snapshot(await run('${dt?esc}', cfg), '2015-09-06 12:00:00');
+    snapshot(await run('${b?esc}', cfg), '&lt;y&gt;');
+    snapshot(await run('${m?esc}', cfg), '<p>M</p>');
+  });
+  it('string-overloaded built-ins coerce scalars, not markup', async () => {
+    snapshot(await run("${s?contains('b')}"), 'y');
+    snapshot(await run("${n?string?contains(',')}", ), 'y');
+    snapshot(await run("${n?contains(',')}", ), 'y');
+    snapshot(await run("${n?indexOf(',')}", ), '1');
+    snapshot(await run("${dt?string?contains('0')}", ), 'y');
+    snapshot(await run("${dt?contains('0')}", ), 'y');
+    await rejectsMatch(run("${m?contains('0')}"), TemplateException,
+      ['contains', 'markup_output']);
+    await rejectsMatch(run("${m?indexOf('0')}"), TemplateException,
+      ['index_of', 'markup_output']);
+  });
+  it('markup_string requires a markup output', async () => {
+    await rejectsMatch(run('${n?string?markup_string}'), TemplateException, ['markup_string', 'Expected']);
+    await rejectsMatch(run('${n?markup_string}'), TemplateException, ['markup_string', 'markup']);
+    await rejectsMatch(run('${dt?markup_string}'), TemplateException, ['markup_string', 'markup']);
+    snapshot(await run('${m?markup_string}'), '<p>M</p>');
+  });
+  it('simple interpolation coercion', async () => {
+    snapshot(await run('${s}'), 'abc');
+    snapshot(await run('${n?string}'), '1,500');
+    snapshot(await run('${n}'), '1,500');
+    snapshot(await run('${dt?string}'), '2015-09-06 12:00:00');
+    snapshot(await run('${dt}'), '2015-09-06 12:00:00');
+    snapshot(await run('${b}'), 'y');
+    snapshot(await run('${m}'), '<p>M</p>');
+  });
+  it('concatenation: markup side escapes the other side', async () => {
+    snapshot(await run("${s + '&'}"), 'abc&');
+    snapshot(await run("${n?string + '&'}"), '1,500&');
+    snapshot(await run("${n + '&'}"), '1,500&');
+    snapshot(await run("${dt?string + '&'}"), '2015-09-06 12:00:00&');
+    snapshot(await run("${dt + '&'}"), '2015-09-06 12:00:00&');
+    snapshot(await run("${b + '&'}"), 'y&');
+    snapshot(await run("${m + '&'}"), '<p>M</p>&amp;');
+    snapshot(await run("${'&' + s}"), '&abc');
+    snapshot(await run("${'&' + n?string}"), '&1,500');
+    snapshot(await run("${'&' + n}"), '&1,500');
+    snapshot(await run("${'&' + b}"), '&y');
+    snapshot(await run("${'&' + m}"), '&amp;<p>M</p>');
   });
 });

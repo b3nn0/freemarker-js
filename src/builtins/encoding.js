@@ -76,6 +76,42 @@ registerBuiltIn('xml', {
   },
 });
 
+// ?esc (2.3.34+): convert the value to markup of the current output format;
+// markup values pass through, plain values are escaped <- Esc BI.
+registerBuiltIn('esc', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+  * impl(target, args, env) {
+    if (target instanceof MarkupModel) return target;
+    const s = yield* targetString(target, env, 'esc');
+    const fmt = env.outputFormat ?? env.configuration.getOutputFormat();
+    if (fmt && fmt.isMarkup) return new MarkupModel(s, fmt);
+    return new StringModel(s);
+  },
+});
+
+// ?markup_string: the source (printed) markup of a markup_output value
+registerBuiltIn('markup_string', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+  * impl(target, args, env) {
+    if (!(target instanceof MarkupModel)) {
+      throw new TemplateException(
+        'For "?markup_string" left-hand operand: Expected a markup output, '
+        + `but this has evaluated to ${env.typeLabel(target)}`);
+    }
+    return new StringModel(target.markup ?? target.value);
+  },
+});
+
 // ?no_esc: wrap in the current output format's markup model so the
 // interpolation writes it out as-is (<- NoEsc BI + OutputFormat.output path).
 registerBuiltIn('no_esc', {
