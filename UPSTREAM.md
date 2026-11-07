@@ -116,9 +116,12 @@ must match or be recorded here as deviations.
 - `?then` arity is checked at parse time ("?then(...) requires exactly 2
   parameters") like upstream (overrides the uniform run-time arity note in M11
   for this built-in; others keep run-time arity errors).
-- `?index`/`?has_next` on non-loop-variable targets: upstream fails at parse
-  time ("must be a simple loop variable name"); the port fails at render time
-  with a plain TemplateException (deviation; must not crash).
+- Loop-variable built-ins (`?index`, `?counter`, `?has_next`, `?is_first`,
+  `?is_last`, `?is_odd_item`, `?is_even_item`, `?item_parity`,
+  `?item_parity_cap`, `?item_cycle`) are parse-checked like upstream
+  (FTL.jj checkLoopVariableBuiltInLHO): the left-hand operand must be a
+  simple loop-variable identifier of an enclosing iterator; the user-defined
+  directive loop-variable nuance is not modeled (deviation).
 - iso built-in family now matches the 2.3.36 registry exactly: `?iso`/`?iso_nz`/
   `?iso_ms(_nz)`/`?iso_m(_nz)`/`?iso_h(_nz)` are METHODS taking one time-zone
   argument; `?iso_utc*`/`?iso_local*` (with `_h/_m/_ms/_nz/_fz` variants) are
@@ -202,3 +205,20 @@ Fifth fidelity round (JVM-pinned, same differential corpus, now 144 cases):
   nuances they interact with) are not implemented; FTL has no
   scientific-notation number literals upstream either (`1e20` is a parse
   error on both sides).
+
+Sixth fidelity round (JVM-pinned, corpus now 160 cases):
+- items-form `#list` (no "as") now matches IteratorBlock/Items: the body is
+  visited once and only when the listed value is non-empty; `#items` performs
+  the item loop and absorbs a `#break` thrown inside it; a `#break`/`#continue`
+  elsewhere in the body escapes to the enclosing loop; a second `#items` for
+  the same listing fails with the upstream message.
+- `#switch` whitespace parity: `#on`/`#case`/`#default` elements carry their
+  source location and switch children stay in source order, so the
+  TextBlock.postParseCleanup heeds* chain behaves like upstream (`#on` is not
+  a whitespace-stripping tag; trailing whitespace inside an `#on` body
+  survives).
+- Loop-variable built-ins are parse-checked (see above), which also fixed the
+  bi-cycle PARSE-vs-runtime corpus deviation.
+- More upstream test classes ported: BreakAndContinuePlacementTest,
+  SwitchTest (#case/#on basics, oddly-placed #default, whitespace + `#t`,
+  mixing errors), UnclosedCommentTest (modern i21 behavior).
