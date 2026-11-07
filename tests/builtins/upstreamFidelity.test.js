@@ -2419,3 +2419,15 @@ describe('Upstream TemplateTransformModelTest (ported subset)', () => {
       TemplateException, ['Expected a transform', 'number']);
   });
 });
+
+describe('Upstream IncudeFromNamelessTest (ported)', () => {
+  it('relative includes resolve from the root for a nameless template', async () => {
+    const c = new Configuration();
+    c.setIncludeResolver((n) => ({
+      'i.ftl': '[i]', 'sub/i.ftl': '[sub/i]', 'import.ftl': '<#assign x = 1>',
+    }[n] ?? null));
+    snapshot(await new Template(null, "<#include 'i.ftl'>\n<#include '/i.ftl'>\n"
+      + "<#include 'sub/i.ftl'>\n<#include '/sub/i.ftl'><#import 'import.ftl' as i>${i.x}",
+    c).processToString(null), '[i][i][sub/i][sub/i]1');
+  });
+});
