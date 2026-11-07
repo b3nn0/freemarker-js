@@ -277,3 +277,26 @@ describe('Upstream UnclosedCommentTest (ported; modern i21+ behavior)', () => {
     }
   });
 });
+
+describe('Loop-variable built-in parse check (FTL.jj checkLoopVariableBuiltInLHO)', () => {
+  it('left-hand operand must be a simple loop-variable identifier', () => {
+    const bad = [
+      ['${"abc"?index}', 'must be a simple loop variable name'],
+      ['<#assign y=1><#list 1..2 as x>${y?index}</#list>',
+        'must be a loop variable, but there\'s no loop variable in scope with this name: y'],
+      ['<#list 1..2 as x>${(1..3)?has_next}</#list>', 'must be a simple loop variable name'],
+      ['${x?counter}', 'no loop variable in scope with this name: x'],
+    ];
+    for (const [tpl, part] of bad) {
+      const e = throwsMatch(() => new Template('t.ftl', tpl, new Configuration()),
+        ParseException, [part]);
+      if (!/in line 1, column \d+/.test(e.message)) throw new Error('no position: ' + e.message);
+    }
+  });
+
+  it('loop variables (as + #items + hash value var) are accepted', async () => {
+    snapshot(await out('<#list 1..2 as x>${x?index}${x?counter}</#list>', {}), '0112');
+    snapshot(await out('<#list 1..2>[<#items as x>${x?index}</#items>]</#list>', {}), '[01]');
+    snapshot(await out('<#list h as k, v>${k?index}-${v?index}</#list>', { h: { k1: 'v1', k2: 'v2' } }), '0-01-1');
+  });
+});
