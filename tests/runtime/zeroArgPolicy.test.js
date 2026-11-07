@@ -1,15 +1,17 @@
+// ZeroArgumentPolicy: single knob, no record/class split (simplified from upstream).
+
 import { describe, it, snapshot, throwsMatch, rejectsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
-import { ZeroArgumentNonVoidMethodPolicy as P } from '../../src/index.js';
+import { ZeroArgumentPolicy as P } from '../../src/index.js';
 import { NonStringException, InvalidPropertyException } from '../../src/errors.js';
 
 function out(src, model, cfg) {
   return new Template('t.ftl', src, cfg ?? new Configuration()).processToString(model ?? {});
 }
 
-describe('ZeroArgumentNonVoidMethodPolicy: record-like (plain objects)', () => {
-  it('default BOTH: bare dot and call both give the value', async () => {
+describe('ZeroArgumentPolicy: AUTO_INVOKE (default)', () => {
+  it('bare dot and parenthesized call both give the value', async () => {
     const model = { p: { x() { return 5; }, s() { return 'str'; } } };
     snapshot(await out('${p.x}', model), '5');
     snapshot(await out('${p.x()}', model), '5');
@@ -17,42 +19,40 @@ describe('ZeroArgumentNonVoidMethodPolicy: record-like (plain objects)', () => {
     snapshot(await out('${p.s??}', model), 'true');
     snapshot(await out('${p.x + 1}', model), '6');
   });
-  it('bean-reader style names stay methods (carve-out)', async () => {
+  it('getX/isX names are NOT special anymore (no bean carve-out)', async () => {
     const model = { p: { getV() { return 1; }, isOn() { return true; } } };
+    snapshot(await out('${p.getV}', model), '1');
     snapshot(await out('${p.getV()}', model), '1');
-    snapshot(await out('${p.isOn()}', model), 'true');
-    await rejectsMatch(out('${p.getV}', model), NonStringException, ['method']);
+    snapshot(await out('${p.isOn}', model), 'true');
     await rejectsMatch(out('${p.v}', model), InvalidPropertyException, ['has not been found']);
   });
-  it('1-argument functions are not property-like', async () => {
+  it('1-argument functions are not auto-invoked', async () => {
     const model = { p: { f(a) { return a + 1; } } };
     snapshot(await out('${p.f(2)}', model), '3');
+    snapshot(await out('${p["f"](2)}', model), '3');
     await rejectsMatch(out('${p.f}', model), NonStringException, ['method']);
   });
+  it('class instances behave like plain objects', async () => {
+    class Holder { m() { return 3; } m2(a) { return a * 2; } }
+    const model = { h: new Holder() };
+    snapshot(await out('${h.m}', model), '3');
+    snapshot(await out('${h.m()}', model), '3');
+    snapshot(await out('${h.m2(4)}', model), '8');
+    snapshot(await out('${h["m2"](4)}', model), '8');
+  });
 });
 
-describe('ZeroArgumentNonVoidMethodPolicy: non-record objects', () => {
-  class Holder { m() { return 3; } }
-  it('default METHOD_ONLY: bare dot gives the method', async () => {
-    const model = { h: new Holder() };
-    snapshot(await out('${h.m()}', model), '3');
-    await rejectsMatch(out('${h.m}', model), NonStringException, ['method']);
-  });
-  it('PROPERTY_ONLY makes class-instance dots values too', async () => {
+describe('ZeroArgumentPolicy: METHOD_ONLY', () => {
+  it('bare dot reads give the method; calls still work', async () => {
     const cfg = new Configuration();
-    cfg.setDefaultZeroArgumentNonVoidMethodPolicy(P.PROPERTY_ONLY_UNLESS_BEAN_PROPERTY_READ_METHOD);
-    snapshot(await out('${h.m}', { h: new Holder() }, cfg), '3');
+    cfg.setZeroArgumentPolicy(P.METHOD_ONLY);
+    const model = { p: { x() { return 5; } } };
+    snapshot(await out('${p.x()}', model, cfg), '5');
+    snapshot(await out('${p.x?is_method?then("m","v")}', model, cfg), 'm');
+    await rejectsMatch(out('${p.x}', model, cfg), NonStringException, ['method']);
+    await rejectsMatch(out('${p["x"]}', model, cfg), NonStringException, ['method']);
   });
   it('policy setter validates values', () => {
-    throwsMatch(() => new Configuration().setDefaultZeroArgumentNonVoidMethodPolicy('NOPE'), TypeError);
-  });
-});
-
-describe('ZeroArgumentNonVoidMethodPolicy: record policy override', () => {
-  it('METHOD_ONLY for records: bare dot gives the method', async () => {
-    const cfg = new Configuration();
-    cfg.setRecordZeroArgumentNonVoidMethodPolicy(P.METHOD_ONLY);
-    await rejectsMatch(out('${p.x}', { p: { x() { return 5; } } }, cfg), NonStringException, ['method']);
-    snapshot(await out('${p.x()}', { p: { x() { return 5; } } }, cfg), '5');
+    throwsMatch(() => new Configuration().setZeroArgumentPolicy('NOPE'), TypeError);
   });
 });

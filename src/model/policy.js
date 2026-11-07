@@ -1,68 +1,41 @@
-// ← freemarker.ext.beans.ZeroArgumentNonVoidMethodPolicy (3 values kept for API parity;
-// BOTH ≡ PROPERTY_ONLY in the JS port, see UPSTREAM.md).
+// Zero-argument function-property handling ← ZeroArgumentNonVoidMethodPolicy,
+// simplified to one knob for all model sources (no record/class split, no
+// getX/isX bean-reader carve-out — Java artifacts; see UPSTREAM.md).
 
 /**
- * Values of the zero-argument non-void method policy.
- * @type {{ FAIL: string, TRY_AS_NULL_OR_EMPTY: string, TRY_AS_METHOD: string }}
+ * How a hash value that is a zero-argument JS function (e.g. a method stored on a
+ * plain object or class instance in the data model) behaves when a template reads
+ * the property **without** parentheses, as in `${h.name}`. Reads with parentheses
+ * (`${h.name(args...)}`) always invoke the function with those args, under either
+ * policy; functions that declare at least one parameter (fn.length !== 0) are never
+ * property-like and always stay callable values.
+ * @type {{ AUTO_INVOKE: string, METHOD_ONLY: string }}
  */
-export const ZeroArgumentNonVoidMethodPolicy = Object.freeze({
+export const ZeroArgumentPolicy = Object.freeze({
+  /**
+   * Default. A bare property read of a 0-arg function auto-invokes it with no
+   * arguments and yields its (wrapped) return value: `${h.x}` ≡ `${h.x()}` for
+   * `x() {}` (async returns are awaited in async mode). The function itself is
+   * not reachable as a value through such a read. Applies uniformly to plain
+   * objects, Maps, and class instances (no Java record/bean-name carve-outs).
+   */
+  AUTO_INVOKE: 'AUTO_INVOKE',
+  /**
+   * A bare property read returns the function as a callable model (`?is_method`
+   * is true, it can be passed around); only parenthesized syntax invokes it:
+   * `${h.x()}` / `${h.x(1)}`. This is upstream 2.3's default for non-records
+   * (METHOD_ONLY); the port makes it the opt-in mode.
+   */
   METHOD_ONLY: 'METHOD_ONLY',
-  PROPERTY_ONLY_UNLESS_BEAN_PROPERTY_READ_METHOD: 'PROPERTY_ONLY_UNLESS_BEAN_PROPERTY_READ_METHOD',
-  BOTH_METHOD_AND_PROPERTY_UNLESS_BEAN_PROPERTY_READ_METHOD: 'BOTH_METHOD_AND_PROPERTY_UNLESS_BEAN_PROPERTY_READ_METHOD',
 });
-
-// ← Java-record analogue: plain object literal (no class prototype).
-/**
- * Whether a value looks like a Java "record" — here: a plain object literal.
- * @param {unknown} value
- * @returns {boolean}
- */
-export function isRecordLike(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value) || value instanceof Map) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-
-/**
- * Bean property read method naming: getX / isX — exempt from the policies (always methods).
- * @param {unknown} name
- * @returns {boolean}
- */
-export function isBeanReaderStyleName(name) {
-  if (typeof name !== 'string') return false;
-  if (name.length > 3 && name.startsWith('get')) {
-    const c = name[3];
-    return c >= 'A' && c <= 'Z';
-  }
-  if (name.length > 2 && name.startsWith('is')) {
-    const c = name[2];
-    return c >= 'A' && c <= 'Z';
-  }
-  return false;
-}
-
-/**
- * Picks the policy for a property source: record-like sources get the record policy.
- * @param {import('../configuration.js').Configuration} configuration
- * @param {unknown} source
- * @returns {string} one of ZeroArgumentNonVoidMethodPolicy
- */
-export function resolvePolicy(configuration, source) {
-  return isRecordLike(source)
-    ? configuration.getRecordZeroArgumentNonVoidMethodPolicy()
-    : configuration.getDefaultZeroArgumentNonVoidMethodPolicy();
-}
 
 /**
  * Should a zero-argument function property be read as a value ("property-like")?
  * @param {import('../configuration.js').Configuration} configuration
- * @param {unknown} source - the object holding the property
- * @param {string} key - the property name
  * @param {unknown} fn - the property value
  * @returns {boolean}
  */
-export function zeroArgFunctionIsProperty(configuration, source, key, fn) {
-  if (typeof fn !== 'function' || fn.length !== 0) return false;
-  if (isBeanReaderStyleName(key)) return false;
-  return resolvePolicy(configuration, source) !== ZeroArgumentNonVoidMethodPolicy.METHOD_ONLY;
+export function zeroArgFunctionIsProperty(configuration, fn) {
+  return typeof fn === 'function' && fn.length === 0
+    && configuration.getZeroArgumentPolicy() !== ZeroArgumentPolicy.METHOD_ONLY;
 }

@@ -28,7 +28,7 @@ export class MethodCall extends Expression {
     let t;
     let preCalled = false;
     if (typeof this.target._evaluateForMethodCall === 'function') {
-      // ← BeforeMethodCall path (ZeroArgumentNonVoidMethodPolicy at Dot/DynamicKeyName).
+      // ← BeforeMethodCall path (ZeroArgumentPolicy at Dot/DynamicKeyName).
       [t, preCalled] = yield* this.target._evaluateForMethodCall(env, this.args);
       if (preCalled) return t;
     } else {

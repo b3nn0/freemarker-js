@@ -9,6 +9,29 @@ import { TemplateHashModel, TemplateSequenceModel } from '../../../model/templat
 import { HashModel } from '../../../model/models.js';
 import { unwrap } from '../../../model/unwrap.js';
 import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
+
+// ZeroArgumentPolicy application for a hash-value read (Dot / DynamicKeyName shared).
+// argExprs=null → bare read (0-arg pre-call); array → parenthesized call gets the args.
+/**
+ * @param {import('../../../environment.js').Environment} env
+ * @param {Object} t - the hash model holding the value
+ * @param {string} label - key for error/trace wording
+ * @param {Object|null} v - the read model value
+ * @param {Expression[]|null} argExprs - call args, or null for a bare read
+ * @returns {Generator<unknown, [Object|null, boolean], unknown>} [model, autoInvoked]
+ */
+function* applyZeroArgPolicy(env, t, label, v, argExprs) {
+  if (v !== null && v !== undefined && t instanceof HashModel
+      && zeroArgFunctionIsProperty(env.configuration, v.fn)) {
+    if (argExprs === null) {
+      return [env.wrap(yield* awaitOp(`read-only call "${label}"`, v.fn())), true];
+    }
+    const raw = [];
+    for (const a of argExprs) raw.push(unwrap(yield* a.evaluate(env)));
+    return [env.wrap(yield* awaitOp(`method call "${label}"`, v.fn(...raw))), true];
+  }
+  return [v, false];
+}
 import { awaitOp, callOp } from '../../../async.js';
 
 /** Bare name ← Identifier. */
@@ -79,11 +102,9 @@ export class Dot extends Expression {
         `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
         + 'has not been found (it is missing).');
     }
-    // ZeroArgumentNonVoidMethodPolicy: property-like read of a 0-arg function ← get()/getBeforeMethodCall.
-    if (t instanceof HashModel && zeroArgFunctionIsProperty(env.configuration, t.source, this.key, v && v.fn)) {
-      return env.wrap(yield* awaitOp(`read-only call "${this.key}"`, v.fn()));
-    }
-    return v;
+    // ZeroArgumentPolicy: property-like read of a 0-arg function ← get()/getBeforeMethodCall.
+    const [m] = yield* applyZeroArgPolicy(env, t, this.key, v, null);
+    return m;
   }
 
   // ← the parse-time BeforeMethodCall trick: a directly enclosing MethodCall routes through here.
@@ -107,12 +128,7 @@ export class Dot extends Expression {
         `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
         + 'has not been found (it is missing).');
     }
-    if (t instanceof HashModel && zeroArgFunctionIsProperty(env.configuration, t.source, this.key, v.fn)) {
-      const raw = [];
-      for (const a of argExprs) raw.push(unwrap(yield* a.evaluate(env)));
-      return [env.wrap(yield* awaitOp(`method call "${this.key}"`, v.fn(...raw))), true];
-    }
-    return [v, false];
+    return yield* applyZeroArgPolicy(env, t, this.key, v, argExprs);
   }
 }
 
@@ -157,11 +173,8 @@ export class DynamicKeyName extends Expression {
     if (t instanceof TemplateHashModel) {
       const s = yield* env.coerceToString(k, ' used as a hash key');
       const v = yield* callOp(`get "${s}"`, t, 'get', s);
-      if (v !== null && v !== undefined && t instanceof HashModel
-          && zeroArgFunctionIsProperty(env.configuration, t.source, s, v.fn)) {
-        return env.wrap(yield* awaitOp(`read-only call "${s}"`, v.fn()));
-      }
-      return v;
+      const [m] = yield* applyZeroArgPolicy(env, t, s, v, null);
+      return m;
     }
     throw new NonHashException(
       `Can't read: ${this.target.getCanonicalForm()} is a ${env.typeLabel(t)}, `
@@ -181,13 +194,12 @@ export class DynamicKeyName extends Expression {
     if (t instanceof TemplateHashModel && k !== null && k !== undefined) {
       const s = yield* env.coerceToString(k, ' used as a hash key');
       const v = yield* callOp(`get "${s}"`, t, 'get', s);
-      if (v !== null && v !== undefined && t instanceof HashModel
-          && zeroArgFunctionIsProperty(env.configuration, t.source, s, v.fn)) {
-        const raw = [];
-        for (const a of argExprs) raw.push(unwrap(yield* a.evaluate(env)));
-        return [env.wrap(yield* awaitOp(`method call "${s}"`, v.fn(...raw))), true];
+      if (v !== null && v !== undefined) {
+        const [m, auto] = yield* applyZeroArgPolicy(env, t, s, v, argExprs);
+        return [m, auto];
       }
     }
+    // non-hash target / missing value: full read path (throws the DKNN wording)
     return [yield* this.evaluate(env), false];
   }
 }

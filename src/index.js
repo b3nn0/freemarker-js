@@ -5,7 +5,7 @@ export { Configuration } from './configuration.js';
 export { Template } from './template.js';
 export { Environment } from './environment.js';
 export { StringWriter } from './io/writer.js';
-export { ZeroArgumentNonVoidMethodPolicy } from './model/policy.js';
+export { ZeroArgumentPolicy } from './model/policy.js';
 export {
   FreeMarkerException,
   ParseException,

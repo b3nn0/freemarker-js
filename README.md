@@ -42,7 +42,7 @@ includes) and `examples/browser.html` (plain browser `<script type="module">`, n
 | Output formats + escaping (M15) | done | HTML/XHTML/XML escapers; auto-esc; built-in escapers |
 | Number/date formatting subset (M16) | done | #setting; #{exp;m2M4}; named+pattern number formats; SimpleDateFormat+ISO subset; ?string |
 | Async data model / callbacks (M18) | done | Promises awaited on demand (`processToString`); strict sync via `processToStringSync` |
-| Zero-arg method policy (M6) | done | all 3 policy values |
+| Zero-arg function-property policy (M6, simplified M19) | done | one knob: AUTO_INVOKE (default) / METHOD_ONLY |
 | TemplateLoader / filesystem / URL loading | out of scope | |
 | XML/DOM nodes, `#visit`, `#recurse`, `?node_*`, `?new`, `?api` | out of scope | parse OK, runtime `UnsupportedFeatureException` |
 | `classic_compatible`, `?interpret`, locale-aware formatting | out of scope | |

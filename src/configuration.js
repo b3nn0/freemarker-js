@@ -2,7 +2,7 @@
 
 import { VERSION } from './version.js';
 import { SimpleObjectWrapper } from './model/objectWrapper.js';
-import { ZeroArgumentNonVoidMethodPolicy } from './model/policy.js';
+import { ZeroArgumentPolicy } from './model/policy.js';
 import { UndefinedOutputFormat, getStandardOutputFormat } from './outputFormat.js';
 
 /**
@@ -60,43 +60,25 @@ export class Configuration {
     this._classicCompatible = false;
     this._tabSize = 8;
     this._objectWrapper = new SimpleObjectWrapper();
-    // ← ClassIntrospectorBuilder defaults at baseline 2.3.36:
-    this._defaultZeroArgumentNonVoidMethodPolicy = ZeroArgumentNonVoidMethodPolicy.METHOD_ONLY;
-    this._recordZeroArgumentNonVoidMethodPolicy
-      = ZeroArgumentNonVoidMethodPolicy.BOTH_METHOD_AND_PROPERTY_UNLESS_BEAN_PROPERTY_READ_METHOD;
+    // ← simplified from upstream's per-source policies (deviation, see UPSTREAM.md):
+    this._zeroArgumentPolicy = ZeroArgumentPolicy.AUTO_INVOKE;
     this._includeResolver = null;
     this._templateCache = new Map(); // referenced-template parse cache ← TemplateCache
   }
 
   /**
-   * @param {string} p - a ZeroArgumentNonVoidMethodPolicy constant
+   * @param {string} p - a ZeroArgumentPolicy constant
    * @throws {TypeError} on an unknown constant
    */
-  setDefaultZeroArgumentNonVoidMethodPolicy(p) {
-    this._assertPolicy(p);
-    this._defaultZeroArgumentNonVoidMethodPolicy = p;
-  }
-  /** @returns {string} a ZeroArgumentNonVoidMethodPolicy constant */
-  getDefaultZeroArgumentNonVoidMethodPolicy() {
-    return this._defaultZeroArgumentNonVoidMethodPolicy;
-  }
-  /**
-   * @param {string} p - a ZeroArgumentNonVoidMethodPolicy constant
-   * @throws {TypeError} on an unknown constant
-   */
-  setRecordZeroArgumentNonVoidMethodPolicy(p) {
-    this._assertPolicy(p);
-    this._recordZeroArgumentNonVoidMethodPolicy = p;
-  }
-  /** @returns {string} a ZeroArgumentNonVoidMethodPolicy constant */
-  getRecordZeroArgumentNonVoidMethodPolicy() {
-    return this._recordZeroArgumentNonVoidMethodPolicy;
-  }
-  /** @param {string} p - policy constant @throws {BugException} */
-  _assertPolicy(p) {
-    if (!Object.values(ZeroArgumentNonVoidMethodPolicy).includes(p)) {
-      throw new TypeError(`Invalid ZeroArgumentNonVoidMethodPolicy: ${String(p)}`);
+  setZeroArgumentPolicy(p) {
+    if (!Object.values(ZeroArgumentPolicy).includes(p)) {
+      throw new TypeError(`Invalid ZeroArgumentPolicy: ${String(p)}`);
     }
+    this._zeroArgumentPolicy = p;
+  }
+  /** @returns {string} a ZeroArgumentPolicy constant */
+  getZeroArgumentPolicy() {
+    return this._zeroArgumentPolicy;
   }
 
   /** @param {import('./model/objectWrapper.js').SimpleObjectWrapper} w */
