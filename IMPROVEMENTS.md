@@ -10,16 +10,12 @@ Reference: HEAD `a422783`, suite 406 green.
   says `await`; the test harness had to split `throwsMatch` (sync) vs `rejectsMatch`
   (async). Options: drop the Promise and go fully sync (upstream-faithful, simpler), or
   keep for future async loaders — decide once, document in README.
-- [ ] **A2. `?string` number override is a mutation hack.**
-  `applyNumberFormatString` (src/builtins/date.js) temporarily rewrites
-  `env._settings.numberFormat` and restores in `finally`. Rework: pass an explicit
-  format argument through `env._formatNumber(v, fracOpts, formatString)` instead of
-  mutating env state.
-- [ ] **A3. Loose hash detection in `?string(hash)`.** `typeof arg.get === 'function'`
-  accepts any hash-ish model; should check `isHashModel`/instanceof HashModel.
-- [ ] **A4. Dead metadata:** the `minArgs/maxArgs` fields on the `?string` built-in
-  registration are never consulted (arity enforced in impl; parser only consults
-  LAMBDA_ARG_BUILTINS / LAZY_ARG_BUILTINS sets). Remove or wire into BuiltIn visit.
+- [x] **A2. `?string` number override is a mutation hack.** DONE: `env._formatNumber(v,
+  fracOpts, formatString)` takes the explicit override; `applyNumberFormatString` deleted.
+- [x] **A3. Loose hash detection in `?string(hash)`.** DONE: `arg instanceof HashModel`.
+- [x] **A4. Dead metadata:** DONE (removed): expr-level wiring proved wrong - method-style
+  built-ins (`x?contains` bare) legally take 0 expr args and enforce arity later in
+  BuiltinArgMethod; all registration minArgs/maxArgs fields deleted as dead metadata.
 - [ ] **A5. Structural simplifications to keep in mind for future work:**
   `#compress` implemented at string level (not writer stack); interpolation
   output-format/auto-esc bound at parse time with the runtime `env.outputFormat` stack
@@ -66,7 +62,7 @@ Reference: HEAD `a422783`, suite 406 green.
 - [ ] **D1. JSDoc quality**: coverage is 100% (checker-enforced), but several parser
   docs are generic (`@returns {Object}`); a few `// ← FTL.jj ...` comments are now
   duplicated directly above the equivalent new JSDoc line. Tighten opportunistically.
-- [ ] **D2. Repo hygiene**: stray `core.*` crash dumps were silently committed at M9
+- [x] **D2. Repo hygiene**: stray `core.*` crash dumps were silently committed at M9
   and removed at M17 — `git add -A` swept them for 8 milestones. Add a `.gitignore`
   (`core.*`, `*.log`, editor cruft) so it cannot recur.
 - [ ] **D3. Test-suite gaps to fill while touching the above**: no tests for

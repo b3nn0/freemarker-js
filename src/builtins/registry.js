@@ -1,15 +1,13 @@
 // Built-in registry: name -> implementation. Filled by milestones M11-M16.
 
 /**
- * name -> { minArgs?: number, maxArgs?: number, impl(target, args, env) }
+ * name -> { acceptsMissing?: boolean, impl(target, args, env) }
  * @type {Map<string, Object>}
  */
 const BUILTINS = new Map();
 
 /**
  * @typedef {Object} BuiltInSpec
- * @property {number} [minArgs] - argument validation support
- * @property {number} [maxArgs] - argument validation support
  * @property {boolean} [acceptsMissing] - true when the built-in handles a null/missing
  *   target itself (existence built-ins, type checks); otherwise a null target throws
  *   ← BuiltInsForExistenceHandling vs the type-bound BuiltInForXxx classes

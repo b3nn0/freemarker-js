@@ -4,14 +4,13 @@
 
 import { registerBuiltIn, getBuiltIn } from './registry.js';
 import { argCntError } from './common.js';
-import { StringModel, DateModel } from '../model/models.js';
+import { StringModel, DateModel, HashModel } from '../model/models.js';
 import { UnsupportedFeatureException, NonDateException } from '../errors.js';
 import { formatIsoDate, DATE_TYPES } from '../format/dateFormat.js';
 import { callOp } from '../async.js';
 
 // ?string, ?string(fmt) with a format string, or ?string(fmtHash).
 registerBuiltIn('string', {
-  minArgs: 0, maxArgs: 1,
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
    * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -27,7 +26,7 @@ registerBuiltIn('string', {
       const arg = yield* argExprs[0].evaluate(env);
       if (arg instanceof StringModel) {
         fmt = arg.value;
-      } else if (arg && typeof arg.get === 'function') {
+      } else if (arg instanceof HashModel) {
         return yield* formatWithHash(target, arg, env);
       } else {
         throw new UnsupportedFeatureException(
@@ -44,8 +43,8 @@ registerBuiltIn('string', {
         return yield* bi.impl(target, null, env);
       }
       if (target && typeof target.getAsNumber === 'function') {
-        return new StringModel(applyNumberFormatString(
-          yield* callOp('getAsNumber', target, 'getAsNumber'), fmt, env));
+        return new StringModel(env._formatNumber(
+          yield* callOp('getAsNumber', target, 'getAsNumber'), undefined, fmt));
       }
       if (target && typeof target.getAsBoolean === 'function') {
         return new StringModel(env._formatBoolean(yield* callOp('getAsBoolean', target, 'getAsBoolean'), fmt));
@@ -61,16 +60,6 @@ registerBuiltIn('string', {
  * @param {import('../environment.js').Environment} env
  * @returns {string}
  */
-function applyNumberFormatString(v, fmt, env) {
-  const saved = env._settings.numberFormat;
-  try {
-    env._settings.numberFormat = fmt;
-    return env._formatNumber(v);
-  } finally {
-    env._settings.numberFormat = saved;
-  }
-}
-
 /**
  * ?string({ number_format: "currency", date_format: "iso", boolean_format: "yes,no",
  * string_format: "upper_case" })
@@ -94,8 +83,8 @@ function* formatWithHash(target, hash, env) {
   if (target && typeof target.getAsNumber === 'function') {
     const fmt = yield* pick('number_format');
     if (fmt !== null) {
-      return new StringModel(applyNumberFormatString(
-        yield* callOp('getAsNumber', target, 'getAsNumber'), fmt, env));
+      return new StringModel(env._formatNumber(
+        yield* callOp('getAsNumber', target, 'getAsNumber'), undefined, fmt));
     }
     return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   }

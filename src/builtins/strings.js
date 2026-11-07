@@ -183,8 +183,6 @@ registerBuiltIn('chop_linebreak', {
 });
 
 registerBuiltIn('contains', {
-  minArgs: 1,
-  maxArgs: 1,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -198,8 +196,6 @@ registerBuiltIn('contains', {
 });
 
 registerBuiltIn('starts_with', {
-  minArgs: 1,
-  maxArgs: 1,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -213,8 +209,6 @@ registerBuiltIn('starts_with', {
 });
 
 registerBuiltIn('ends_with', {
-  minArgs: 1,
-  maxArgs: 1,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -228,8 +222,6 @@ registerBuiltIn('ends_with', {
 });
 
 registerBuiltIn('index_of', {
-  minArgs: 1,
-  maxArgs: 2,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -245,8 +237,6 @@ registerBuiltIn('index_of', {
 });
 
 registerBuiltIn('last_index_of', {
-  minArgs: 1,
-  maxArgs: 2,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -262,8 +252,6 @@ registerBuiltIn('last_index_of', {
 });
 
 registerBuiltIn('split', {
-  minArgs: 1,
-  maxArgs: 1,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -281,8 +269,6 @@ registerBuiltIn('split', {
 
 // 2.3.36 literal (non-regex) replace of every occurrence ← replaceBI.
 registerBuiltIn('replace', {
-  minArgs: 2,
-  maxArgs: 2,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -329,8 +315,6 @@ function pad(s, width, fill) {
 }
 
 registerBuiltIn('left_pad', {
-  minArgs: 1,
-  maxArgs: 2,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions
@@ -346,8 +330,6 @@ registerBuiltIn('left_pad', {
 });
 
 registerBuiltIn('right_pad', {
-  minArgs: 1,
-  maxArgs: 2,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} args - unevaluated argument expressions

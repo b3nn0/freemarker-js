@@ -395,10 +395,11 @@ export class Environment {
    * ← Environment.formatNumberModel with the env number_format setting.
    * @param {number} v
    * @param {{ minFrac?: number, maxFrac?: number }} [fracOpts] - from #{exp;mN}
+   * @param {string|null} [formatString] - explicit (?string(fmt)); null = default
    * @returns {string}
    */
-  _formatNumber(v, fracOpts) {
-    return formatNumber(v, this._settings.numberFormat, fracOpts);
+  _formatNumber(v, fracOpts = undefined, formatString = null) {
+    return formatNumber(v, formatString ?? this._settings.numberFormat, fracOpts);
   }
 
   /**

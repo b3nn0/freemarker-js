@@ -149,8 +149,6 @@ class SortByMethodModel extends TemplateMethodModel {
 
 registerBuiltIn('sort_by', {
   acceptsMissing: true,
-  minArgs: 1,
-  maxArgs: 1,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} argExprs - unevaluated argument expressions
@@ -200,8 +198,6 @@ function* makeTransformer(argExp, env, key) {
 
 // ?filter: ← filterBI + FilterLikeBI.elementMatches
 registerBuiltIn('filter', {
-  minArgs: 1,
-  maxArgs: 1,
   acceptsMissing: true,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -233,8 +229,6 @@ registerBuiltIn('filter', {
 
 // ?map: ← mapBI.fetchAndMapNextElement
 registerBuiltIn('map', {
-  minArgs: 1,
-  maxArgs: 1,
   acceptsMissing: true,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -263,8 +257,6 @@ registerBuiltIn('map', {
 // (DirectCallOptimization in upstream: the built-in evaluates to a method, and
 // the "(args)" arrives through MethodCall, like the BIMethod built-ins).
 registerBuiltIn('join', {
-  minArgs: 1,
-  maxArgs: 1,
   acceptsMissing: true,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -287,8 +279,6 @@ registerBuiltIn('join', {
 });
 
 registerBuiltIn('seq_contains', {
-  minArgs: 1,
-  maxArgs: 1,
   acceptsMissing: true,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -310,8 +300,6 @@ registerBuiltIn('seq_contains', {
 });
 
 registerBuiltIn('seq_index_of', {
-  minArgs: 1,
-  maxArgs: 1,
   acceptsMissing: true,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target

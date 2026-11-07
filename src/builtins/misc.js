@@ -71,7 +71,6 @@ registerBuiltIn('has_content', {
 // ← defaultBI: a method returning the target (ConstantMethod), or the first
 // non-null argument when the target was missing (FIRST_NON_NULL_METHOD).
 registerBuiltIn('default', {
-  minArgs: 1,
   acceptsMissing: true,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -168,8 +167,6 @@ registerBuiltIn('trim_to_null', {
 // ---- lazy conditionals (BuiltInsWithLazyConditionals) ----
 
 registerBuiltIn('then', {
-  minArgs: 2,
-  maxArgs: 2,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} argExprs - unevaluated argument expressions
@@ -193,8 +190,6 @@ registerBuiltIn('then', {
 });
 
 registerBuiltIn('switch', {
-  minArgs: 2,
-  maxArgs: Infinity,
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @param {Array<Object>|null} argExprs - unevaluated argument expressions
