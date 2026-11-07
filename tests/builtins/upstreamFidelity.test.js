@@ -450,3 +450,31 @@ describe('Upstream ?matches (JVM-pinned)', () => {
       TemplateException, ['Malformed regular expression', 'line 1, column 1']);
   });
 });
+
+describe('Upstream ?interpret (JVM-pinned)', () => {
+  it('assign + <@d/> renders the parsed string in current scope', async () => {
+    snapshot(await out('<#assign x="W"><#assign d="Hi ${x}"?interpret>[<@d/>]', {}), '[Hi W]');
+    snapshot(await out('<#assign d="A<#if false>B</#if>C"?interpret>[<@d/>]', {}), '[AC]');
+  });
+
+  it('macros defined inside the body are callable inside the body', async () => {
+    snapshot(await out('<#assign d="<#macro zz>Z</#macro><@zz/>"?interpret>[<@d/>]', {}), '[Z]');
+  });
+
+  it('parse failure reports the ?interpret wrapper error', async () => {
+    await rejectsMatch(out('<#assign d="bad <#if>"?interpret>', {}),
+      TemplateException, ['Template parsing with "?interpret" has failed', 'line 1, column 1']);
+  });
+
+  it('non-string left-hand operand and interpolation are rejected', async () => {
+    await rejectsMatch(out('<#assign d=1?interpret>', {}),
+      TemplateException, ['Expected a sequence or string', 'number']);
+    await rejectsMatch(out('<#assign d="x"?interpret>[${d}]', {}),
+      TemplateException, ['has evaluated to a transform']);
+  });
+
+  it('#nested inside the body fails to parse (2.3.36)', async () => {
+    await rejectsMatch(out('<#assign d="X<#nested>Y"?interpret>[<@d/>]', {}),
+      TemplateException, ['Template parsing with "?interpret" has failed']);
+  });
+});

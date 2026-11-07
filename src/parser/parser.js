@@ -87,7 +87,7 @@ const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1], ['take_while', 1
 // <- BuiltInWithParseTimeParameters with unevaluated (lazy) parameters: these consume
 // "(args)" at parse time. All other built-ins return first; "(args)" is a MethodCall.
 /** builtins with parse-time (unevaluated) args. @type {Set<string>} */
-const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string']);
+const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string', 'interpret']);
 
 // <- BuiltInForLoopVariable subclasses in BuiltInsForLoopVariables.java
 const LOOP_VAR_BUILT_INS = new Set(['index', 'counter', 'has_next', 'is_last', 'is_first',

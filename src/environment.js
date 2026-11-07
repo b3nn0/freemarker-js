@@ -34,6 +34,7 @@ function comparisonDescription(m) {
   if (m instanceof BooleanModel) return 'a boolean';
   if (m instanceof TemplateMethodModel) return 'a method';
   if (m instanceof TemplateSequenceModel) return 'a sequence';
+  if (m && m.isTransform) return 'a transform';
   if (typeof m.keys === 'function') return 'an extended_hash';
   if (m instanceof TemplateHashModel) return 'a hash';
   return 'an unusual FTL value';
@@ -240,6 +241,15 @@ export class Environment {
     return yield* this._resolveTemplateSource(name);
   }
 
+  /**
+   * Builds a sub-template (used by ?interpret); errors surface at the caller.
+   * @param {string} name @param {string} source
+   * @returns {Template}
+   */
+  buildTemplate(name, source) {
+    return new Template(name, source, this.configuration);
+  }
+
   * loadIncludedTemplate(name) {
     const cfg = this.configuration;
     let t = cfg._templateCache.get(name);
@@ -442,6 +452,7 @@ export class Environment {
     if (model instanceof BooleanModel) return 'boolean';
     if (model instanceof DateModel) return 'date';
     if (model instanceof TemplateMethodModel) return 'method';
+    if (model !== null && model !== undefined && model.isTransform) return 'transform';
     if (model instanceof TemplateSequenceModel) return 'sequence';
     if (model instanceof TemplateHashModelEx) return 'extended_hash';
     if (model instanceof TemplateHashModel) return 'hash';

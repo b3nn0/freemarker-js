@@ -439,11 +439,17 @@ registerBuiltIn('is_method', {
 });
 registerBuiltIn('is_directive', {
   acceptsMissing: true,
-  * impl(target) { return target && target.isMacroLike === true ? BoolTrue : BoolFalse; },
+  * impl(target) {
+    const m = target && (target.isMacroLike === true || target.isTransform === true);
+    return m ? BoolTrue : BoolFalse;
+  },
 });
 registerBuiltIn('is_macro', {
   acceptsMissing: true,
-  * impl(target) { return target && target.isMacroLike === true ? BoolTrue : BoolFalse; },
+  * impl(target) {
+    const m = target && target.isMacroLike === true && target.isTransform !== true;
+    return m ? BoolTrue : BoolFalse;
+  },
 });
 // The port has no node models and no TemplateTransformModel yet (M15): always false.
 registerBuiltIn('is_node', {
@@ -452,5 +458,5 @@ registerBuiltIn('is_node', {
 });
 registerBuiltIn('is_transform', {
   acceptsMissing: true,
-  * impl() { return BoolFalse; },
+  * impl(target) { return target && target.isTransform === true ? BoolTrue : BoolFalse; },
 });

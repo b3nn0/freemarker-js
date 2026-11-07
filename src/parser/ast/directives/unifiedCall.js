@@ -42,7 +42,7 @@ export class UnifiedCall extends TemplateElement {
         `The expression ${this.target.getCanonicalForm()} is a #function; call it inside `
         + '${...} instead of with <@...>.');
     }
-    if (!model.isMacroLike) {
+    if (!model.isMacroLike && !model.isTransform) {
       throw new InvalidReferenceException(
         `The expression ${this.target.getCanonicalForm()} evaluated to a `
         + `${env.typeLabel(model)}, and can't be called with <@...>.`);

@@ -19,8 +19,9 @@ Reference: HEAD `a422783`, suite 406 green.
 - [ ] **A5. Structural simplifications to keep in mind for future work:**
   `#compress` implemented at string level (not writer stack); interpolation
   output-format/auto-esc bound at parse time with the runtime `env.outputFormat` stack
-  only serving `?no_esc`/legacy bypass; `?interpret` would need the upstream writer
-  stack -- flag before porting it.
+  only serving `?no_esc`/legacy bypass; `?interpret` is ported by visiting the parsed
+  body through the normal element pipeline (no upstream writer stack), so output-format
+  escapes inside interpreted bodies follow the caller's settings.
 
 ## B. Fidelity risks (differential harness now available: upstream 2.3.36-SNAPSHOT
 is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
