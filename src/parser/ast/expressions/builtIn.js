@@ -58,10 +58,15 @@ class NamespaceModel extends TemplateHashModelEx {
 // <- freemarker.core.BuiltinVariable: the leading-dot special variables.
 /** ?loop_var style builtin variable <- BuiltinVariable. */
 export class BuiltinVariable extends Expression {
-  /** @param {string} name */
-  constructor(name) {
+  /**
+   * @param {string} name
+   * @param {boolean|null} autoEscValue - parse-time auto-escaping state, bound
+   *   for ".auto_esc" <- BuiltinVariable's parseTimeValue
+   */
+  constructor(name, autoEscValue = null) {
     super();
     this.name = name;
+    this.autoEscValue = autoEscValue;
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node
@@ -99,7 +104,9 @@ export class BuiltinVariable extends Expression {
     if (this.name === 'namespace' || this.name === 'main') return new NamespaceModel(env);
     if (this.name === 'locals') return null;
     if (this.name === 'auto_esc') {
-      return new BooleanModel(!!(env.template && env.template.autoEscaping));
+      return new BooleanModel(this.autoEscValue !== null
+        ? this.autoEscValue
+        : !!(env.template && env.template.autoEscaping));
     }
     if (this.name === 'time_zone') {
       const tz = env._settings.timeZone

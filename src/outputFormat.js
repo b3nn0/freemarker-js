@@ -152,7 +152,7 @@ export class XMLOutputFormat extends MarkupOutputFormat {
 // <- Configuration.STANDARD_OUTPUT_FORMATS (the ones this port registers)
 /** name -> standard OutputFormat instance. @type {Map<string, Object>} */
 const STANDARD_OUTPUT_FORMATS = new Map([
-  ['Undefined', UndefinedOutputFormat.INSTANCE],
+  ['undefined', UndefinedOutputFormat.INSTANCE],
   ['PlainText', PlainTextOutputFormat.INSTANCE],
   ['HTML', HTMLOutputFormat.INSTANCE],
   ['XHTML', XHTMLOutputFormat.INSTANCE],

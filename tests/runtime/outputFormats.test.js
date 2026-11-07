@@ -55,7 +55,7 @@ describe('runtime: output formats and auto-escaping', () => {
   it('unknown format names produce the upstream unregistered-format error', () => {
     throwsMatch(() => new Template('m', '<#ftl output_format="xhtml">${v}', new Configuration()),
       ParseException, ['Unregistered output format name, "xhtml"',
-        'The output formats registered in the Configuration are: HTML, PlainText, Undefined, XHTML, XML.']);
+        'The output formats registered in the Configuration are: HTML, PlainText, XHTML, XML, undefined.']);
   });
 
   it('#outputformat requires a parse-time constant', () => {

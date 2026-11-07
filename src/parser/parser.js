@@ -95,7 +95,7 @@ const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string', 'inter
 // <- FTL.jj BuiltinVariable: dot special variables landing in the port.
 // <- BuiltinVariable.SPEC_VAR_NAMES (snake_case view; camelCase twins are
 // accepted via _snakeName, matching the naming-convention handling in FTL.jj).
-const DOT_VAR_NAMES = new Set([
+export const DOT_VAR_NAMES = new Set([
   'args', 'auto_esc', 'caller_template_name', 'current_template_name', 'data_model', 'error',
   'get_optional_template', 'globals', 'incompatible_improvements', 'lang', 'locale',
   'locale_object', 'locals', 'main', 'main_template_name', 'namespace', 'node', 'current_node', 'now',
@@ -2098,12 +2098,21 @@ export class Parser {
           }
           this._argsFlag = true;
         } else if (!DOT_VAR_NAMES.has(dvName)) {
+          const sugg = FTL_HEADER_PARAM_SUGGESTIONS.get(dvName)
+            ?? FTL_HEADER_PARAM_SUGGESTIONS.get(nt.image.toLowerCase()) ?? null;
+          // <- JVM's BuiltinVariable "you may meant" hint, rendered in the
+          // naming convention the template actually used.
+          const suggTxt = sugg === null ? ''
+            : `You may meant: "${/\p{Lu}/u.test(nt.image)
+              ? sugg.replace(/_([a-z])/gu, (m, c) => c.toUpperCase())
+              : sugg}". `;
           throw this._error(
             `Special variable ".${nt.image}" is not a recognized special variable name. `
+            + suggTxt
             + 'The alphabetical list of special variables:\n  '
             + [...DOT_VAR_NAMES].sort().join(', '), nt);
         }
-        return this._span(new BuiltinVariable(dvName), t, nt);
+        return this._span(new BuiltinVariable(dvName, dvName === 'auto_esc' ? this.autoEscaping : null), t, nt);
       }
       case TT.INTEGER:
         this._next();

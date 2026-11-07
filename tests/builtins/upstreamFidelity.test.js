@@ -13,6 +13,7 @@ import {
   NonNumericalException, NonSequenceOrCollectionException,
 } from '../../src/errors.js';
 import { SETTING_NAMES, CAMEL_SETTING_NAMES } from '../../src/parser/ast/directives/setting.js';
+import { DOT_VAR_NAMES } from '../../src/parser/parser.js';
 
 function out(src, model) {
   return new Template('t.ftl', src, new Configuration()).processToString(model ?? {});
@@ -1256,5 +1257,63 @@ describe('Upstream ArgsSpecialVariableTest (ported)', () => {
       ParseException, ['args', 'macro', 'function']);
     rejectsMatch(() => out("<#macro m>${'.args'?eval}</#macro><@m />", {}),
       TemplateException, ['args', 'macro', 'function']);
+  });
+});
+
+// Upstream SpecialVariableTest (ported FTL-level subset): .version /
+// .incompatible_improvements, the 27 snake_case special-variable names (JVM
+// SPEC_VAR_NAMES, camel twins handled via the naming convention), and the
+// .autoEsc policy/format/region matrix (JVM-pinned via Drv77).
+describe('Upstream SpecialVariableTest (ported subset)', () => {
+  it('special-variable names: port set equals JVM snake names, sorted', () => {
+    const portNames = [...DOT_VAR_NAMES].sort();
+    const jvmSnake = [
+      'args', 'auto_esc', 'caller_template_name', 'current_node', 'current_template_name',
+      'data_model', 'error', 'get_optional_template', 'globals', 'incompatible_improvements',
+      'lang', 'locale', 'locale_object', 'locals', 'main', 'main_template_name', 'namespace',
+      'node', 'now', 'output_encoding', 'output_format', 'pass', 'template_name', 'time_zone',
+      'url_escaping_charset', 'vars', 'version',
+    ].sort();
+    snapshot(JSON.stringify(portNames), JSON.stringify(jvmSnake));
+    let prev = null;
+    for (const n of jvmSnake) {
+      ok(prev === null || n > prev, `not sorted: ${prev} -> ${n}`);
+      prev = n;
+    }
+  });
+  it('.version and .incompatible_improvements', async () => {
+    snapshot(await out('${.version}', {}), '2.3.36');
+    snapshot(await out('${.incompatible_improvements}', {}), '2.3.36');
+  });
+  it('.autoEsc policy x output-format matrix', async () => {
+    const mk = (policy, fmt) => {
+      const c = new Configuration();
+      c.setAutoEscapingPolicy(policy);
+      c.setOutputFormat(fmt);
+      return c;
+    };
+    const run = (src, cfg) => new Template('t', src, cfg).processToString({});
+    for (const policy of ['enableIfDefault', 'enableIfSupported']) {
+      const c = mk(policy, 'HTML');
+      snapshot(await run('${.autoEsc?c}', c), 'true');
+      snapshot(await run('<#ftl autoEsc=false>${.autoEsc?c}', c), 'false');
+      snapshot(await run('${.autoEsc?c}', mk(policy, 'PlainText')), 'false');
+      snapshot(await run('${.autoEsc?c}', mk(policy, 'undefined')), 'false');
+    }
+    snapshot(await run('${.autoEsc?c}', mk('disable', 'HTML')), 'false');
+    snapshot(await run('<#ftl autoEsc=true>${.autoEsc?c}', mk('disable', 'HTML')), 'true');
+    snapshot(await run('${.autoEsc?c}', mk('disable', 'PlainText')), 'false');
+    snapshot(await run('${.autoEsc?c}', mk('disable', 'undefined')), 'false');
+    const c = mk('enableIfDefault', 'undefined');
+    snapshot(await run('${.autoEsc?c} '
+      + "<#outputFormat 'HTML'>${.autoEsc?c}</#outputFormat> "
+      + "<#outputFormat 'undefined'>${.autoEsc?c}</#outputFormat> "
+      + "<#outputFormat 'HTML'>"
+      + '${.autoEsc?c} <#noAutoEsc>${.autoEsc?c} '
+      + '<#autoEsc>${.autoEsc?c}</#autoEsc> ${.autoEsc?c}</#noAutoEsc> ${.autoEsc?c}'
+      + '</#outputFormat>', c),
+    'false true false true false true false true');
+    throwsMatch(() => new Template('t.ftl', '${.autoEscaping?c}', new Configuration()),
+      ParseException, ['autoEscaping', 'You may meant: "autoEsc"']);
   });
 });
