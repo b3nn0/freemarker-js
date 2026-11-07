@@ -5,11 +5,11 @@ Reference: HEAD `a422783`, suite 406 green.
 
 ## A. Design tensions / deliberate compromises
 
-- [ ] **A1. Sync engine, async API.** `Template.processToString()` returns a Promise but
-  nothing in the pipeline ever awaits (no async include-resolver). Cost: every call site
-  says `await`; the test harness had to split `throwsMatch` (sync) vs `rejectsMatch`
-  (async). Options: drop the Promise and go fully sync (upstream-faithful, simpler), or
-  keep for future async loaders — decide once, document in README.
+- [x] **A1. Sync engine, async API.** DONE via M18: kept the Promise and backed it with a
+  real async core (green-threads, src/async.js) - async data-model values, async JS
+  methods, async include resolvers are awaited on demand. Strict sync drivers
+  (`process`/`processToStringSync`) match upstream semantics and throw
+  AsyncOperationNotAllowedException at async attempts. Documented in README + UPSTREAM.md.
 - [x] **A2. `?string` number override is a mutation hack.** DONE: `env._formatNumber(v,
   fracOpts, formatString)` takes the explicit override; `applyNumberFormatString` deleted.
 - [x] **A3. Loose hash detection in `?string(hash)`.** DONE: `arg instanceof HashModel`.
