@@ -2,6 +2,7 @@
 // JavaTemplateNumberFormatFactory (en_US locale fixed, see UPSTREAM.md) +
 // CTemplateNumberFormat ("c"/"computer") (2.3.36).
 
+import { Decimal } from './decimal.js';
 import { InvalidFormatStringException } from '../errors.js';
 
 /**
@@ -123,13 +124,14 @@ export function cFormat(v) {
  * @param {{ minFrac?: number, maxFrac?: number }} [fracOpts] - #{exp;mNMM} overrides
  * @returns {string}
  */
-export function formatNumber(v, formatString, fracOpts) {
+export function formatNumber(v, formatString, fracOpts, dec = null) {
   if (!Number.isFinite(v)) {
     throw new InvalidFormatStringException(`The number ${String(v)} can't be converted to a string.`);
   }
   const fmt = formatString === null || formatString === undefined ? 'number' : formatString;
   if (fmt === 'c' || fmt === 'computer') {
     // CTemplateNumberFormat ignores the #{exp;mN} fraction-digit limits (deviation).
+    if (dec !== null && dec !== undefined) return dec.toJavaString();
     return cFormat(v);
   }
   const spec = compiled(fmt);
@@ -139,7 +141,7 @@ export function formatNumber(v, formatString, fracOpts) {
     if (fracOpts.minFrac !== undefined) minFrac = fracOpts.minFrac;
     if (fracOpts.maxFrac !== undefined) maxFrac = fracOpts.maxFrac;
   }
-  return applyPattern(v, spec, minFrac, maxFrac);
+  return applyPattern(v, spec, minFrac, maxFrac, dec);
 }
 
 /**
@@ -149,11 +151,19 @@ export function formatNumber(v, formatString, fracOpts) {
  * @param {number} maxFrac
  * @returns {string}
  */
-function applyPattern(v, spec, minFrac, maxFrac) {
+function applyPattern(v, spec, minFrac, maxFrac, dec = null) {
   const neg = v < 0;
-  let a = Math.abs(v);
-  if (spec.percent) a *= 100;
-  let fixed = a.toFixed(maxFrac);
+  let fixed;
+  if (dec !== null && dec !== undefined && Number.isFinite(v)) {
+    // <- exact BigDecimal path: setScale(maxFrac, HALF_UP) then plain digits
+    let d = dec.signum() < 0 ? dec.neg() : dec;
+    if (spec.percent) d = d.mul(Decimal.fromLiteral('100'));
+    fixed = d.setScale(maxFrac).toPlainString();
+  } else {
+    let a = Math.abs(v);
+    if (spec.percent) a *= 100;
+    fixed = a.toFixed(maxFrac);
+  }
   // trim fraction zeros down to minFrac (toFixed gave exactly maxFrac digits)
   if (maxFrac > 0) {
     let end = fixed.length;

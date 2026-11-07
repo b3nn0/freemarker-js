@@ -27,8 +27,18 @@ describe('Upstream CAndCnBuiltInTest (ported subset)', () => {
     snapshot(await out('${0.000001?c}', {}), '0.000001');
     throwsMatch(() => new Template('t.ftl', '${1e20?c}', new Configuration()),
       ParseException, ['Expected "}"']);
-    snapshot(await out('${(1 / 3)?c}', {}), '0.3333333333333333'); // <- deviation:
-    // upstream divides with BigDecimal scale 12 ("0.333333333333")
+    // <- BigDecimalEngine division: minScale 12, ROUND_HALF_UP (JVM-verified)
+    snapshot(await out('${(1 / 3)?c}', {}), '0.333333333333');
+    snapshot(await out('${(2 / 3)?c}', {}), '0.666666666667');
+    snapshot(await out('${(100 / 3)?c}', {}), '33.333333333333');
+    snapshot(await out('${((1 / 3) * 3)?c}', {}), '0.999999999999');
+    snapshot(await out('${(0.1 + 0.2)?c}', {}), '0.3');
+    snapshot(await out('${(0.1 + 0.2 == 0.3)?c}', {}), 'true');
+    snapshot(await out('${(7.5 % 2)?c}', {}), '1');
+    snapshot(await out('${(-7.5 % 2)?c}', {}), '-1');
+    snapshot(await out('${(10 / 4)?c}', {}), '2.5');
+    snapshot(await out('${(100000000000000000000000)?c}', {}), '100000000000000000000000');
+    snapshot(await out('${(0.10000000000000000001)?c}', {}), '0.10000000000000000001');
   });
 
   it('?c/?cn strings get quoted and escaped', async () => {

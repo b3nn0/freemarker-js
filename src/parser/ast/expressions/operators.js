@@ -5,6 +5,26 @@ import { InvalidReferenceException, TemplateException } from '../../../errors.js
 import { awaitOp, callOp } from '../../../async.js';
 import { BooleanModel, RangeModel } from '../../../model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
+import { Decimal } from '../../../format/decimal.js';
+import { NumberModel } from '../../../model/models.js';
+
+/**
+ * Exact-decimal operand for an arithmetic op: the model's BigDecimal value
+ * when it carries one, else BigDecimal.valueOf(double) of its JS number
+ * (upstream converts any Number via toBigDecimal).
+ * @param {number} n @param {import('../../../model/templateModel.js').TemplateModel} m
+ * @returns {Decimal|null} null when non-finite (falls back to double math)
+ */
+function decimalOperand(n, m) {
+  if (!Number.isFinite(n)) return null;
+  const d = m && typeof m.getAsDecimal === 'function' ? m.getAsDecimal() : null;
+  return d !== null && d !== undefined ? d : Decimal.fromNumber(n);
+}
+
+/** @param {Decimal} d @returns {NumberModel} */
+function wrapDecimal(d) {
+  return new NumberModel(d.toNumber(), d);
+}
 
 /** (...) <- ParentheticalExpression. */
 export class ParentheticalExpression extends Expression {
@@ -66,8 +86,12 @@ export class AddConcatExpression extends Expression {
       return env.wrap(map);
     }
     if (l && r && typeof l.getAsNumber === 'function' && typeof r.getAsNumber === 'function') {
-      return env.wrap(
-        (yield* callOp('getAsNumber', l, 'getAsNumber')) + (yield* callOp('getAsNumber', r, 'getAsNumber')));
+      const ln = yield* callOp('getAsNumber', l, 'getAsNumber');
+      const rn = yield* callOp('getAsNumber', r, 'getAsNumber');
+      const dl = decimalOperand(ln, l);
+      const dr = decimalOperand(rn, r);
+      if (dl !== null && dr !== null) return wrapDecimal(dl.add(dr));
+      return env.wrap(ln + rn);
     }
     return env.wrap((yield* env.coerceToString(l, ' used with the "+" operator'))
       + (yield* env.coerceToString(r, ' used with the "+" operator')));
@@ -95,8 +119,30 @@ export class ArithmeticExpression extends Expression {
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
   * evaluate(env) {
-    const l = yield* env.toNumber(yield* this.left.evaluate(env), ` on the left of "${this.operator}"`);
-    const r = yield* env.toNumber(yield* this.right.evaluate(env), ` on the right of "${this.operator}"`);
+    const lm = yield* this.left.evaluate(env);
+    const rm = yield* this.right.evaluate(env);
+    const l = yield* env.toNumber(lm, ` on the left of "${this.operator}"`);
+    const r = yield* env.toNumber(rm, ` on the right of "${this.operator}"`);
+    const dl = decimalOperand(l, lm);
+    const dr = decimalOperand(r, rm);
+    if (dl !== null && dr !== null) {
+      switch (this.operator) {
+        case 'subtract': return wrapDecimal(dl.sub(dr));
+        case 'multiply': return wrapDecimal(dl.mul(dr));
+        case 'divide':
+          try {
+            return wrapDecimal(dl.div(dr));
+          } catch (e) {
+            if (e instanceof Error && e.message === 'Division by zero.') {
+              throw new TemplateException(e.message);
+            }
+            throw e;
+          }
+        default:
+          if (dr.trunc().u === 0n) throw new TemplateException('Division by zero.');
+          return wrapDecimal(dl.modulus(dr));
+      }
+    }
     switch (this.operator) {
       case 'subtract': return env.wrap(l - r);
       case 'multiply': return env.wrap(l * r);
@@ -129,7 +175,10 @@ export class UnaryPlusMinusExpression extends Expression {
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
   * evaluate(env) {
-    const v = yield* env.toNumber(yield* this.target.evaluate(env), ' after a unary +/- sign');
+    const tm = yield* this.target.evaluate(env);
+    const v = yield* env.toNumber(tm, ' after a unary +/- sign');
+    const d = decimalOperand(v, tm);
+    if (d !== null) return wrapDecimal(this.isMinus ? d.neg() : d);
     return env.wrap(this.isMinus ? -v : +v);
   }
 }

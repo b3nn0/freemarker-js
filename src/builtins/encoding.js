@@ -144,6 +144,8 @@ registerBuiltIn('c', {
       throw new InvalidReferenceException('Can\'t apply the ?c built-in to null.');
     }
     if (typeof target.getAsNumber === 'function') {
+      const dec = typeof target.getAsDecimal === 'function' ? target.getAsDecimal() : null;
+      if (dec !== null && dec !== undefined) return new StringModel(dec.toJavaString());
       return new StringModel(cNumberFormat(yield* callOp('getAsNumber', target, 'getAsNumber')));
     }
     if (typeof target.getAsBoolean === 'function') {

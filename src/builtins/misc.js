@@ -378,7 +378,8 @@ registerBuiltIn('floor', {
   },
 });
 
-// Java rounds halves away from zero; Math.round(-2.5) is -2 -> explicit.
+// <- upstream ?round = Math.round(doubleValue): halves go toward +infinity
+// (2.5 -> 3, -2.5 -> -2); verify against the JVM wrapper's Math.round path.
 registerBuiltIn('round', {
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -388,7 +389,7 @@ registerBuiltIn('round', {
      */
   * impl(target, args, env) {
     const v = numberTarget(target, env, 'round');
-    return new NumberModel(v < 0 ? -Math.round(-v) : Math.round(v));
+    return new NumberModel(Math.round(v));
   },
 });
 

@@ -21,6 +21,7 @@ import {
   NotExpression, ComparisonExpression, Range, AndExpression, OrExpression,
   DefaultToExpression, ExistsExpression,
 } from './ast/expressions/operators.js';
+import { Decimal } from '../format/decimal.js';
 import { UPSTREAM_BUILT_INS, BI_LIST_TEXT } from '../builtins/upstreamBIRegistry.js';
 import { BuiltIn } from './ast/expressions/builtIn.js';
 import { LocalLambdaExpression } from './ast/expressions/lambda.js';
@@ -1906,10 +1907,11 @@ export class Parser {
       }
       case TT.INTEGER:
         this._next();
-        return this._span(new NumberLiteral(Number.parseInt(t.image, 10)), t, t);
+        // <- BigDecimalEngine: literals keep their exact image value
+        return this._span(new NumberLiteral(Number.parseInt(t.image, 10), Decimal.fromLiteral(t.image)), t, t);
       case TT.DECIMAL:
         this._next();
-        return this._span(new NumberLiteral(Number.parseFloat(t.image)), t, t);
+        return this._span(new NumberLiteral(Number.parseFloat(t.image), Decimal.fromLiteral(t.image)), t, t);
       case TT.HEX_INTEGER:
         this._next();
         return this._span(new NumberLiteral(Number.parseInt(t.image.slice(2), 16)), t, t);

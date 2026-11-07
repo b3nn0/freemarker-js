@@ -57,14 +57,19 @@ export class MarkupModel extends StringModel {
 
 /** A numeric value (any finite or non-finite JS number). */
 export class NumberModel extends TemplateNumberModel {
-  /** @param {number} value */
-  constructor(value) {
+  /** @param {number} value @param {import('../format/decimal.js').Decimal|null} [dec] */
+  constructor(value, dec = null) {
     super();
     this.value = value;
+    this.dec = dec; // <- BigDecimalEngine exact value, when known
   }
   /** @returns {number} */
   getAsNumber() {
     return this.value;
+  }
+  /** @returns {import('../format/decimal.js').Decimal|null} */
+  getAsDecimal() {
+    return this.dec;
   }
 }
 

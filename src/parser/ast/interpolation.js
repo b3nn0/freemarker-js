@@ -59,7 +59,9 @@ export class Interpolation extends TemplateElement {
       throw e;
     }
     if (this.fracOpts !== null && value instanceof NumberModel) {
-      const s = env._formatNumber(value.getAsNumber(), this.fracOpts);
+      const s = env._formatNumber(
+        value.getAsNumber(), this.fracOpts, null,
+        typeof value.getAsDecimal === 'function' ? value.getAsDecimal() : null);
       env.output.write(
         this.autoEscape && this.outputFormat !== null && this.outputFormat.isMarkup
           ? this.outputFormat.escapePlainText(s) : s);

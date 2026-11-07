@@ -41,8 +41,11 @@ is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
   fixed en_US number symbols; no `Locale`-dependent formats; `time_zone` now
   honored (IANA + offset forms, Intl-resolved); `sql_date_and_time_time_zone`
   inert; browser-local rendering by default;
-  `c` format digits differ from BigDecimal for division values (upstream divides
-  with scale 12: `(1/3)?c` = `0.333333333333`; the port prints the IEEE double);
+  FIXED in this round: arithmetic now ports the BigDecimalEngine exactly
+  (literals exact, division minScale 12 HALF_UP, mul scale cap 100, `%`
+  truncates to integers, `?c` renders BigDecimal.toString-style; verified
+  against a 30-value JVM matrix). Residual: values from JS model numbers
+  convert via shortest-repr like BigDecimal.valueOf (same as upstream);
   sorting now uses `Intl.Collator` (close to java.text.Collator for common locales,
   not byte-identical); iso time-zone arguments now accept IANA zone ids
   (Intl-resolved, DST-aware) besides offset forms; `Z` is rejected upstream-style.

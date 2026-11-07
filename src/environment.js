@@ -8,6 +8,7 @@ import {
 } from './errors.js';
 import { formatNumber } from './format/numberFormat.js';
 import { formatDate } from './format/dateFormat.js';
+import { Decimal } from './format/decimal.js';
 import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
 import { TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
@@ -373,6 +374,14 @@ export class Environment {
     if (l instanceof NumberModel && r instanceof NumberModel) {
       const ln = yield* callOp('getAsNumber', l, 'getAsNumber');
       const rn = yield* callOp('getAsNumber', r, 'getAsNumber');
+      // <- BigDecimalEngine.compareNumbers: exact when both have BigDecimal forms
+      if (Number.isFinite(ln) && Number.isFinite(rn)) {
+        const dl = l.getAsDecimal();
+        const dr = r.getAsDecimal();
+        if (dl !== null && dr !== null) return dl.cmp(dr);
+        if (dl !== null) return dl.cmp(Decimal.fromNumber(rn));
+        if (dr !== null) return Decimal.fromNumber(ln).cmp(dr);
+      }
       return Math.sign(ln - rn);
     }
     if (l instanceof DateModel && r instanceof DateModel) {
@@ -466,7 +475,9 @@ export class Environment {
    */
   * coerceToString(model, context = '') {
     if (model instanceof StringModel) return model.getAsString();
-    if (model instanceof NumberModel) return this._formatNumber(model.getAsNumber());
+    if (model instanceof NumberModel) {
+      return this._formatNumber(model.getAsNumber(), undefined, null, model.getAsDecimal());
+    }
     if (model instanceof BooleanModel) return this._formatBoolean(model.getAsBoolean());
     if (model instanceof DateModel) return this._formatDate(model.getAsDate(), model.dateType);
     // <- CoercionUtil: same core message as the "${...}" content coercion
@@ -483,8 +494,8 @@ export class Environment {
    * @param {string|null} [formatString] - explicit (?string(fmt)); null = default
    * @returns {string}
    */
-  _formatNumber(v, fracOpts = undefined, formatString = null) {
-    return formatNumber(v, formatString ?? this._settings.numberFormat, fracOpts);
+  _formatNumber(v, fracOpts = undefined, formatString = null, dec = null) {
+    return formatNumber(v, formatString ?? this._settings.numberFormat, fracOpts, dec);
   }
 
   /**

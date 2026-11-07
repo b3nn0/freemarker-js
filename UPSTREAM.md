@@ -53,7 +53,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M11: null/missing target: type-bound built-ins throw InvalidReferenceException; existence built-ins and ?is_* accept missing -- the port's Identifier throws eagerly, so acceptsMissing built-ins catch InvalidReferenceException (<- evalMaybeNonexistentTarget's FIRE behaviour).
 - M11: ?size rejects strings (2.3.36: sequence/extended-hash only); ?first/?last of empty sequences evaluate to null; ?seq_index_of of a miss is null (needs ! / ?if_exists to output).
 - M11: string case mapping uses JS toUpperCase/toLowerCase (upstream is locale-sensitive); ?trim is Java-style (chars <= U+0020, not JS Unicode trim); capitalize mirrors StringUtil.capitalize word logic.
-- M11: ?round rounds halves away from zero (Java BigDecimal); Math.round's +inf bias corrected.
+- M11: ?round follows upstream Math.round(doubleValue) (halves toward +infinity: 2.5 -> 3, -2.5 -> -2); JVM-pinned.
 - M11: date-kind built-ins (?is_date_only / ?is_time / ?is_datetime) are deferred to M16 (date kinds not modeled); ?is_date matches every date value; ?is_node / ?is_transform always false (no XML/transform models in this port).
 - M11: deferred string built-ins: ?keep_*, ?remove_*, ?ensure_*, ?word_list, ?substring, ?truncate*, ?interpret, and the regex/flag string variants (<- BuiltInsForStringsRegexp / flag strings).
 - M12: interpolation default is LEGACY (Configuration.java:573), so `#{...}` interpolates out of the box; DOLLAR/SQUARE demote the other openers (startInterpolation).
@@ -83,7 +83,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M15: MarkupModel concatenation inside expressions is not ported (markup values behave as their escaped string form in string contexts); the DollarVariable.accept format-mixing rules for markup values are ported verbatim.
 - M16: "${expr; fmt}" does not exist in 2.3.36 (it is 3.x syntax); the 2.3 format surface is the legacy #{exp; m2M4} numeric interpolation, ?string(fmt)/?string(hash), and number_format/date_format/... settings. Implemented accordingly.
 - M16: number formatting is fixed to the en_US symbols (grouping ",", decimal "."; number = "#,##0.###", currency = "$#,##0.00", percent) - locale-dependent DecimalFormatSymbols from the JDK are not ported. Patterns support a subset: 0/# digit counts, one grouping comma, ".", prefix/suffix text, "%" x100; scientific notation, exponent, grouping sizes, and currency-code patterns are unsupported.
-- M16: "c" number format is the JS shortest round-trip form (String(number)); the upstream BigDecimal digits differ for irrational-ish values like 1/3 (deviation, documented).
+- M16: arithmetic uses a BigDecimalEngine port (exact decimal add/sub/mul with scale cap 100, division at minScale 12 HALF_UP, truncated-integer %; number literals keep their exact image; ?c and the default number format render from it BigDecimal.toString-style). Values arriving as plain JS numbers (model objects) go through shortest-decimal conversion, like BigDecimal.valueOf.
 - M16: date/time formatting uses browser-local time by default; the time_zone setting is honored (IANA ids via Intl, DST-aware, plus offset forms; unresolvable values silently keep the default, like upstream); sql_date_and_time_time_zone remains inert; locale setting inert too. Date patterns are a SimpleDateFormat subset (y M d H h m s S E a, quoted literals); unsupported letters throw. "Q", "z", "Z", "G", "D", "w", "W", "F", "u" etc unsupported.
 - M16: ISO date formats support "iso" plus the _h/_m/_s/_ms/_nz/_fz modifiers; the accuracy/zone-override extras of ISOLikeTemplateDateFormat (iso_utc variants, default accuracy showing .000 millis) are not ported; seconds are the default accuracy, zone offset shown only for date_type=datetime (Z when offset 0).
 - M16: string -> date parsing (the "?date on string" and date-parsing factories) is not ported; ?date/?time/?datetime only re-type existing Date values (NonDateException otherwise). ?string on non-scalar also cannot use the "format string names string" form for dates.
@@ -133,7 +133,7 @@ must match or be recorded here as deviations.
 - `?c`/`?cn`: C/Java literal rendering (`src/format/cFormat.js`): strings are
   quoted/escaped like StringUtil.javaStringEnc, numbers use the
   CTemplateNumberFormat double branch (`1.0` -> `1`, `1E20`, `1E-8`). Only
-  division results differ (upstream BigDecimal scale 12 vs IEEE double -
+  division results follow the ported BigDecimalEngine (minScale 12) -
   pre-existing documented deviation, now with an exact corpus probe:
   `${(1/3)?c}` upstream `0.333333333333`).
 - DynamicKeyName (`t[k]`): Range keys yield sequence slices / string substrings

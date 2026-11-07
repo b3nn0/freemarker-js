@@ -2,25 +2,28 @@
 
 import { Expression } from './expression.js';
 import { ftlQuote } from '../../../utility/stringUtil.js';
+import { NumberModel } from '../../../model/models.js';
 
 /** Number literal <- NumberLiteral. */
 export class NumberLiteral extends Expression {
-  /** @param {number} value */
-  constructor(value) {
+  /** @param {number} value @param {import('../../../format/decimal.js').Decimal|null} [dec] */
+  constructor(value, dec = null) {
     super();
     this.value = value;
+    this.dec = dec; // <- exact BigDecimal-style value from the literal image
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    return String(this.value);
+    return this.dec !== null ? this.dec.toPlainString() : String(this.value);
   }
   /**
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
   * evaluate(env) {
+    if (this.dec !== null) return new NumberModel(this.dec.toNumber(), this.dec);
     return env.wrap(this.value);
   }
 }
