@@ -897,3 +897,27 @@ describe('Upstream EndTagSyntaxTest (ported)', () => {
       new Configuration()), ParseException, ['</@m>']);
   });
 });
+
+describe('Upstream HeaderParsingTest (ported)', () => {
+  function headerOut(ftl, i, stripped) {
+    let ftlPermutation = ftl;
+    if ((i & 1) === 1) ftlPermutation = ftlPermutation.replace('<#ftl>', "<#ftl encoding='utf-8'>");
+    if ((i & 2) === 2) ftlPermutation = ftlPermutation.replace(/</g, '[').replace(/>/g, ']');
+    const cfg = new Configuration();
+    cfg.setWhitespaceStripping(stripped);
+    return new Template('t.ftl', ftlPermutation, cfg).processToString({});
+  }
+  async function assertHeader(ftl, expected) {
+    for (let i = 0; i < 4; i++) {
+      snapshot(await headerOut(ftl, i, true), expected);
+      snapshot(await headerOut(ftl, i, false), expected);
+    }
+  }
+  it('test', async () => {
+    await assertHeader('<#ftl>text', 'text');
+    await assertHeader(' <#ftl> text', ' text');
+    await assertHeader('\n<#ftl>\ntext', 'text');
+    await assertHeader('\n \n\n<#ftl> \ntext', 'text');
+    await assertHeader('\n \n\n<#ftl>\n\ntext', '\ntext');
+  });
+});
