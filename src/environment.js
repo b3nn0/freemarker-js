@@ -89,7 +89,7 @@ export class Environment {
       timeFormat: cfg.getTimeFormat(),
       dateTimeFormat: cfg.getDateTimeFormat(),
       locale: cfg.getLocale(),
-      timeZone: null,
+      timeZone: cfg.getTimeZone(),
       outputEncoding: null,
       urlEscapingCharset: null,
       classicCompatible: false,
@@ -115,7 +115,7 @@ export class Environment {
     else if (name === 'datetime_format' || name === 'datetimeFormat') {
       s.dateTimeFormat = value;
     } else if (name === 'locale') s.locale = value;
-    else if (name === 'time_zone' || name === 'timeZone') s.timeZone = value; // inert
+    else if (name === 'time_zone' || name === 'timeZone') s.timeZone = value;
     else if (name === 'output_encoding' || name === 'outputEncoding') s.outputEncoding = value; // inert
     else if (name === 'url_escaping_charset' || name === 'urlEscapingCharset') s.urlEscapingCharset = value; // inert
     else if (name === 'classic_compatible' || name === 'classicCompatible') {
@@ -517,7 +517,7 @@ export class Environment {
       date: this._settings.dateFormat,
       time: this._settings.timeFormat,
       datetime: this._settings.dateTimeFormat,
-    });
+    }, this._settings.timeZone);
   }
 }
 

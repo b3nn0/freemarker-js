@@ -38,8 +38,9 @@ is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
   `[#{1}]`/`<#{1}>` now lex as static text + hash interpolation instead of a
   malformed tag (FTL.jj: `[#`/`<#` followed by `{` is never a tag start).
 - [ ] **B3. Locale/timezone subset** (documented deviations, but list of gaps):
-  fixed en_US number symbols; no `Locale`-dependent formats; `time_zone` /
-  `sql_date_and_time_time_zone` settings inert; browser-local rendering;
+  fixed en_US number symbols; no `Locale`-dependent formats; `time_zone` now
+  honored (IANA + offset forms, Intl-resolved); `sql_date_and_time_time_zone`
+  inert; browser-local rendering by default;
   `c` format digits differ from BigDecimal for division values (upstream divides
   with scale 12: `(1/3)?c` = `0.333333333333`; the port prints the IEEE double);
   sorting now uses `Intl.Collator` (close to java.text.Collator for common locales,

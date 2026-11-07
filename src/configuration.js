@@ -54,7 +54,7 @@ export class Configuration {
     this._timeFormat = 'default';
     this._dateTimeFormat = 'default';
     this._locale = null;
-    this._timeZone = null; // accepted but inert (browser-local times)
+    this._timeZone = null; // null = browser-local times
     this._outputEncoding = null; // inert in the browser
     this._urlEscapingCharset = null; // inert: ?url is always UTF-8
     this._classicCompatible = false;
@@ -163,6 +163,9 @@ export class Configuration {
 
   setDateTimeFormat(f) { this._dateTimeFormat = String(f); }
   getDateTimeFormat() { return this._dateTimeFormat; }
+
+  setTimeZone(t) { this._timeZone = t == null ? null : String(t); }
+  getTimeZone() { return this._timeZone; }
 
   setBooleanFormat(f) { this._booleanFormat = String(f); }
   getBooleanFormat() { return this._booleanFormat; }

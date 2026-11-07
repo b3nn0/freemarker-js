@@ -364,3 +364,21 @@ describe('Upstream iso() time-zone arguments (JVM-pinned)', () => {
       TemplateException, ['is not recognized as a valid time zone name: "bogus/zone"']);
   });
 });
+
+describe('time_zone setting (JVM-pinned, Drv26)', () => {
+  it('shifts java-pattern and iso_local rendering', async () => {
+    const d = new Date(1600000000000); // 2020-09-13T12:26:40Z
+    snapshot(await out('<#setting time_zone="Asia/Tokyo">'
+      + '${d?datetime?string("yyyy-MM-dd HH:mm:ss")}', { d }), '2020-09-13 21:26:40');
+    snapshot(await out('<#setting time_zone="Asia/Tokyo">${d?datetime?iso_local}', { d }),
+      '2020-09-13T21:26:40+09:00');
+    snapshot(await out('<#setting time_zone="GMT+2">${d?datetime?iso_local_h}', { d }),
+      '2020-09-13T14+02:00');
+  });
+
+  it('unresolvable time_zone keeps the default (no error)', async () => {
+    const d = new Date(1600000000000);
+    snapshot(await out('<#setting time_zone="bogus/x">${d?datetime?string("yyyy-MM")}', { d }),
+      '2020-09');
+  });
+});

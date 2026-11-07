@@ -190,7 +190,8 @@ function registerIsoMethod(name) {
       const kind = isoKind(target, env, name);
       return new BuiltinArgMethod(name, 1, 1, function* (e, a) {
         const tzMin = parseZoneOffsetMinutes(a[0], target.getAsDate(), name);
-        return new StringModel(formatIsoDate(target.getAsDate(), name, kind, tzMin));
+        return new StringModel(
+          formatIsoDate(target.getAsDate(), name, kind, tzMin, env._settings.timeZone));
       });
     },
   });
@@ -210,7 +211,8 @@ function registerIsoString(name) {
    */
     * impl(target, args, env) {
       const kind = isoKind(target, env, name);
-      return new StringModel(formatIsoDate(target.getAsDate(), name, kind, null));
+      return new StringModel(
+        formatIsoDate(target.getAsDate(), name, kind, null, env._settings.timeZone));
     },
   });
 }

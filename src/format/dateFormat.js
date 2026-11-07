@@ -26,7 +26,7 @@ export function isIsoDateFormat(name) {
  * @param {number|null} [tzOffsetMinutes] - explicit zone shift; null = follow the token
  * @returns {string}
  */
-export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null) {
+export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null, settingZone = null) {
   const bad = () => new InvalidFormatStringException(
     `Unsupported ISO date format modifier in "${formatString}".`);
   if (!isIsoDateFormat(formatString)) {
@@ -67,7 +67,13 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
     offMin = 0;
     view = shiftedDate(d, 0);
   } else if (zone === 'local') {
-    view = shiftedDate(d, -view.getTimezoneOffset());
+    const settingOff = settingZone !== null ? settingZoneOffsetMinutes(d, settingZone) : null;
+    if (settingOff !== null) {
+      offMin = settingOff;
+      view = shiftedDate(d, settingOff);
+    } else {
+      view = shiftedDate(d, -view.getTimezoneOffset());
+    }
   }
   if (tzOffsetMinutes !== null && !nzExplicit && dateType !== DATE_TYPES.DATE) showOffset = true;
   if (showOffset && offMin === null) offMin = -view.getTimezoneOffset();
@@ -91,6 +97,44 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
   const off = showOffset && offMin !== null ? offsetString(offMin)
     : showOffset ? zoneOffsetString(view) : '';
   return `${y}-${mo}-${day}T${t}${off}`;
+}
+
+/**
+ * Resolves a time_zone setting / iso()-argument style zone string to minutes
+ * east of UTC: "UTC"/"GMT"/offset forms directly, IANA ids DST-aware through
+ * Intl. Returns null when unresolvable (upstream silently keeps the default).
+ * @param {Date} d @param {string} zoneStr @returns {number|null}
+ */
+export function settingZoneOffsetMinutes(d, zoneStr) {
+  const s = String(zoneStr).trim();
+  const m = /^(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$/.exec(s)
+    || (s === 'UTC' || s === 'GMT' ? ['x', '+', '0', '0'] : null)
+    || (s === '' ? ['x', '+', '0', '0'] : null);
+  if (m !== null) {
+    const sign = m[1] === '-' ? -1 : 1;
+    const hh = parseInt(m[2], 10);
+    const mm = m[3] !== undefined ? parseInt(m[3], 10) : 0;
+    if (hh <= 14 && mm <= 59) return sign * (hh * 60 + mm);
+    return null;
+  }
+  if (s === 'Z') return null;
+  let fmt;
+  try {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: s, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZoneName: 'longOffset',
+    });
+  } catch (_e) {
+    return null;
+  }
+  const part = fmt.formatToParts(d).find((p) => p.type === 'timeZoneName');
+  const v = part ? part.value : 'GMT';
+  const mm = /^GMT(?:([+-])(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(v);
+  if (!mm) return 0;
+  const sign = mm[1] === '-' ? -1 : 1;
+  return sign * (parseInt(mm[2], 10) * 60 + parseInt(mm[3], 10));
 }
 
 /**
@@ -138,7 +182,11 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * @param {number} [_dateType] - unused; kept for signature parity
  * @returns {string}
  */
-export function formatJavaDate(d, pattern, _dateType) {
+export function formatJavaDate(d, pattern, _dateType, settingZone = null) {
+  if (settingZone !== null) {
+    const off = settingZoneOffsetMinutes(d, settingZone);
+    if (off !== null) d = shiftedDate(d, off);
+  }
   let out = '';
   for (const seg of compiledPattern(pattern)) {
     out += seg.field !== undefined ? formatField(seg.field, seg.width, d) : seg.text;
@@ -310,7 +358,7 @@ export function isNamedDateStyle(name) {
  * @param {{ date?: string, time?: string, datetime?: string }} defaults
  * @returns {string}
  */
-export function formatDate(d, formatString, dateType, defaults) {
+export function formatDate(d, formatString, dateType, defaults, settingZone = null) {
   let fmt = formatString;
   if (fmt === null || fmt === undefined) {
     fmt = dateType === DATE_TYPES.DATE ? defaults.date
@@ -321,7 +369,7 @@ export function formatDate(d, formatString, dateType, defaults) {
     fmt = NAMED_DATE_STYLES[fmt][dateType] || NAMED_DATE_STYLES[fmt][DATE_TYPES.DATE_TIME];
   }
   if (isIsoDateFormat(fmt)) {
-    return formatIsoDate(d, fmt, dateType);
+    return formatIsoDate(d, fmt, dateType, null, settingZone);
   }
-  return formatJavaDate(d, fmt, dateType);
+  return formatJavaDate(d, fmt, dateType, settingZone);
 }
