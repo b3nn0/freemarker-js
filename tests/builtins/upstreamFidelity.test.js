@@ -300,3 +300,31 @@ describe('Loop-variable built-in parse check (FTL.jj checkLoopVariableBuiltInLHO
     snapshot(await out('<#list h as k, v>${k?index}-${v?index}</#list>', { h: { k1: 'v1', k2: 'v2' } }), '0-01-1');
   });
 });
+
+describe('Upstream ListBreakContinueTest + SepParsingBugTest (ported subset)', () => {
+  it('break/continue skip the rest of the body but keep the loop going', async () => {
+    const listed = [1, 2, 3, 4, 5];
+    snapshot(await out('<#list listed as i>B(${i}) <#if i == 3>Break!<#break></#if>A(${i})<#sep>, </#list>',
+      { listed }), 'B(1) A(1), B(2) A(2), B(3) Break!');
+    snapshot(await out('<#list listed as i>B(${i}) <#if i == 3>Continue! <#continue></#if>A(${i})'
+      + '<#sep>, </#list>', { listed }),
+      'B(1) A(1), B(2) A(2), B(3) Continue! B(4) A(4), B(5) A(5)');
+  });
+
+  it('hash listings break/continue', async () => {
+    const listed = new Map([['a', 1], ['b', 2], ['c', 3], ['d', 4], ['e', 5]]);
+    snapshot(await out("<#list listed as k, v>B(${k}=${v}) <#if k == 'c'>Break!<#break></#if>"
+      + 'A(${k}=${v})<#sep>, </#list>', { listed }), 'B(a=1) A(a=1), B(b=2) A(b=2), B(c=3) Break!');
+    snapshot(await out("<#list listed as k, v>B(${k}=${v}) <#if k == 'c'>Continue! <#continue></#if>"
+      + 'A(${k}=${v})<#sep>, </#list>', { listed }),
+      'B(a=1) A(a=1), B(b=2) A(b=2), B(c=3) Continue! B(d=4) A(d=4), B(e=5) A(e=5)');
+  });
+
+  it('#sep only works as a tag of the active syntax', async () => {
+    snapshot(await out('<#list [1, 2] as i>${i}<#sep>, </#list>', {}), '1, 2');
+    snapshot(await out('<#list [1, 2] as i>${i}[#sep], </#list>', {}), '1[#sep], 2[#sep], ');
+    snapshot(await out('<#list [1, 2] as i>${i}<sep>, </#list>', {}), '1<sep>, 2<sep>, ');
+    throwsMatch(() => new Template('t.ftl', '<#sep>', new Configuration()),
+      ParseException, ['#sep must be inside']);
+  });
+});
