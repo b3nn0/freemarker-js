@@ -27,6 +27,16 @@ const out = await template.processToString({
     { name: 'Eraser', price: 0.75, qty: 2 },
   ],
   now: new Date(2026, 10, 6),
-  company: 'ACME',
+  company: Promise.resolve('ACME'), // async data model values are awaited (M18)
 });
 console.log(out);
+
+// Strict sync render: async values are rejected unless #attempt catches them.
+const syncOut = template.processToStringSync({
+  user: { name: 'Ada', bio: 'safe' },
+  items: [],
+  now: new Date(2026, 10, 6),
+  company: 'ACME',
+});
+console.log('--- sync render (processToStringSync) ---');
+console.log(syncOut.replace(/\n\n+/g, '\n').trim());

@@ -15,6 +15,7 @@ import {
 import {
   InvalidReferenceException, NonExtendedHashException, NonNumericalException, TemplateException,
 } from '../errors.js';
+import { awaitOp, callOp } from '../async.js';
 
 /** @type {import('../model/models.js').BooleanModel} */
 const BoolTrue = BooleanModel.TRUE;
@@ -30,15 +31,15 @@ const BoolFalse = BooleanModel.FALSE;
  * @param {import('../environment.js').Environment} env
  * @returns {boolean}
  */
-function isEmpty(model, env) {
+function* isEmpty(model, env) {
   if (model === null || model === undefined) return true;
-  if (model instanceof TemplateSequenceModel) return model.size() === 0;
-  if (typeof model.getAsString === 'function') return model.getAsString() === '';
-  if (model instanceof TemplateHashModelEx) return model.size() === 0;
+  if (model instanceof TemplateSequenceModel) return (yield* awaitOp('size', model.size())) === 0;
+  if (typeof model.getAsString === 'function') return (yield* callOp('getAsString', model, 'getAsString')) === '';
+  if (model instanceof TemplateHashModelEx) return (yield* awaitOp('size', model.size())) === 0;
   if (model instanceof NumberModel || model instanceof DateModel || model instanceof BooleanModel) {
     return false;
   }
-  if (typeof model.size === 'function') return model.size() === 0;
+  if (typeof model.size === 'function') return (yield* awaitOp('size', model.size())) === 0;
   return true;
 }
 
@@ -48,7 +49,7 @@ registerBuiltIn('if_exists', {
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target) {
+  * impl(target) {
     // ← TemplateModel.NOTHING: an empty string for output purposes
     return target === null || target === undefined ? new StringModel('') : target;
   },
@@ -62,8 +63,8 @@ registerBuiltIn('has_content', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return isEmpty(target, env) ? BoolFalse : BoolTrue;
+  * impl(target, args, env) {
+    return (yield* isEmpty(target, env)) ? BoolFalse : BoolTrue;
   },
 });
 
@@ -78,7 +79,7 @@ registerBuiltIn('default', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
+  * impl(target, argExprs, env) {
     const firstNonNull = (vals) => {
       for (const v of vals) {
         if (v !== null && v !== undefined) return v;
@@ -86,14 +87,14 @@ registerBuiltIn('default', {
       return null;
     };
     // Unevaluated argument expressions (missing ones must not throw).
-    const evalMaybeMissing = (expr) => {
+    function* evalMaybeMissing(expr) {
       try {
-        return expr.evaluate(env);
+        return yield* expr.evaluate(env);
       } catch (e) {
         if (e instanceof InvalidReferenceException) return null;
         throw e;
       }
-    };
+    }
     if (argExprs.length === 0) {
       return new BuiltinArgMethod('default', 0, Infinity, (e, args) => {
         if (target !== null && target !== undefined) return target;
@@ -102,7 +103,9 @@ registerBuiltIn('default', {
       });
     }
     if (target !== null && target !== undefined) return target;
-    return firstNonNull(argExprs.map(evalMaybeMissing));
+    const vals = [];
+    for (const ex of argExprs) vals.push(yield* evalMaybeMissing(ex));
+    return firstNonNull(vals);
   },
 });
 
@@ -113,9 +116,9 @@ registerBuiltIn('default', {
  * @param {(s: string) => boolean} blankTest
  * @returns {Object|null} null when blank, else the target model
  */
-function toNull(target, env, key, blankTest) {
+function* toNull(target, env, key, blankTest) {
   if (target === null || target === undefined) return null;
-  const s = env.coerceToString(target, ` for the "?${key}" built-in`);
+  const s = yield* env.coerceToString(target, ` for the "?${key}" built-in`);
   return blankTest(s) ? null : target;
 }
 
@@ -127,9 +130,9 @@ registerBuiltIn('blank_to_null', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     // ← isBlank: whitespace (or NBSP) only; the empty string is blank too
-    return toNull(target, env, 'blank_to_null',
+    return yield* toNull(target, env, 'blank_to_null',
       (s) => s.length === 0 || [...s].every((c) => c.charCodeAt(0) <= 0x20 || c === '\u00a0'));
   },
 });
@@ -142,8 +145,8 @@ registerBuiltIn('empty_to_null', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return toNull(target, env, 'empty_to_null', (s) => s.length === 0);
+  * impl(target, args, env) {
+    return yield* toNull(target, env, 'empty_to_null', (s) => s.length === 0);
   },
 });
 
@@ -155,9 +158,9 @@ registerBuiltIn('trim_to_null', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (target === null || target === undefined) return null;
-    const s = env.coerceToString(target, ' for the "?trim_to_null" built-in').trim();
+    const s = (yield* env.coerceToString(target, ' for the "?trim_to_null" built-in')).trim();
     return s.length === 0 ? null : new StringModel(s);
   },
 });
@@ -173,13 +176,13 @@ registerBuiltIn('then', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
+  * impl(target, argExprs, env) {
     if (argExprs.length !== 2) {
       throw argCntError('then', argExprs.length, 2, 2);
     }
-    const lho = env.toBoolean(target, ' on the left side of "?then"');
+    const lho = yield* env.toBoolean(target, ' on the left side of "?then"');
     const branch = argExprs[lho ? 0 : 1];
-    const v = branch.evaluate(env); // ← only the chosen branch is evaluated
+    const v = yield* branch.evaluate(env); // ← only the chosen branch is evaluated
     if (v === null || v === undefined) {
       throw new InvalidReferenceException(
         `The following has evaluated to null or missing: ${branch.getCanonicalForm()} `
@@ -198,20 +201,20 @@ registerBuiltIn('switch', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
+  * impl(target, argExprs, env) {
     if (argExprs.length < 2) {
       throw argCntError('switch', argExprs.length, 2, Infinity);
     }
     const n = argExprs.length;
     for (let i = 0; i + 1 < n; i += 2) {
-      const caseValue = argExprs[i].evaluate(env);
+      const caseValue = yield* argExprs[i].evaluate(env);
       if (caseValue === null || caseValue === undefined) {
         throw new InvalidReferenceException(
           `The following has evaluated to null or missing: ${argExprs[i].getCanonicalForm()} `
           + '(a ?switch case parameter).');
       }
-      if (env.equals(target, caseValue)) {
-        const value = argExprs[i + 1].evaluate(env);
+      if (yield* env.equals(target, caseValue)) {
+        const value = yield* argExprs[i + 1].evaluate(env);
         if (value === null || value === undefined) {
           throw new InvalidReferenceException(
             `The following has evaluated to null or missing: ${argExprs[i + 1].getCanonicalForm()} `
@@ -222,7 +225,7 @@ registerBuiltIn('switch', {
     }
     if (n % 2 === 1) {
       // last parameter = default value
-      const def = argExprs[n - 1].evaluate(env);
+      const def = yield* argExprs[n - 1].evaluate(env);
       if (def === null || def === undefined) {
         throw new InvalidReferenceException(
           `The following has evaluated to null or missing: ${argExprs[n - 1].getCanonicalForm()} `
@@ -246,9 +249,9 @@ registerBuiltIn('size', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    if (target instanceof TemplateSequenceModel) return new NumberModel(target.size());
-    if (target instanceof TemplateHashModelEx) return new NumberModel(target.size());
+  * impl(target, args, env) {
+    if (target instanceof TemplateSequenceModel) return new NumberModel(yield* awaitOp('size', target.size()));
+    if (target instanceof TemplateHashModelEx) return new NumberModel(yield* awaitOp('size', target.size()));
     throw new TemplateException(
       'Expected an extended-hash or sequence value, but the target of the "?size" built-in '
       + `is a ${env.typeLabel(target)} instead.`);
@@ -263,8 +266,8 @@ registerBuiltIn('first', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    const items = sequenceItems(target);
+  * impl(target, args, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('first', target, env);
     return items.length === 0 ? null : items[0];
   },
@@ -278,8 +281,8 @@ registerBuiltIn('last', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    const items = sequenceItems(target);
+  * impl(target, args, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('last', target, env);
     return items.length === 0 ? null : items[items.length - 1];
   },
@@ -307,9 +310,9 @@ registerBuiltIn('keys', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('keys', target, env);
-    return new SequenceModel(target.keys().map((k) => new StringModel(k)));
+    return new SequenceModel((yield* awaitOp('hash keys', target.keys())).map((k) => new StringModel(k)));
   },
 });
 
@@ -321,9 +324,10 @@ registerBuiltIn('values', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('values', target, env);
-    return new SequenceModel(target.values().map((v) => env.wrap(v)));
+    // raw values are wrapped lazily by the sequence model (async-capable raw values)
+    return new SequenceModel(yield* awaitOp('hash values', target.values()), env.configuration.getObjectWrapper());
   },
 });
 
@@ -349,7 +353,7 @@ registerBuiltIn('abs', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     const v = numberTarget(target, env, 'abs');
     return new NumberModel(Math.abs(v));
   },
@@ -362,7 +366,7 @@ registerBuiltIn('ceiling', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     return new NumberModel(Math.ceil(numberTarget(target, env, 'ceiling')));
   },
 });
@@ -374,7 +378,7 @@ registerBuiltIn('floor', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     return new NumberModel(Math.floor(numberTarget(target, env, 'floor')));
   },
 });
@@ -387,7 +391,7 @@ registerBuiltIn('round', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     const v = numberTarget(target, env, 'round');
     return new NumberModel(v < 0 ? -Math.round(-v) : Math.round(v));
   },
@@ -397,33 +401,33 @@ registerBuiltIn('round', {
 
 registerBuiltIn('is_string', {
   acceptsMissing: true,
-  impl(target) { return target instanceof StringModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof StringModel ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_number', {
   acceptsMissing: true,
-  impl(target) { return target instanceof NumberModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof NumberModel ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_boolean', {
   acceptsMissing: true,
-  impl(target) { return target instanceof BooleanModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof BooleanModel ? BoolTrue : BoolFalse; },
 });
 // Date kind (date-only/time/datetime) is not modeled until M16; ?is_date covers
 // every date-like value (deviation noted in UPSTREAM.md).
 registerBuiltIn('is_date', {
   acceptsMissing: true,
-  impl(target) { return target instanceof DateModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof DateModel ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_hash', {
   acceptsMissing: true,
-  impl(target) { return target instanceof HashModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof HashModel ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_hash_ex', {
   acceptsMissing: true,
-  impl(target) { return target instanceof TemplateHashModelEx ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof TemplateHashModelEx ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_sequence', {
   acceptsMissing: true,
-  impl(target) { return target instanceof TemplateSequenceModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof TemplateSequenceModel ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_method', {
   acceptsMissing: true,
@@ -431,7 +435,7 @@ registerBuiltIn('is_method', {
      * @param {import('../model/templateModel.js').TemplateModel} target
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target) {
+  * impl(target) {
     if (target === null || target === undefined) return BoolFalse;
     return (target instanceof TemplateMethodModel || target.isFunctionModel === true)
       ? BoolTrue : BoolFalse;
@@ -439,18 +443,18 @@ registerBuiltIn('is_method', {
 });
 registerBuiltIn('is_directive', {
   acceptsMissing: true,
-  impl(target) { return target && target.isMacroLike === true ? BoolTrue : BoolFalse; },
+  * impl(target) { return target && target.isMacroLike === true ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_macro', {
   acceptsMissing: true,
-  impl(target) { return target && target.isMacroLike === true ? BoolTrue : BoolFalse; },
+  * impl(target) { return target && target.isMacroLike === true ? BoolTrue : BoolFalse; },
 });
 // The port has no node models and no TemplateTransformModel yet (M15): always false.
 registerBuiltIn('is_node', {
   acceptsMissing: true,
-  impl() { return BoolFalse; },
+  * impl() { return BoolFalse; },
 });
 registerBuiltIn('is_transform', {
   acceptsMissing: true,
-  impl() { return BoolFalse; },
+  * impl() { return BoolFalse; },
 });

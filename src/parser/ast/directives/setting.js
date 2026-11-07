@@ -3,6 +3,7 @@
 // validation only).
 
 import { TemplateElement } from '../templateElement.js';
+import { callOp } from '../../../async.js';
 
 // ← PropertySetting.SETTING_NAMES (legacy-naming view; camelCase variants are
 // accepted too when the parser's naming convention is camel).
@@ -38,19 +39,19 @@ export class PropertySetting extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env
    * @returns {null}
    */
-  execute(env) {
-    const mval = this.value.evaluate(env);
+  * execute(env) {
+    const mval = yield* this.value.evaluate(env);
     let strval;
     if (mval === null || mval === undefined) {
-      strval = env.coerceToString(mval, ' for the #setting value'); // throws
+      strval = yield* env.coerceToString(mval, ' for the #setting value'); // throws
     } else if (typeof mval.getAsString === 'function') {
-      strval = mval.getAsString();
+      strval = yield* callOp('getAsString', mval, 'getAsString');
     } else if (typeof mval.getAsBoolean === 'function') {
-      strval = mval.getAsBoolean() ? 'true' : 'false';
+      strval = (yield* callOp('getAsBoolean', mval, 'getAsBoolean')) ? 'true' : 'false';
     } else if (typeof mval.getAsNumber === 'function') {
-      strval = String(mval.getAsNumber());
+      strval = String(yield* callOp('getAsNumber', mval, 'getAsNumber'));
     } else {
-      strval = env.coerceToString(mval, ' for the #setting value');
+      strval = yield* env.coerceToString(mval, ' for the #setting value');
     }
     env.setSetting(this.key, strval);
     return null;

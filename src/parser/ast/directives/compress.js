@@ -88,12 +88,12 @@ export class CompressedBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     const w = new StringWriter();
     const savedOut = env.output;
     env.output = w;
     try {
-      for (const c of this.children) env.visit(c);
+      for (const c of this.children) yield* env.visit(c);
     } finally {
       env.output = savedOut;
     }

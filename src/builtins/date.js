@@ -7,6 +7,7 @@ import { argCntError } from './common.js';
 import { StringModel, DateModel } from '../model/models.js';
 import { UnsupportedFeatureException, NonDateException } from '../errors.js';
 import { formatIsoDate, DATE_TYPES } from '../format/dateFormat.js';
+import { callOp } from '../async.js';
 
 // ?string, ?string(fmt) with a format string, or ?string(fmtHash).
 registerBuiltIn('string', {
@@ -17,17 +18,17 @@ registerBuiltIn('string', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, argExprs, env) {
+  * impl(target, argExprs, env) {
     if (argExprs !== null && argExprs.length > 1) {
       throw argCntError('string', argExprs.length, 0, 1);
     }
     let fmt = null;
     if (argExprs !== null && argExprs.length > 0) {
-      const arg = argExprs[0].evaluate(env);
+      const arg = yield* argExprs[0].evaluate(env);
       if (arg instanceof StringModel) {
         fmt = arg.value;
       } else if (arg && typeof arg.get === 'function') {
-        return formatWithHash(target, arg, env);
+        return yield* formatWithHash(target, arg, env);
       } else {
         throw new UnsupportedFeatureException(
           'The ?string(...) argument must be a format string or a hash of format strings.');
@@ -40,16 +41,17 @@ registerBuiltIn('string', {
       if (target instanceof StringModel) {
         const bi = getBuiltIn(fmt);
         if (bi === null) throw new UnsupportedFeatureException(`Unknown string format built-in: "${fmt}".`);
-        return bi.impl(target, null, env);
+        return yield* bi.impl(target, null, env);
       }
       if (target && typeof target.getAsNumber === 'function') {
-        return new StringModel(applyNumberFormatString(target.getAsNumber(), fmt, env));
+        return new StringModel(applyNumberFormatString(
+          yield* callOp('getAsNumber', target, 'getAsNumber'), fmt, env));
       }
       if (target && typeof target.getAsBoolean === 'function') {
-        return new StringModel(env._formatBoolean(target.getAsBoolean(), fmt));
+        return new StringModel(env._formatBoolean(yield* callOp('getAsBoolean', target, 'getAsBoolean'), fmt));
       }
     }
-    return new StringModel(env.coerceToString(target, ' with ?string'));
+    return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   },
 });
 
@@ -77,38 +79,43 @@ function applyNumberFormatString(v, fmt, env) {
  * @param {import('../environment.js').Environment} env
  * @returns {Object}
  */
-function formatWithHash(target, hash, env) {
-  const pick = (k) => {
-    const v = hash.get(k);
+function* formatWithHash(target, hash, env) {
+  function* pick(k) {
+    const v = yield* callOp(`get "${k}"`, hash, 'get', k);
     return v instanceof StringModel ? v.value : null;
-  };
+  }
   if (target instanceof DateModel) {
-    const fmt = target.dateType === DATE_TYPES.DATE ? pick('date_format')
-      : target.dateType === DATE_TYPES.TIME ? pick('time_format')
-        : pick('datetime_format');
+    const fmt = target.dateType === DATE_TYPES.DATE ? yield* pick('date_format')
+      : target.dateType === DATE_TYPES.TIME ? yield* pick('time_format')
+        : yield* pick('datetime_format');
     if (fmt !== null) return new StringModel(env._formatDate(target.getAsDate(), target.dateType, fmt));
-    return new StringModel(env.coerceToString(target, ' with ?string'));
+    return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   }
   if (target && typeof target.getAsNumber === 'function') {
-    const fmt = pick('number_format');
-    if (fmt !== null) return new StringModel(applyNumberFormatString(target.getAsNumber(), fmt, env));
-    return new StringModel(env.coerceToString(target, ' with ?string'));
+    const fmt = yield* pick('number_format');
+    if (fmt !== null) {
+      return new StringModel(applyNumberFormatString(
+        yield* callOp('getAsNumber', target, 'getAsNumber'), fmt, env));
+    }
+    return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   }
   if (target && typeof target.getAsBoolean === 'function') {
-    const fmt = pick('boolean_format');
-    if (fmt !== null) return new StringModel(env._formatBoolean(target.getAsBoolean(), fmt));
-    return new StringModel(env.coerceToString(target, ' with ?string'));
+    const fmt = yield* pick('boolean_format');
+    if (fmt !== null) {
+      return new StringModel(env._formatBoolean(yield* callOp('getAsBoolean', target, 'getAsBoolean'), fmt));
+    }
+    return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   }
   if (target instanceof StringModel) {
-    const fmt = pick('string_format');
+    const fmt = yield* pick('string_format');
     if (fmt !== null) {
       const bi = getBuiltIn(fmt);
       if (bi === null) throw new UnsupportedFeatureException(`Unknown string format built-in: "${fmt}".`);
-      return bi.impl(target, null, env);
+      return yield* bi.impl(target, null, env);
     }
     return target;
   }
-  return new StringModel(env.coerceToString(target, ' with ?string'));
+  return new StringModel(yield* env.coerceToString(target, ' with ?string'));
 }
 
 // ← dateBI / timeBI / dateTimeBI: change the date-type used by formatting
@@ -126,7 +133,7 @@ function asType(name, dateType) {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
       if (!(target instanceof DateModel)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
@@ -154,7 +161,7 @@ function isoAsType(name, dateType) {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
       if (!(target instanceof DateModel)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);

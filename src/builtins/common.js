@@ -2,6 +2,7 @@
 // (checkMethodArgCount) and the BuiltInWithDirectCallOptimization BIMethod pattern.
 
 import { TemplateMethodModel } from '../model/templateModel.js';
+import { awaitOp, callOp, isGenerator } from '../async.js';
 import { NonStringException, TemplateException } from '../errors.js';
 
 /**
@@ -52,13 +53,16 @@ export class BuiltinArgMethod extends TemplateMethodModel {
   /**
    * @param {import('../environment.js').Environment} env
    * @param {unknown[]} args - unwrapped plain JS values
-   * @returns {import('../model/templateModel.js').TemplateModel}
+   * @returns {Generator<unknown, import('../model/templateModel.js').TemplateModel, unknown>}
    */
-  exec(env, args) {
+  * exec(env, args) {
     if (args.length < this.minArgs || args.length > this.maxArgs) {
       throw argCntError(this.name, args.length, this.minArgs, this.maxArgs);
     }
-    return this.fn(env, args);
+    // Callbacks may be plain functions (pure) or generator functions (they call
+    // into models/expressions); both are accepted here.
+    const r = this.fn(env, args);
+    return isGenerator(r) ? yield* r : r;
   }
 }
 
@@ -76,14 +80,15 @@ export function stringMethodArg(v, env) {
 
 /**
  * Materializes the elements through getByIndex so raw data-model values become models.
+ * Generator form: user sequence models can be async (see async.js).
  * @param {Object} target
- * @returns {Object[]|null} the element models, or null when not a sequence
+ * @returns {Generator<unknown, Object[]|null, unknown>} the element models, or null when not a sequence
  */
-export function sequenceItems(target) {
+export function* sequenceItems(target) {
   if (target && typeof target.getByIndex === 'function' && typeof target.size === 'function') {
-    const n = target.size();
+    const n = yield* awaitOp('sequence size', target.size());
     const out = new Array(n);
-    for (let i = 0; i < n; i++) out[i] = target.getByIndex(i);
+    for (let i = 0; i < n; i++) out[i] = yield* callOp(`sequence element ${i}`, target, 'getByIndex', i);
     return out;
   }
   return null;

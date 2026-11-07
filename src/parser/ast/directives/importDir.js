@@ -24,10 +24,10 @@ export class ImportDirective extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    const rawName = env.coerceToString(this.nameExp.evaluate(env),
+  * execute(env) {
+    const rawName = yield* env.coerceToString(yield* this.nameExp.evaluate(env),
       ' used as the #import template name');
-    const template = env.loadIncludedTemplate(rawName);
+    const template = yield* env.loadIncludedTemplate(rawName);
     const key = template.name ?? rawName; // ← namespace key is the resolved name
 
     // ← Environment.importLib(): register before initializing (cycle-tolerant).
@@ -47,7 +47,7 @@ export class ImportDirective extends TemplateElement {
     env.output = new StringWriter();
     env._nsScope = ns.source;
     try {
-      env.visit(template.rootElement);
+      yield* env.visit(template.rootElement);
     } finally {
       env.output = prevOut;
       env._nsScope = prevNs;

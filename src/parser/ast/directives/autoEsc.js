@@ -16,7 +16,7 @@ export class AutoEscBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env
    * @returns {TemplateElement[]} children (visit via the normal mechanism)
    */
-  execute(env) {
+  * execute(env) {
     return this.children;
   }
 
@@ -43,7 +43,7 @@ export class NoAutoEscBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env
    * @returns {TemplateElement[]}
    */
-  execute(env) {
+  * execute(env) {
     return this.children;
   }
 

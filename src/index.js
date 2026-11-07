@@ -26,4 +26,5 @@ export {
   StopException,
   UnsupportedFeatureException,
   BugException,
+  AsyncOperationNotAllowedException,
 } from './errors.js';

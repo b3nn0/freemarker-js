@@ -29,7 +29,7 @@ export class Macro extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     // Registration happens at parse time (← Parser.Macro(): template.addMacro); at
     // render start the Environment seeds them into the namespace.
     return null;
@@ -67,7 +67,7 @@ export class MacroModel {
   }
 
   // ← Environment.invokeMacroOrFunctionCommonPart + Macro.accept
-  invoke(env, { positionalArgs = [], namedArgs = new Map(), bodyChildren = null,
+  * invoke(env, { positionalArgs = [], namedArgs = new Map(), bodyChildren = null,
     bodyParamNames = null }) {
     const def = this.macroDef;
     const scope = new Map();
@@ -125,7 +125,7 @@ export class MacroModel {
       // parameters are already set in the macro scope.
       for (const p of def.params) {
         if (!used.has(p.name)) {
-          if (p.defaultExp !== null) scope.set(p.name, p.defaultExp.evaluate(env));
+          if (p.defaultExp !== null) scope.set(p.name, yield* p.defaultExp.evaluate(env));
           else {
             throw new InvalidReferenceException(
               `The macro/function "${def.name}" is missing the required argument "${p.name}".`);
@@ -141,7 +141,7 @@ export class MacroModel {
         for (const [k, v] of extras) m.set(k, v);
         scope.set('__args__', new HashModel(m));
       }
-      for (const c of def.children) env.visit(c);
+      for (const c of def.children) yield* env.visit(c);
     } catch (e) {
       if (e instanceof ReturnInstructionException) {
         return def.isFunction ? e.value : null;

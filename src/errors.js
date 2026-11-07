@@ -58,6 +58,18 @@ export class TemplateException extends FreeMarkerException {
 
 /** Value is null/missing ← InvalidReferenceException. */
 export class InvalidReferenceException extends TemplateException {}
+/**
+ * A model/loader callback returned a promise during a synchronous render
+ * (port-level feature; no upstream analogue — upstream is sync-only).
+ */
+export class AsyncOperationNotAllowedException extends TemplateException {
+  /** @param {string} op - description of the offending callback */
+  constructor(op) {
+    super(`Async operation (${op}) is not allowed in a synchronous render; `
+      + 'use processToString()/processAsync() instead, or return a plain value.');
+    this.operation = op;
+  }
+}
 /** Identifier has no value ← UnassignedVariableException. */
 export class UnassignedVariableException extends InvalidReferenceException {}
 /** Unknown hash property ← InvalidPropertyException. */

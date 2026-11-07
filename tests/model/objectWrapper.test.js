@@ -1,5 +1,7 @@
-import { describe, it, eq, ok } from '../harness.js';
+import { describe, it, eq, ok, throwsMatch } from '../harness.js';
 import { SimpleObjectWrapper } from '../../src/model/objectWrapper.js';
+import { runSync, runAsync } from '../../src/async.js';
+import { AsyncOperationNotAllowedException } from '../../src/errors.js';
 import {
   StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel,
 } from '../../src/model/models.js';
@@ -41,31 +43,38 @@ describe('ObjectWrapper: primitives', () => {
   });
 });
 
+// Drain a sync-only model-protocol generator (see src/async.js).
+const gv = (g) => {
+  const r = g.next();
+  if (!r.done) throw new Error('unexpected async step in sync drain');
+  return r.value;
+};
+
 describe('ObjectWrapper: collections', () => {
   it('arrays become sequences with lazy wrapping', () => {
     const s = w.wrap([1, 'two', null]);
     ok(s instanceof SequenceModel);
     eq(s.size(), 3);
-    eq(s.getByIndex(0).getAsNumber(), 1);
-    eq(s.getByIndex(1).getAsString(), 'two');
-    eq(s.getByIndex(2), null); // null element reads as missing
-    eq(s.getByIndex(3), null); // out of range
-    eq(s.getByIndex(-1), null);
+    eq(gv(s.getByIndex(0)).getAsNumber(), 1);
+    eq(gv(s.getByIndex(1)).getAsString(), 'two');
+    eq(gv(s.getByIndex(2)), null); // null element reads as missing
+    eq(gv(s.getByIndex(3)), null); // out of range
+    eq(gv(s.getByIndex(-1)), null);
   });
   it('Maps become hashes keyed by string', () => {
     const h = w.wrap(new Map([['a', 1], ['b', 'x']]));
     ok(h instanceof HashModel);
-    eq(h.get('a').getAsNumber(), 1);
-    eq(h.get('b').getAsString(), 'x');
-    eq(h.get('zz'), null);
+    eq(gv(h.get('a')).getAsNumber(), 1);
+    eq(gv(h.get('b')).getAsString(), 'x');
+    eq(gv(h.get('zz')), null);
     eq(h.keys(), ['a', 'b']);
     eq(h.size(), 2);
   });
   it('plain objects become hashes; prototype members stay hidden', () => {
     const h = w.wrap({ n: 7, s: 'x' });
-    eq(h.get('n').getAsNumber(), 7);
-    eq(h.get('toString'), null);
-    eq(h.get('hasOwnProperty'), null);
+    eq(gv(h.get('n')).getAsNumber(), 7);
+    eq(gv(h.get('toString')), null);
+    eq(gv(h.get('hasOwnProperty')), null);
     eq(h.keys(), ['n', 's']);
     eq(h.size(), 2);
   });
@@ -77,8 +86,18 @@ describe('ObjectWrapper: collections', () => {
   });
   it('nested structures wrap lazily on access', () => {
     const s = w.wrap([{ v: 1 }, { v: 2 }]);
-    const h = s.getByIndex(1);
+    const h = gv(s.getByIndex(1));
     ok(h instanceof HashModel);
-    eq(h.get('v').getAsNumber(), 2);
+    eq(gv(h.get('v')).getAsNumber(), 2);
+  });
+  it('promise elements are awaited in async mode, rejected in sync mode', async () => {
+    const s = w.wrap([Promise.resolve('late'), 'now']);
+    eq((await runAsync(s.getByIndex(0))).getAsString(), 'late');
+    eq(gv(s.getByIndex(1)).getAsString(), 'now');
+    throwsMatch(() => runSync(s.getByIndex(0)), AsyncOperationNotAllowedException,
+      ['sequence element at index 0']);
+    const h = w.wrap({ k: Promise.resolve(5) });
+    eq((await runAsync(h.get('k'))).getAsNumber(), 5);
+    throwsMatch(() => runSync(h.get('k')), AsyncOperationNotAllowedException, ['data-model key "k"']);
   });
 });

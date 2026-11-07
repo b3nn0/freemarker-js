@@ -55,26 +55,26 @@ export class SwitchBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    const v = this.switchExp.evaluate(env);
-    const visitMatched = (el) => {
+  * execute(env) {
+    const v = yield* this.switchExp.evaluate(env);
+    function* visitMatched(el) {
       try {
-        for (const c of el.children) env.visit(c);
+        for (const c of el.children) yield* env.visit(c);
       } catch (e) {
         if (!(e instanceof BreakInstructionException)) throw e; // #break ends the #switch
       }
-    };
+    }
     for (const on of this.ons) {
       for (const exp of on.exps) {
-        if (env.equals(v, exp.evaluate(env))) {
-          visitMatched(on);
+        if ((yield* env.equals(v, yield* exp.evaluate(env)))) {
+          yield* visitMatched(on);
           return null;
         }
       }
     }
     for (const c of this.cases) {
-      if (c.condition === null || env.equals(v, c.condition.evaluate(env))) {
-        visitMatched(c);
+      if (c.condition === null || (yield* env.equals(v, yield* c.condition.evaluate(env)))) {
+        yield* visitMatched(c);
         return null;
       }
     }

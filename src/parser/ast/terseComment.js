@@ -11,7 +11,7 @@ export class TerseComment extends TemplateElement {
   }
 
   /** @returns {null} */
-  execute() {
+  * execute() {
     return null;
   }
 

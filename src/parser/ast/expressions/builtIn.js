@@ -24,7 +24,7 @@ export class BuiltinVariable extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     if (this.name === 'args') {
       for (let i = env._scopes.length - 1; i >= 0; i--) {
         const s = env._scopes[i];
@@ -63,7 +63,7 @@ export class BuiltIn extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     const spec = getBuiltIn(this.key);
     if (!spec) {
       // ← upstream reports unknown built-ins at parse time; the registry fills by
@@ -74,13 +74,13 @@ export class BuiltIn extends Expression {
     if (spec.acceptsMissing) {
       // ← ExistenceBuiltIn.evalMaybeNonexistentTarget: a missing target becomes null
       try {
-        target = this.target.evaluate(env);
+        target = yield* this.target.evaluate(env);
       } catch (e) {
         if (e instanceof InvalidReferenceException) target = null;
         else throw e;
       }
     } else {
-      target = this.target.evaluate(env);
+      target = yield* this.target.evaluate(env);
       if (target === null || target === undefined) {
         // ← the type-bound BuiltInForXxx classes reject null targets
         throw new InvalidReferenceException(
@@ -88,6 +88,6 @@ export class BuiltIn extends Expression {
           + 'null or missing.');
       }
     }
-    return spec.impl(target, this.args === null ? [] : this.args, env);
+    return yield* spec.impl(target, this.args === null ? [] : this.args, env);
   }
 }

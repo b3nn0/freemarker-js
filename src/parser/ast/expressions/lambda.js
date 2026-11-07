@@ -24,7 +24,7 @@ export class LocalLambdaExpression extends Expression {
    * A lambda is not a value in 2.3.36 — evaluating it as one is an error.
    * @throws {TemplateException} always
    */
-  evaluate() {
+  * evaluate() {
     throw new TemplateException(
       'Can\'t get lambda expression as a value: Lambdas currently can only be used '
       + 'on a few special places.');
@@ -37,12 +37,12 @@ export class LocalLambdaExpression extends Expression {
    * @param {Object[]} values - one model per declared parameter
    * @returns {Object} the rhs evaluated value
    */
-  invoke(env, values) {
+  * invoke(env, values) {
     const scope = new Map();
     this.params.forEach((p, i) => scope.set(p, values[i] === undefined ? null : values[i]));
     env._scopes.push(scope);
     try {
-      return this.rhs.evaluate(env);
+      return yield* this.rhs.evaluate(env);
     } finally {
       env._scopes.pop();
     }

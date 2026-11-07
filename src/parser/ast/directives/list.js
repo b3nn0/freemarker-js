@@ -6,6 +6,7 @@ import {
   BreakInstructionException, ContinueInstructionException,
 } from '../../../errors.js';
 import { TemplateSequenceModel, TemplateHashModelEx } from '../../../model/templateModel.js';
+import { awaitOp, callOp } from '../../../async.js';
 
 /** #list / #forEach ← IteratorBlock. */
 export class IteratorBlock extends TemplateElement {
@@ -34,8 +35,8 @@ export class IteratorBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    const src = this.sourceExp.evaluate(env);
+  * execute(env) {
+    const src = yield* this.sourceExp.evaluate(env);
     if (src === null || src === undefined) {
       throw new InvalidReferenceException(
         `The expression ${this.sourceExp.getCanonicalForm()} evaluated to null or missing `
@@ -45,9 +46,9 @@ export class IteratorBlock extends TemplateElement {
     let length;
     let keys = null;
     if (src instanceof TemplateSequenceModel) {
-      length = src.size();
+      length = yield* awaitOp('size', src.size());
     } else if (this.hashListing && src instanceof TemplateHashModelEx) {
-      keys = src.keys();
+      keys = yield* awaitOp('keys', src.keys());
       length = keys.length;
     } else {
       throw new NonSequenceOrCollectionException(
@@ -56,15 +57,15 @@ export class IteratorBlock extends TemplateElement {
     }
 
     if (length === 0 && this.elseChildren) {
-      for (const c of this.elseChildren) env.visit(c);
+      for (const c of this.elseChildren) yield* env.visit(c);
       return null;
     }
 
     for (let i = 0; i < length; i++) {
       // first = loopVar value (hash listing: the key), second = loopVar2 value (hash: the value)
       const item = keys !== null
-        ? { first: env.wrap(keys[i]), second: src.get(keys[i]) }
-        : { first: src.getByIndex(i), second: null };
+        ? { first: env.wrap(keys[i]), second: yield* callOp(`get "${keys[i]}"`, src, 'get', keys[i]) }
+        : { first: yield* callOp('sequence index', src, 'getByIndex', i), second: null };
       env.pushScope();
       if (this.loopVar !== null) {
         env.setVariable(this.loopVar, item.first);
@@ -76,9 +77,9 @@ export class IteratorBlock extends TemplateElement {
       try {
         for (const c of this.children) {
           if (c instanceof Sep) {
-            if (i < length - 1) for (const sc of c.children) env.visit(sc);
+            if (i < length - 1) for (const sc of c.children) yield* env.visit(sc);
           } else {
-            env.visit(c);
+            yield* env.visit(c);
           }
         }
       } catch (e) {
@@ -124,7 +125,7 @@ export class Items extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     const ctx = env._iterStack.length ? env._iterStack[env._iterStack.length - 1] : null;
     if (ctx === null) {
       throw new InvalidReferenceException('Unmatched #items (no enclosing #list iteration).');
@@ -133,7 +134,7 @@ export class Items extends TemplateElement {
     env.setVariable(this.loopVar, ctx.first);
     if (this.loopVar2 !== null) env.setVariable(this.loopVar2, ctx.second);
     try {
-      for (const c of this.children) env.visit(c);
+      for (const c of this.children) yield* env.visit(c);
     } finally {
       env.popScope();
     }
@@ -159,8 +160,8 @@ export class Sep extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    for (const c of this.children) env.visit(c);
+  * execute(env) {
+    for (const c of this.children) yield* env.visit(c);
     return null;
   }
   /**

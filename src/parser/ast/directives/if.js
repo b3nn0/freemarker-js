@@ -36,10 +36,11 @@ export class IfBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     for (const b of this.blocks) {
-      if (b.condition === null || env.toBoolean(b.condition.evaluate(env), ' of #if/#elseif')) {
-        for (const c of b.children) env.visit(c);
+      if (b.condition === null
+        || (yield* env.toBoolean(yield* b.condition.evaluate(env), ' of #if/#elseif'))) {
+        for (const c of b.children) yield* env.visit(c);
         return null;
       }
     }

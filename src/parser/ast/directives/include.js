@@ -32,9 +32,9 @@ export class IncludeDirective extends TemplateElement {
    * @param {string} paramName - for the error message
    * @returns {boolean}
    */
-  _bool(env, exp, dflt, paramName) {
+  * _bool(env, exp, dflt, paramName) {
     if (exp === null) return dflt;
-    const m = exp.evaluate(env);
+    const m = yield* exp.evaluate(env);
     if (m instanceof BooleanModel) return m.getAsBoolean();
     if (m instanceof StringModel) {
       const s = m.getAsString().toLowerCase();
@@ -53,25 +53,25 @@ export class IncludeDirective extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    const rawName = env.coerceToString(this.nameExp.evaluate(env),
+  * execute(env) {
+    const rawName = yield* env.coerceToString(yield* this.nameExp.evaluate(env),
       ' used as the #include template name');
-    const parse = this._bool(env, this.parseExp, true, 'parse');
+    const parse = yield* this._bool(env, this.parseExp, true, 'parse');
     if (!parse) {
       throw new UnsupportedFeatureException(
         'The "#include" parameter parse=false (parsing the included file as XML) '
         + 'is not supported by this port.');
     }
-    const ignoreMissing = this._bool(env, this.ignoreMissingExp, false, 'ignore_missing');
+    const ignoreMissing = yield* this._bool(env, this.ignoreMissingExp, false, 'ignore_missing');
     let included;
     try {
-      included = env.loadIncludedTemplate(rawName);
+      included = yield* env.loadIncludedTemplate(rawName);
     } catch (e) {
       if (ignoreMissing) return null;
       throw e;
     }
     // ← Environment.include(): same data model and namespace; children visit inline.
-    env.visit(included.rootElement); // ← Environment.include(): visit as single element
+    yield* env.visit(included.rootElement); // ← Environment.include(): visit as single element
     return null;
   }
 

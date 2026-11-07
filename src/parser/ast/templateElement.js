@@ -126,7 +126,7 @@ export class TemplateElement {
    * @param {import('../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     throw new Error(`execute() not implemented for ${this.constructor.name}`);
   }
 

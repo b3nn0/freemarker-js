@@ -26,11 +26,11 @@ export class OutputFormatBlock extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     const saved = env.outputFormat;
     env.outputFormat = this.outputFormat;
     try {
-      for (const c of this.children) env.visit(c);
+      for (const c of this.children) yield* env.visit(c);
     } finally {
       env.outputFormat = saved;
     }

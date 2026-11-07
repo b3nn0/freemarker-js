@@ -22,7 +22,7 @@ export class TrimInstruction extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     return null;
   }
 

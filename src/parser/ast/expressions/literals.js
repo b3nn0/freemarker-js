@@ -20,7 +20,7 @@ export class NumberLiteral extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     return env.wrap(this.value);
   }
 }
@@ -42,7 +42,7 @@ export class StringLiteral extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     return env.wrap(this.value);
   }
 }
@@ -64,7 +64,7 @@ export class BooleanLiteral extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     return env.wrap(this.value);
   }
 }
@@ -86,8 +86,10 @@ export class ListLiteral extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    return env.wrap(this.items.map(i => i.evaluate(env)));
+  * evaluate(env) {
+    const items = [];
+    for (const i of this.items) items.push(yield* i.evaluate(env));
+    return env.wrap(items);
   }
 }
 
@@ -110,11 +112,13 @@ export class HashLiteral extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     const map = new Map();
-    this.keys.forEach((k, i) => {
-      map.set(env.coerceToString(k.evaluate(env), ' used as a hash-literal key'), this.values[i].evaluate(env));
-    });
+    for (let i = 0; i < this.keys.length; i++) {
+      const k = yield* this.keys[i].evaluate(env);
+      const s = yield* env.coerceToString(k, ' used as a hash-literal key');
+      map.set(s, yield* this.values[i].evaluate(env));
+    }
     return env.wrap(map);
   }
 }

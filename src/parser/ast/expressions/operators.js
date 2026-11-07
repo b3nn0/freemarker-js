@@ -2,6 +2,7 @@
 
 import { Expression } from './expression.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
+import { awaitOp, callOp } from '../../../async.js';
 import { BooleanModel, RangeModel } from '../../../model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
 
@@ -22,8 +23,8 @@ export class ParentheticalExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    return this.expression.evaluate(env);
+  * evaluate(env) {
+    return yield* this.expression.evaluate(env);
   }
 }
 
@@ -47,25 +48,28 @@ export class AddConcatExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const l = this.left.evaluate(env);
-    const r = this.right.evaluate(env);
+  * evaluate(env) {
+    const l = yield* this.left.evaluate(env);
+    const r = yield* this.right.evaluate(env);
     if (l instanceof TemplateSequenceModel && r instanceof TemplateSequenceModel) {
       const items = [];
-      for (let i = 0; i < l.size(); i++) items.push(l.getByIndex(i));
-      for (let i = 0; i < r.size(); i++) items.push(r.getByIndex(i));
+      const n1 = yield* awaitOp('size', l.size());
+      for (let i = 0; i < n1; i++) items.push(yield* callOp('getByIndex', l, 'getByIndex', i));
+      const n2 = yield* awaitOp('size', r.size());
+      for (let i = 0; i < n2; i++) items.push(yield* callOp('getByIndex', r, 'getByIndex', i));
       return env.wrap(items);
     }
     if (l instanceof TemplateHashModel && r instanceof TemplateHashModel) {
       const map = new Map();
-      for (const k of l.keys()) map.set(k, l.get(k));
-      for (const k of r.keys()) map.set(k, r.get(k));
+      for (const k of yield* awaitOp('keys', l.keys())) map.set(k, yield* callOp(`get "${k}"`, l, 'get', k));
+      for (const k of yield* awaitOp('keys', r.keys())) map.set(k, yield* callOp(`get "${k}"`, r, 'get', k));
       return env.wrap(map);
     }
     if (l && r && typeof l.getAsNumber === 'function' && typeof r.getAsNumber === 'function') {
-      return env.wrap(l.getAsNumber() + r.getAsNumber());
+      return env.wrap(
+        (yield* callOp('getAsNumber', l, 'getAsNumber')) + (yield* callOp('getAsNumber', r, 'getAsNumber')));
     }
-    return env.wrap(env.coerceToString(l) + env.coerceToString(r));
+    return env.wrap((yield* env.coerceToString(l)) + (yield* env.coerceToString(r)));
   }
 }
 
@@ -89,9 +93,9 @@ export class ArithmeticExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const l = env.toNumber(this.left.evaluate(env), ` on the left of "${this.operator}"`);
-    const r = env.toNumber(this.right.evaluate(env), ` on the right of "${this.operator}"`);
+  * evaluate(env) {
+    const l = yield* env.toNumber(yield* this.left.evaluate(env), ` on the left of "${this.operator}"`);
+    const r = yield* env.toNumber(yield* this.right.evaluate(env), ` on the right of "${this.operator}"`);
     switch (this.operator) {
       case 'subtract': return env.wrap(l - r);
       case 'multiply': return env.wrap(l * r);
@@ -123,8 +127,8 @@ export class UnaryPlusMinusExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const v = env.toNumber(this.target.evaluate(env), ' after a unary +/- sign');
+  * evaluate(env) {
+    const v = yield* env.toNumber(yield* this.target.evaluate(env), ' after a unary +/- sign');
     return env.wrap(this.isMinus ? -v : +v);
   }
 }
@@ -146,8 +150,8 @@ export class NotExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    return env.wrap(!env.toBoolean(this.target.evaluate(env), ' after "!"'));
+  * evaluate(env) {
+    return env.wrap(!(yield* env.toBoolean(yield* this.target.evaluate(env), ' after "!"')));
   }
 }
 
@@ -172,10 +176,10 @@ export class ComparisonExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const l = this.left.evaluate(env);
-    const r = this.right.evaluate(env);
-    const cmp = env.compare(l, r);
+  * evaluate(env) {
+    const l = yield* this.left.evaluate(env);
+    const r = yield* this.right.evaluate(env);
+    const cmp = yield* env.compare(l, r);
     // Normalize the many operator spellings to a canonical comparator.
     const op = {
       '==': 'eq', '!=': 'neq',
@@ -216,9 +220,11 @@ export class Range extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const from = env.toNumber(this.left.evaluate(env), ' on the left of a range');
-    const to = this.right === null ? null : env.toNumber(this.right.evaluate(env), ' on the right of a range');
+  * evaluate(env) {
+    const from = yield* env.toNumber(yield* this.left.evaluate(env), ' on the left of a range');
+    const to = this.right === null
+      ? null
+      : yield* env.toNumber(yield* this.right.evaluate(env), ' on the right of a range');
     let size = null;
     if (to !== null) {
       if (this.endType === 'sizeLimited') {
@@ -253,9 +259,9 @@ export class AndExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    if (!env.toBoolean(this.left.evaluate(env), ' on the left of "&&"')) return BooleanModel.FALSE;
-    return env.wrap(env.toBoolean(this.right.evaluate(env), ' on the right of "&&"'));
+  * evaluate(env) {
+    if (!(yield* env.toBoolean(yield* this.left.evaluate(env), ' on the left of "&&"'))) return BooleanModel.FALSE;
+    return env.wrap(yield* env.toBoolean(yield* this.right.evaluate(env), ' on the right of "&&"'));
   }
 }
 
@@ -277,9 +283,9 @@ export class OrExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    if (env.toBoolean(this.left.evaluate(env), ' on the left of "||"')) return BooleanModel.TRUE;
-    return env.wrap(env.toBoolean(this.right.evaluate(env), ' on the right of "||"'));
+  * evaluate(env) {
+    if (yield* env.toBoolean(yield* this.left.evaluate(env), ' on the left of "||"')) return BooleanModel.TRUE;
+    return env.wrap(yield* env.toBoolean(yield* this.right.evaluate(env), ' on the right of "||"'));
   }
 }
 
@@ -304,14 +310,14 @@ export class DefaultToExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     try {
-      const l = this.left.evaluate(env);
+      const l = yield* this.left.evaluate(env);
       if (l !== null && l !== undefined) return l;
     } catch (e) {
       if (!(e instanceof InvalidReferenceException)) throw e;
     }
-    return this.right === null ? null : this.right.evaluate(env);
+    return this.right === null ? null : yield* this.right.evaluate(env);
   }
 }
 
@@ -332,9 +338,9 @@ export class ExistsExpression extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     try {
-      const v = this.expression.evaluate(env);
+      const v = yield* this.expression.evaluate(env);
       return v === null || v === undefined ? BooleanModel.FALSE : BooleanModel.TRUE;
     } catch (e) {
       if (!(e instanceof InvalidReferenceException)) throw e;

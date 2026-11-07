@@ -9,6 +9,7 @@ import { TemplateHashModel, TemplateSequenceModel } from '../../../model/templat
 import { HashModel } from '../../../model/models.js';
 import { unwrap } from '../../../model/unwrap.js';
 import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
+import { awaitOp, callOp } from '../../../async.js';
 
 /** Bare name ← Identifier. */
 export class Identifier extends Expression {
@@ -27,8 +28,8 @@ export class Identifier extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const v = env.getVariable(this.name);
+  * evaluate(env) {
+    const v = yield* env.getVariable(this.name);
     if (v === null || v === undefined) {
       const e = new UnassignedVariableException(
         `The variable ${JSON.stringify(this.name)} is not in the data model.`);
@@ -60,8 +61,8 @@ export class Dot extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const t = this.target.evaluate(env);
+  * evaluate(env) {
+    const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) {
       throw new InvalidPropertyException(
         `Can't read the ${JSON.stringify(this.key)} key: the parent expression `
@@ -72,7 +73,7 @@ export class Dot extends Expression {
         `Can't read the ${JSON.stringify(this.key)} key: ${this.target.getCanonicalForm()} `
         + `is not a hash (it is a ${env.typeLabel(t)}).`);
     }
-    const v = t.get(this.key);
+    const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
     if (v === null || v === undefined) {
       throw new InvalidPropertyException(
         `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
@@ -80,7 +81,7 @@ export class Dot extends Expression {
     }
     // ZeroArgumentNonVoidMethodPolicy: property-like read of a 0-arg function ← get()/getBeforeMethodCall.
     if (t instanceof HashModel && zeroArgFunctionIsProperty(env.configuration, t.source, this.key, v && v.fn)) {
-      return env.wrap(v.fn());
+      return env.wrap(yield* awaitOp(`read-only call "${this.key}"`, v.fn()));
     }
     return v;
   }
@@ -88,8 +89,8 @@ export class Dot extends Expression {
   // ← the parse-time BeforeMethodCall trick: a directly enclosing MethodCall routes through here.
   // Returns [model, preCalled]; preCalled=true when the policy already produced the value.
   /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */
-  _evaluateForMethodCall(env, argExprs) {
-    const t = this.target.evaluate(env);
+  * _evaluateForMethodCall(env, argExprs) {
+    const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) {
       throw new InvalidPropertyException(
         `Can't read the ${JSON.stringify(this.key)} key: the parent expression `
@@ -100,15 +101,16 @@ export class Dot extends Expression {
         `Can't read the ${JSON.stringify(this.key)} key: ${this.target.getCanonicalForm()} `
         + `is not a hash (it is a ${env.typeLabel(t)}).`);
     }
-    const v = t.get(this.key);
+    const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
     if (v === null || v === undefined) {
       throw new InvalidPropertyException(
         `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
         + 'has not been found (it is missing).');
     }
     if (t instanceof HashModel && zeroArgFunctionIsProperty(env.configuration, t.source, this.key, v.fn)) {
-      const raw = argExprs.map((a) => unwrap(a.evaluate(env)));
-      return [env.wrap(v.fn(...raw)), true];
+      const raw = [];
+      for (const a of argExprs) raw.push(unwrap(yield* a.evaluate(env)));
+      return [env.wrap(yield* awaitOp(`method call "${this.key}"`, v.fn(...raw))), true];
     }
     return [v, false];
   }
@@ -133,8 +135,8 @@ export class DynamicKeyName extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
-    const t = this.target.evaluate(env);
+  * evaluate(env) {
+    const t = yield* this.target.evaluate(env);
     const empty = () => new InvalidPropertyException(
       `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
       + '(use the ! or ?? operator to define a default).');
@@ -142,22 +144,22 @@ export class DynamicKeyName extends Expression {
     if (this.key === null) throw empty();
     let k;
     try {
-      k = this.key.evaluate(env);
+      k = yield* this.key.evaluate(env);
     } catch (e) {
       if (e instanceof InvalidReferenceException) throw empty();
       throw e;
     }
     if (k === null || k === undefined) throw empty();
     if (t instanceof TemplateSequenceModel) {
-      const n = env.toNumber(k, ' used as an index into a sequence');
-      return t.getByIndex(Math.trunc(n));
+      const n = yield* env.toNumber(k, ' used as an index into a sequence');
+      return yield* callOp('sequence index', t, 'getByIndex', Math.trunc(n));
     }
     if (t instanceof TemplateHashModel) {
-      const s = env.coerceToString(k, ' used as a hash key');
-      const v = t.get(s);
+      const s = yield* env.coerceToString(k, ' used as a hash key');
+      const v = yield* callOp(`get "${s}"`, t, 'get', s);
       if (v !== null && v !== undefined && t instanceof HashModel
           && zeroArgFunctionIsProperty(env.configuration, t.source, s, v.fn)) {
-        return env.wrap(v.fn());
+        return env.wrap(yield* awaitOp(`read-only call "${s}"`, v.fn()));
       }
       return v;
     }
@@ -167,24 +169,25 @@ export class DynamicKeyName extends Expression {
   }
 
   /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */
-  _evaluateForMethodCall(env, argExprs) {
-    const t = this.target.evaluate(env);
+  * _evaluateForMethodCall(env, argExprs) {
+    const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) throw new InvalidPropertyException(
       `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
       + '(use the ! or ?? operator to define a default).');
     if (this.key === null) throw new InvalidPropertyException(
       `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
       + '(use the ! or ?? operator to define a default).');
-    const k = this.key.evaluate(env);
+    const k = yield* this.key.evaluate(env);
     if (t instanceof TemplateHashModel && k !== null && k !== undefined) {
-      const s = env.coerceToString(k, ' used as a hash key');
-      const v = t.get(s);
+      const s = yield* env.coerceToString(k, ' used as a hash key');
+      const v = yield* callOp(`get "${s}"`, t, 'get', s);
       if (v !== null && v !== undefined && t instanceof HashModel
           && zeroArgFunctionIsProperty(env.configuration, t.source, s, v.fn)) {
-        const raw = argExprs.map((a) => unwrap(a.evaluate(env)));
-        return [env.wrap(v.fn(...raw)), true];
+        const raw = [];
+        for (const a of argExprs) raw.push(unwrap(yield* a.evaluate(env)));
+        return [env.wrap(yield* awaitOp(`method call "${s}"`, v.fn(...raw))), true];
       }
     }
-    return [this.evaluate(env), false];
+    return [yield* this.evaluate(env), false];
   }
 }

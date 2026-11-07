@@ -6,6 +6,7 @@ import { registerBuiltIn } from './registry.js';
 import { BuiltinArgMethod, stringMethodArg } from './common.js';
 import { StringModel, NumberModel, SequenceModel, BooleanModel } from '../model/models.js';
 import { NonNumericalException, TemplateException } from '../errors.js';
+import { awaitOp } from '../async.js';
 
 /** @type {import('../model/models.js').BooleanModel} */
 const BoolTrue = BooleanModel.TRUE;
@@ -55,8 +56,8 @@ function capitalize(s) {
  * @param {string} key
  * @returns {string} the target coerced to a string
  */
-function targetString(target, env, key) {
-  return env.coerceToString(target, ` for the "?${key}" built-in`);
+function* targetString(target, env, key) {
+  return yield* env.coerceToString(target, ` for the "?${key}" built-in`);
 }
 
 // A method-model built-in whose first job is string coercion of the target.
@@ -69,8 +70,8 @@ function targetString(target, env, key) {
  * @param {(env: Object, s: string, args: unknown[]) => Object} fn
  * @returns {import('./common.js').BuiltinArgMethod}
  */
-function methodOnString(target, env, key, minArgs, maxArgs, fn) {
-  const s = targetString(target, env, key);
+function* methodOnString(target, env, key, minArgs, maxArgs, fn) {
+  const s = yield* targetString(target, env, key);
   return new BuiltinArgMethod(key, minArgs, maxArgs, (e, a) => fn(e, s, a));
 }
 
@@ -96,8 +97,8 @@ registerBuiltIn('length', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return new NumberModel(targetString(target, env, 'length').length);
+  * impl(target, args, env) {
+    return new NumberModel((yield* targetString(target, env, 'length')).length);
   },
 });
 
@@ -108,8 +109,8 @@ registerBuiltIn('upper_case', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return new StringModel(targetString(target, env, 'upper_case').toUpperCase());
+  * impl(target, args, env) {
+    return new StringModel((yield* targetString(target, env, 'upper_case')).toUpperCase());
   },
 });
 
@@ -120,8 +121,8 @@ registerBuiltIn('lower_case', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return new StringModel(targetString(target, env, 'lower_case').toLowerCase());
+  * impl(target, args, env) {
+    return new StringModel((yield* targetString(target, env, 'lower_case')).toLowerCase());
   },
 });
 
@@ -132,8 +133,8 @@ registerBuiltIn('trim', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return new StringModel(javaTrim(targetString(target, env, 'trim')));
+  * impl(target, args, env) {
+    return new StringModel(javaTrim(yield* targetString(target, env, 'trim')));
   },
 });
 
@@ -144,8 +145,8 @@ registerBuiltIn('cap_first', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    const s = targetString(target, env, 'cap_first');
+  * impl(target, args, env) {
+    const s = yield* targetString(target, env, 'cap_first');
     let i = 0;
     while (i < s.length && s.charCodeAt(i) <= 0x20) i++;
     if (i >= s.length) return new StringModel(s);
@@ -160,8 +161,8 @@ registerBuiltIn('capitalize', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return new StringModel(capitalize(targetString(target, env, 'capitalize')));
+  * impl(target, args, env) {
+    return new StringModel(capitalize(yield* targetString(target, env, 'capitalize')));
   },
 });
 
@@ -172,9 +173,9 @@ registerBuiltIn('chop_linebreak', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     // ← StringUtil.chomp
-    const s = targetString(target, env, 'chop_linebreak');
+    const s = yield* targetString(target, env, 'chop_linebreak');
     if (s.endsWith('\r\n')) return new StringModel(s.slice(0, -2));
     if (s.endsWith('\r') || s.endsWith('\n')) return new StringModel(s.slice(0, -1));
     return new StringModel(s);
@@ -190,8 +191,8 @@ registerBuiltIn('contains', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'contains', 1, 1,
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'contains', 1, 1,
       (e, s, a) => (s.includes(stringMethodArg(a[0], e)) ? BoolTrue : BoolFalse));
   },
 });
@@ -205,8 +206,8 @@ registerBuiltIn('starts_with', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'starts_with', 1, 1,
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'starts_with', 1, 1,
       (e, s, a) => (s.startsWith(stringMethodArg(a[0], e)) ? BoolTrue : BoolFalse));
   },
 });
@@ -220,8 +221,8 @@ registerBuiltIn('ends_with', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'ends_with', 1, 1,
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'ends_with', 1, 1,
       (e, s, a) => (s.endsWith(stringMethodArg(a[0], e)) ? BoolTrue : BoolFalse));
   },
 });
@@ -235,8 +236,8 @@ registerBuiltIn('index_of', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'index_of', 1, 2, (e, s, a) => {
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'index_of', 1, 2, (e, s, a) => {
       const from = a.length > 1 ? Math.trunc(numberMethodArg(a[1], e, 1)) : 0;
       return new NumberModel(s.indexOf(stringMethodArg(a[0], e), from));
     });
@@ -252,8 +253,8 @@ registerBuiltIn('last_index_of', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'last_index_of', 1, 2, (e, s, a) => {
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'last_index_of', 1, 2, (e, s, a) => {
       const from = a.length > 1 ? Math.trunc(numberMethodArg(a[1], e, 1)) : s.length;
       return new NumberModel(s.lastIndexOf(stringMethodArg(a[0], e), from));
     });
@@ -269,8 +270,8 @@ registerBuiltIn('split', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'split', 1, 1, (e, s, a) => {
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'split', 1, 1, (e, s, a) => {
       const sep = stringMethodArg(a[0], e);
       const pieces = sep === '' ? Array.from(s) : s.split(sep);
       return new SequenceModel(pieces.map((p) => new StringModel(p)));
@@ -288,8 +289,8 @@ registerBuiltIn('replace', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'replace', 2, 2, (e, s, a) => {
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'replace', 2, 2, (e, s, a) => {
       const from = stringMethodArg(a[0], e);
       const to = stringMethodArg(a[1], e);
       let out = '';
@@ -336,8 +337,8 @@ registerBuiltIn('left_pad', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'left_pad', 1, 2, (e, s, a) => {
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'left_pad', 1, 2, (e, s, a) => {
       const fill = a.length > 1 ? stringMethodArg(a[1], e) : ' ';
       return new StringModel(pad(s, Math.trunc(numberMethodArg(a[0], e, 0)), fill) + s);
     });
@@ -353,8 +354,8 @@ registerBuiltIn('right_pad', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, args, env) {
-    return methodOnString(target, env, 'right_pad', 1, 2, (e, s, a) => {
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'right_pad', 1, 2, (e, s, a) => {
       const fill = a.length > 1 ? stringMethodArg(a[1], e) : ' ';
       return new StringModel(s + pad(s, Math.trunc(numberMethodArg(a[0], e, 0)), fill));
     });

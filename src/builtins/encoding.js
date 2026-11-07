@@ -10,6 +10,7 @@ import { TemplateException } from '../errors.js';
 import { Parser } from '../parser/parser.js';
 import { TT } from '../parser/tokenType.js';
 import * as LEX from '../parser/lexicalStates.js';
+import { callOp } from '../async.js';
 
 /**
  * @param {import('../model/templateModel.js').TemplateModel} target
@@ -17,8 +18,8 @@ import * as LEX from '../parser/lexicalStates.js';
  * @param {string} key
  * @returns {string}
  */
-function targetString(target, env, key) {
-  return env.coerceToString(target, ` for the "?${key}" built-in`);
+function* targetString(target, env, key) {
+  return yield* env.coerceToString(target, ` for the "?${key}" built-in`);
 }
 
 // ← BuiltInForLegacyEscaping: if the target is markup of a format that bypasses
@@ -42,9 +43,9 @@ registerBuiltIn('html', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (bypassed(target, 'html')) return target;
-    return new StringModel(xhtmlEnc(targetString(target, env, 'html')));
+    return new StringModel(xhtmlEnc(yield* targetString(target, env, 'html')));
   },
 });
 
@@ -55,9 +56,9 @@ registerBuiltIn('xhtml', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (bypassed(target, 'xhtml')) return target;
-    return new StringModel(xhtmlEnc(targetString(target, env, 'xhtml')));
+    return new StringModel(xhtmlEnc(yield* targetString(target, env, 'xhtml')));
   },
 });
 
@@ -68,9 +69,9 @@ registerBuiltIn('xml', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (bypassed(target, 'xml')) return target;
-    return new StringModel(xmlEnc(targetString(target, env, 'xml')));
+    return new StringModel(xmlEnc(yield* targetString(target, env, 'xml')));
   },
 });
 
@@ -83,9 +84,9 @@ registerBuiltIn('no_esc', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     const fmt = env.outputFormat ?? env.configuration.getOutputFormat();
-    return MarkupModel.fromMarkup(targetString(target, env, 'no_esc'), fmt);
+    return MarkupModel.fromMarkup(yield* targetString(target, env, 'no_esc'), fmt);
   },
 });
 
@@ -97,8 +98,8 @@ registerBuiltIn('url', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
-    return new StringModel(urlEnc(targetString(target, env, 'url'), false));
+  * impl(target, args, env) {
+    return new StringModel(urlEnc(yield* targetString(target, env, 'url'), false));
   },
 });
 
@@ -110,8 +111,8 @@ registerBuiltIn('json_string', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
-    return new StringModel(jsStringEnc(targetString(target, env, 'json_string'), true));
+  * impl(target, args, env) {
+    return new StringModel(jsStringEnc(yield* targetString(target, env, 'json_string'), true));
   },
 });
 
@@ -123,8 +124,8 @@ registerBuiltIn('js_string', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
-    return new StringModel(jsStringEnc(targetString(target, env, 'js_string'), false));
+  * impl(target, args, env) {
+    return new StringModel(jsStringEnc(yield* targetString(target, env, 'js_string'), false));
   },
 });
 
@@ -136,15 +137,15 @@ registerBuiltIn('c', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
+  * impl(target, args, env) {
     if (target instanceof StringModel) return target;
     if (target && typeof target.getAsNumber === 'function') {
-      return new StringModel(String(target.getAsNumber()));
+      return new StringModel(String(yield* callOp('getAsNumber', target, 'getAsNumber')));
     }
     if (target && typeof target.getAsBoolean === 'function') {
-      return new StringModel(target.getAsBoolean() ? 'true' : 'false');
+      return new StringModel((yield* callOp('getAsBoolean', target, 'getAsBoolean')) ? 'true' : 'false');
     }
-    return new StringModel(env.coerceToString(target, ' for the "?c" built-in'));
+    return new StringModel(yield* env.coerceToString(target, ' for the "?c" built-in'));
   },
 });
 
@@ -158,8 +159,8 @@ registerBuiltIn('eval', {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  impl(target, args, env) {
-    const src = targetString(target, env, 'eval');
+  * impl(target, args, env) {
+    const src = yield* targetString(target, env, 'eval');
     let exp;
     try {
       exp = parseExpression(src, env.configuration);
@@ -168,7 +169,7 @@ registerBuiltIn('eval', {
       throw new TemplateException(
         `Could not parse the expression: ${src}\nUnderlying cause: ${e.message}`);
     }
-    return exp.evaluate(env);
+    return yield* exp.evaluate(env);
   },
 });
 

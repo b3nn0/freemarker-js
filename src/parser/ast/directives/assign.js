@@ -35,22 +35,22 @@ export class Assignment extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     let value;
     switch (this.opKind) {
       case '=':
-        value = this.exp.evaluate(env);
+        value = yield* this.exp.evaluate(env);
         break;
       case 'block':
       case 'block+=': {
-        const captured = this._capture(env);
+        const captured = yield* this._capture(env);
         if (this.opKind === 'block+=') {
-          const old = env.getVariable(this.name);
+          const old = yield* env.getVariable(this.name);
           if (old === null || old === undefined) {
             throw new InvalidReferenceException(
               `Can't do "#assign ${this.name}+=": the variable has no old value.`);
           }
-          value = new StringModel(env.coerceToString(old) + captured);
+          value = new StringModel((yield* env.coerceToString(old)) + captured);
         } else {
           value = new StringModel(captured);
         }
@@ -63,17 +63,17 @@ export class Assignment extends TemplateElement {
       case '*=':
       case '/=':
       case '%=': {
-        const old = env.getVariable(this.name);
+        const old = yield* env.getVariable(this.name);
         if (old === null || old === undefined) {
           throw new InvalidReferenceException(
             `Can't do "#assign ${this.name} ${this.opKind}": the variable has no old value.`);
         }
-        const oldN = env.toNumber(old, ` as the old value of "${this.name}"`);
+        const oldN = yield* env.toNumber(old, ` as the old value of "${this.name}"`);
         let result;
         if (this.opKind === '++') result = oldN + 1;
         else if (this.opKind === '--') result = oldN - 1;
         else {
-          const r = env.toNumber(this.exp.evaluate(env), ` as the right side of "${this.opKind}"`);
+          const r = yield* env.toNumber(yield* this.exp.evaluate(env), ` as the right side of "${this.opKind}"`);
           switch (this.opKind) {
             case '+=': result = oldN + r; break;
             case '-=': result = oldN - r; break;
@@ -97,12 +97,12 @@ export class Assignment extends TemplateElement {
   }
 
   /** @param {import('../../../environment.js').Environment} env @returns {unknown} current value or null */
-  _capture(env) {
+  * _capture(env) {
     const w = new StringWriter();
     const savedOut = env.output;
     env.output = w;
     try {
-      for (const c of this.blockChildren) env.visit(c);
+      for (const c of this.blockChildren) yield* env.visit(c);
     } finally {
       env.output = savedOut;
     }
@@ -150,12 +150,12 @@ export class AssignmentInstruction extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     if (this.namespaceExp !== null) {
       throw new UnsupportedFeatureException(
         'Assigning into another namespace (#assign x in ns) lands with #import (M14).');
     }
-    for (const a of this.assignments) env.visit(a);
+    for (const a of this.assignments) yield* env.visit(a);
     return null;
   }
   /**

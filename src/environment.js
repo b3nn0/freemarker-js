@@ -13,6 +13,7 @@ import { TemplateSequenceModel, TemplateHashModel, TemplateMethodModel } from '.
 import { MethodModel } from './model/models.js';
 import { unwrap } from './model/unwrap.js';
 import { Template } from './template.js';
+import { callOp, awaitOp } from './async.js';
 
 /**
  * @typedef {import('./model/templateModel.js').TemplateModel} TemplateModel
@@ -105,29 +106,30 @@ export class Environment {
 
   /**
    * Seeds the template's macros into the namespace, then visits the root element.
-   * @returns {void}
+   * @returns {Generator<unknown, void, unknown>}
    */
-  process() {
+  * process() {
     // ← Template's macros are part of the namespace from the very start.
     for (const m of this.template.macros) {
       if (!this._nsScope.has(m.name)) this._nsScope.set(m.name, m.macroModel);
     }
-    this.visit(this.rootElement);
+    yield* this.visit(this.rootElement);
   }
 
   /**
    * Executes one element, maintaining the element stack that feeds FTL error stack
    * traces, and decorates the first thrown TemplateException with location info.
+   * Generator form: an element's execute may yield async tokens (see async.js).
    * @param {Object} element - the TemplateElement to visit
-   * @returns {void}
+   * @returns {Generator<unknown, void, unknown>}
    */
-  visit(element) {
+  * visit(element) {
     this.elementStack.push(element);
     try {
-      const more = element.execute(this);
+      const more = yield* element.execute(this);
       if (more) {
         for (const el of more) {
-          if (el) this.visit(el);
+          if (el) yield* this.visit(el);
         }
       }
     } catch (e) {
@@ -169,11 +171,11 @@ export class Environment {
 
   /**
    * Resolves a template's source text via the includeResolver. ← TemplateLoader.getSource
-   * (synchronous in this port; see UPSTREAM.md).
+   * (the resolver may return a Promise; awaited in async mode — generator form).
    * @param {string} name
-   * @returns {string} source text
+   * @returns {Generator<unknown, string, unknown>} source text
    */
-  _resolveTemplateSource(name) {
+  * _resolveTemplateSource(name) {
     const resolver = this.includeResolver ?? this.configuration.getIncludeResolver();
     if (resolver == null) {
       throw new TemplateException(
@@ -183,7 +185,7 @@ export class Environment {
     }
     let src;
     try {
-      src = resolver(name);
+      src = yield* awaitOp(`include resolver for "${name}"`, resolver(name));
     } catch (e) {
       if (e instanceof TemplateException) throw e;
       throw new TemplateException(
@@ -200,15 +202,16 @@ export class Environment {
 
   /**
    * Parse-once per Configuration cache of referenced templates. ← TemplateCache
-   * (keyed by name only in this port - no locale/encoding variants).
+   * (keyed by name only in this port - no locale/encoding variants). Parsing
+   * itself is always sync; only the source resolution can be async.
    * @param {string} name
-   * @returns {Template} the parsed template
+   * @returns {Generator<unknown, Template, unknown>} the parsed template
    */
-  loadIncludedTemplate(name) {
+  * loadIncludedTemplate(name) {
     const cfg = this.configuration;
     let t = cfg._templateCache.get(name);
     if (t === undefined) {
-      const src = this._resolveTemplateSource(name);
+      const src = yield* this._resolveTemplateSource(name);
       t = new Template(name, src, cfg);
       cfg._templateCache.set(name, t);
     }
@@ -256,14 +259,14 @@ export class Environment {
    * Looks up a variable: innermost scope first, then the template namespace, then
    * the data model. ← Environment.getVariable
    * @param {string} name
-   * @returns {TemplateModel|null}
+   * @returns {Generator<unknown, TemplateModel|null, unknown>}
    */
-  getVariable(name) {
+  * getVariable(name) {
     for (let i = this._scopes.length - 1; i >= 0; i--) {
       if (this._scopes[i].has(name)) return this._scopes[i].get(name);
     }
     if (this._nsScope.has(name)) return this._nsScope.get(name);
-    return this.dataModel ? this.dataModel.get(name) : null;
+    return this.dataModel ? yield* callOp(`data-model variable "${name}"`, this.dataModel, 'get', name) : null;
   }
 
   /**
@@ -300,32 +303,37 @@ export class Environment {
 
   /**
    * Shared comparison ← ComparisonExpression.visit + #case/#on matching (M16 refines).
+   * Generator form: the protocol getters may come from user models (async-capable).
    * @param {TemplateModel} l
    * @param {TemplateModel} r
-   * @returns {number} negative, zero or positive
+   * @returns {Generator<unknown, number, unknown>} negative, zero or positive
    */
-  compare(l, r) {
+  * compare(l, r) {
     if (l && typeof l.getAsNumber === 'function' && r && typeof r.getAsNumber === 'function') {
-      return Math.sign(l.getAsNumber() - r.getAsNumber());
+      const ln = yield* callOp('getAsNumber', l, 'getAsNumber');
+      const rn = yield* callOp('getAsNumber', r, 'getAsNumber');
+      return Math.sign(ln - rn);
     }
     if (l && typeof l.getAsDate === 'function' && r && typeof r.getAsDate === 'function') {
-      return Math.sign(l.getAsDate().getTime() - r.getAsDate().getTime());
+      const ld = yield* callOp('getAsDate', l, 'getAsDate');
+      const rd = yield* callOp('getAsDate', r, 'getAsDate');
+      return Math.sign(ld.getTime() - rd.getTime());
     }
     if (l instanceof BooleanModel && r instanceof BooleanModel) {
       return l.getAsBoolean() === r.getAsBoolean() ? 0 : (l.getAsBoolean() ? 1 : -1);
     }
-    const ls = this.coerceToString(l);
-    const rs = this.coerceToString(r);
+    const ls = yield* this.coerceToString(l);
+    const rs = yield* this.coerceToString(r);
     return ls < rs ? -1 : ls > rs ? 1 : 0;
   }
 
   /**
    * @param {TemplateModel} l
    * @param {TemplateModel} r
-   * @returns {boolean}
+   * @returns {Generator<unknown, boolean, unknown>}
    */
-  equals(l, r) {
-    return this.compare(l, r) === 0;
+  * equals(l, r) {
+    return (yield* this.compare(l, r)) === 0;
   }
 
   /**
@@ -349,9 +357,9 @@ export class Environment {
    * Coerces strictly to a boolean; throws NonBooleanException otherwise.
    * @param {TemplateModel} model
    * @param {string} [context] - suffix like ` on the left of "&&"`
-   * @returns {boolean}
+   * @returns {Generator<unknown, boolean, unknown>}
    */
-  toBoolean(model, context = '') {
+  * toBoolean(model, context = '') {
     if (model instanceof BooleanModel) return model.getAsBoolean();
     throw new NonBooleanException(`Expected a boolean, but the value was a ${this.typeLabel(model)}${context}.`);
   }
@@ -360,9 +368,9 @@ export class Environment {
    * Coerces strictly to a number; throws NonNumericalException otherwise.
    * @param {TemplateModel} model
    * @param {string} [context]
-   * @returns {number}
+   * @returns {Generator<unknown, number, unknown>}
    */
-  toNumber(model, context = '') {
+  * toNumber(model, context = '') {
     if (model instanceof NumberModel) return model.getAsNumber();
     throw new NonNumericalException(`Expected a number, but the value was a ${this.typeLabel(model)}${context}.`);
   }
@@ -372,9 +380,9 @@ export class Environment {
    * sequences, hashes and methods.
    * @param {TemplateModel} model
    * @param {string} [context]
-   * @returns {string}
+   * @returns {Generator<unknown, string, unknown>}
    */
-  coerceToString(model, context = '') {
+  * coerceToString(model, context = '') {
     if (model instanceof StringModel) return model.getAsString();
     if (model instanceof NumberModel) return this._formatNumber(model.getAsNumber());
     if (model instanceof BooleanModel) return this._formatBoolean(model.getAsBoolean());

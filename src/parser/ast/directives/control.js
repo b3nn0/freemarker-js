@@ -8,7 +8,7 @@ import {
 /** #break ← BreakInstruction. */
 export class BreakInstruction extends TemplateElement {
   /** @returns {null} @throws {BreakInstructionException} */
-  execute() {
+  * execute() {
     throw new BreakInstructionException('#break');
   }
   /**
@@ -22,7 +22,7 @@ export class BreakInstruction extends TemplateElement {
 /** #continue ← ContinueInstruction. */
 export class ContinueInstruction extends TemplateElement {
   /** @returns {null} @throws {BreakInstructionException} */
-  execute() {
+  * execute() {
     throw new ContinueInstructionException('#continue');
   }
   /**
@@ -45,8 +45,8 @@ export class ReturnInstruction extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    throw new ReturnInstructionException(this.exp === null ? null : this.exp.evaluate(env));
+  * execute(env) {
+    throw new ReturnInstructionException(this.exp === null ? null : yield* this.exp.evaluate(env));
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node

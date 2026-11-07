@@ -4,6 +4,7 @@ import { Expression } from './expression.js';
 import { InvalidReferenceException, NonMethodException } from '../../../errors.js';
 import { TemplateMethodModel } from '../../../model/templateModel.js';
 import { unwrap } from '../../../model/unwrap.js';
+import { callOp } from '../../../async.js';
 
 /** f(x) ← MethodCall. */
 export class MethodCall extends Expression {
@@ -23,15 +24,15 @@ export class MethodCall extends Expression {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
-  evaluate(env) {
+  * evaluate(env) {
     let t;
     let preCalled = false;
     if (typeof this.target._evaluateForMethodCall === 'function') {
       // ← BeforeMethodCall path (ZeroArgumentNonVoidMethodPolicy at Dot/DynamicKeyName).
-      [t, preCalled] = this.target._evaluateForMethodCall(env, this.args);
+      [t, preCalled] = yield* this.target._evaluateForMethodCall(env, this.args);
       if (preCalled) return t;
     } else {
-      t = this.target.evaluate(env);
+      t = yield* this.target.evaluate(env);
     }
     if (t === null || t === undefined) {
       throw new InvalidReferenceException(
@@ -40,14 +41,17 @@ export class MethodCall extends Expression {
     }
     if (t.isFunctionModel === true) {
       // ← Environment.invokeFunction: an FTL #function called as f(args)
-      const models = this.args.map((a) => a.evaluate(env));
-      return t.invoke(env, { positionalArgs: models, namedArgs: new Map() });
+      const models = [];
+      for (const a of this.args) models.push(yield* a.evaluate(env));
+      return yield* callOp(`function call "${this.target.getCanonicalForm()}"`, t, 'invoke', env,
+        { positionalArgs: models, namedArgs: new Map() });
     }
     if (!(t instanceof TemplateMethodModel)) {
       throw new NonMethodException(
         `Can't call ${this.target.getCanonicalForm()}: it is a ${env.typeLabel(t)}, not a method.`);
     }
-    const raw = this.args.map(a => unwrap(a.evaluate(env)));
-    return t.exec(env, raw);
+    const raw = [];
+    for (const a of this.args) raw.push(unwrap(yield* a.evaluate(env)));
+    return yield* callOp(`method call "${this.target.getCanonicalForm()}"`, t, 'exec', env, raw);
   }
 }

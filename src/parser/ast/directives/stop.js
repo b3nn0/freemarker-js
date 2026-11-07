@@ -19,10 +19,10 @@ export class StopInstruction extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     // ← StopException.printStackTrace: "Encountered stop instruction" + "Cause given:".
     if (this.exp === null) throw new StopException('Encountered stop instruction');
-    const msg = env.coerceToString(this.exp.evaluate(env), ' used as the #stop message');
+    const msg = yield* env.coerceToString(yield* this.exp.evaluate(env), ' used as the #stop message');
     throw new StopException(`Encountered stop instruction\nCause given: ${msg}`);
   }
 
@@ -42,7 +42,7 @@ export class FlushInstruction extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     if (typeof env.output.flush === 'function') env.output.flush();
     return null;
   }

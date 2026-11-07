@@ -5,6 +5,7 @@ import {
   TemplateSequenceModel, TemplateHashModelEx, TemplateMethodModel, TemplateModel,
 } from './templateModel.js';
 import { UnsupportedFeatureException } from '../errors.js';
+import { awaitOp, isThenable } from '../async.js';
 
 /** A string value. */
 export class StringModel extends TemplateScalarModel {
@@ -118,11 +119,16 @@ export class SequenceModel extends TemplateSequenceModel {
   }
   /**
    * @param {number} i
-   * @returns {import('./templateModel.js').TemplateModel|null}
+   * @returns {Generator<unknown, import('./templateModel.js').TemplateModel|null, unknown>}
+   *   (generator form so raw async data can be awaited; see async.js)
    */
-  getByIndex(i) {
+  * getByIndex(i) {
     if (i < 0 || i >= this.items.length) return null;
     const v = this.items[i];
+    if (this.wrapper && isThenable(v)) {
+      const raw = yield* awaitOp(`sequence element at index ${i}`, v);
+      return this.wrapper.wrap(raw);
+    }
     return this.wrapper ? this.wrapper.wrap(v) : v;
   }
   /** @returns {number} */
@@ -149,17 +155,30 @@ export class HashModel extends TemplateHashModelEx {
   }
   /**
    * @param {string} key
-   * @returns {import('./templateModel.js').TemplateModel|null} null when missing;
-   *   plain objects walk the prototype chain but never past Object.prototype
+   * @returns {Generator<unknown, import('./templateModel.js').TemplateModel|null, unknown>}
+   *   null when missing; plain objects walk the prototype chain but never past
+   *   Object.prototype; async property values (getter → Promise) are awaited in
+   *   async mode (generator form; see async.js)
    */
-  get(key) {
+  * get(key) {
     if (this.isMap) {
-      return this.source.has(key) ? this._wrap(this.source.get(key)) : null;
+      if (!this.source.has(key)) return null;
+      const v = this.source.get(key);
+      if (this.wrapper && isThenable(v)) {
+        return this.wrapper.wrap(yield* awaitOp(`data-model key "${key}"`, v));
+      }
+      return this._wrap(v);
     }
     // Walk the prototype chain but never past Object.prototype (← class methods are members).
     let obj = this.source;
     while (obj !== null && obj !== Object.prototype) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) return this._wrap(obj[key]);
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const v = obj[key];
+        if (this.wrapper && isThenable(v)) {
+          return this.wrapper.wrap(yield* awaitOp(`data-model key "${key}"`, v));
+        }
+        return this._wrap(v);
+      }
       obj = Object.getPrototypeOf(obj);
     }
     return null;
@@ -194,13 +213,17 @@ export class MethodModel extends TemplateMethodModel {
     this.name = name;
   }
   /**
-   * Args arrive already unwrapped to plain JS values (← MethodCall).
+   * Args arrive already unwrapped to plain JS values (← MethodCall). A JS
+   * function returning a Promise awaits it in async mode (generator form).
    * @param {import('../environment.js').Environment} env
    * @param {unknown[]} [args]
-   * @returns {import('./templateModel.js').TemplateModel|null} the wrapped return value
+   * @returns {Generator<unknown, import('./templateModel.js').TemplateModel|null, unknown>}
+   *   the wrapped return value
    */
-  exec(env, args = []) {
-    return env.wrap(this.fn(...args));
+  * exec(env, args = []) {
+    const r = this.fn(...args);
+    if (isThenable(r)) return env.wrap(yield* awaitOp(`method call "${this.name ?? 'anonymous'}"`, r));
+    return env.wrap(r);
   }
 }
 

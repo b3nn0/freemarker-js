@@ -10,6 +10,7 @@ import { TemplateMethodModel } from '../model/templateModel.js';
 import { LocalLambdaExpression } from '../parser/ast/expressions/lambda.js';
 import { InvalidReferenceException, TemplateException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
+import { awaitOp, callOp } from '../async.js';
 
 /** @param {Object} key - a key model @returns {string} */
 function keyTypeName(key) {
@@ -31,16 +32,18 @@ function keyTypeName(key) {
  * @param {string} valueWordPlural
  * @returns {import('../model/models.js').SequenceModel}
  */
-function sortItems(items, keyOf, env, biLabel, valueWord, valueWordPlural) {
+function* sortItems(items, keyOf, env, biLabel, valueWord, valueWordPlural) {
   const n = items.length;
   if (n === 0) return new SequenceModel([...items]);
   const startError = (i) => (i === 0
     ? `${biLabel} failed: `
     : `${biLabel} failed at sequence index ${i} (0-based): `);
+  // Key collection may await (async keys); the comparison itself then works on
+  // precomputed primitives so no yielding happens inside Array.prototype.sort.
   const pairs = [];
   let keyType = null;
   for (let i = 0; i < n; i++) {
-    const key = keyOf(items[i], i, startError);
+    const key = yield* keyOf(items[i], i, startError);
     const t = key === null || key === undefined
       ? null : keyTypeName(key);
     if (keyType === null) {
@@ -55,16 +58,14 @@ function sortItems(items, keyOf, env, biLabel, valueWord, valueWordPlural) {
         + `because the first ${valueWord} was that. However, the ${valueWord} of the current item `
         + `isn't a ${keyType[0]} but a ${env.typeLabel(key)}.`);
     }
-    pairs.push([key, items[i], i]);
+    let cmpKey;
+    if (keyType[0] === 'number') cmpKey = yield* callOp('getAsNumber', key, 'getAsNumber');
+    else if (keyType[0] === 'date/time') cmpKey = (yield* callOp('getAsDate', key, 'getAsDate')).getTime();
+    else if (keyType[0] === 'boolean') cmpKey = (yield* callOp('getAsBoolean', key, 'getAsBoolean')) ? 1 : 0;
+    else cmpKey = yield* callOp('getAsString', key, 'getAsString');
+    pairs.push([cmpKey, items[i], i]);
   }
-  const cmp = (a, b) => {
-    if (keyType[0] === 'number') return a.getAsNumber() - b.getAsNumber();
-    if (keyType[0] === 'date/time') return a.getAsDate().getTime() - b.getAsDate().getTime();
-    if (keyType[0] === 'boolean') return (a.getAsBoolean() ? 1 : 0) - (b.getAsBoolean() ? 1 : 0);
-    const as = a.getAsString();
-    const bs = b.getAsString();
-    return as < bs ? -1 : as > bs ? 1 : 0;
-  };
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   pairs.sort((p, q) => cmp(p[0], q[0]) || p[2] - q[2]);
   return new SequenceModel(pairs.map((p) => p[1]));
 }
@@ -77,10 +78,11 @@ registerBuiltIn('sort', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('sort', target, env);
-    return sortItems(items, (it) => it, env, '?sort', 'value', 'values');
+    function* keyOf(it) { return it; }
+    return yield* sortItems(items, keyOf, env, '?sort', 'value', 'values');
   },
 });
 
@@ -99,7 +101,7 @@ class SortByMethodModel extends TemplateMethodModel {
    * @param {unknown[]} args - a string key name, or a sequence of strings (key path)
    * @returns {import('../model/models.js').SequenceModel}
    */
-  exec(env, args) {
+  * exec(env, args) {
     if (args.length < 1) {
       throw new TemplateException(`Expected 1 argument for "?sort_by(...)", but it had ${args.length}.`);
     }
@@ -121,7 +123,7 @@ class SortByMethodModel extends TemplateMethodModel {
         'The argument to ?sort_by(key) must be a string (the name of the subvariable), '
         + 'or a sequence of strings (the "path" to the subvariable).');
     }
-    const keyOf = (item, i, startError) => {
+    function* keyOf(item, i, startError) {
       let cur = item;
       for (let ki = 0; ki < subvars.length; ki++) {
         if (!(cur instanceof HashModel)) {
@@ -133,15 +135,15 @@ class SortByMethodModel extends TemplateMethodModel {
             startError(i) + `The "${subvars[ki - 1]}" subvariable is not a hash, so ?sort_by `
             + `can't proceed with getting the "${subvars[ki]}" subvariable.`);
         }
-        cur = cur.get(subvars[ki]);
+        cur = yield* callOp(`get "${subvars[ki]}"`, cur, 'get', subvars[ki]);
         if (cur === null || cur === undefined) {
           throw new TemplateException(
             startError(i) + `The "${subvars[ki]}" subvariable was null or missing.`);
         }
       }
       return cur;
-    };
-    return sortItems(this.items, keyOf, env, '?sort_by(...)', 'key value', 'key values');
+    }
+    return yield* sortItems(this.items, keyOf, env, '?sort_by(...)', 'key value', 'key values');
   }
 }
 
@@ -155,8 +157,8 @@ registerBuiltIn('sort_by', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('sort_by', target, env);
     return new SortByMethodModel(items);
   },
@@ -170,21 +172,26 @@ registerBuiltIn('sort_by', {
  * @param {string} key - built-in name for messages
  * @returns {(element: Object) => Object}
  */
-function makeTransformer(argExp, env, key) {
+function* makeTransformer(argExp, env, key) {
   if (argExp instanceof LocalLambdaExpression) {
-    return (element) => argExp.invoke(env, [element]);
+    return function* (element) { return yield* argExp.invoke(env, [element]); };
   }
-  const model = argExp.evaluate(env);
+  const model = yield* argExp.evaluate(env);
   if (model === null || model === undefined) {
     throw new InvalidReferenceException(
       `The following has evaluated to null or missing: ${argExp.getCanonicalForm()} `
       + `(the argument of the ?${key} built-in).`);
   }
   if (model.isFunctionModel === true) {
-    return (element) => model.invoke(env, { positionalArgs: [element], namedArgs: new Map() });
+    return function* (element) {
+      return yield* callOp('function call', model, 'invoke', env,
+        { positionalArgs: [element], namedArgs: new Map() });
+    };
   }
   if (model instanceof TemplateMethodModel) {
-    return (element) => model.exec(env, [unwrap(element)]);
+    return function* (element) {
+      return yield* callOp('method call', model, 'exec', env, [unwrap(element)]);
+    };
   }
   throw new TemplateException(
     `The argument of the ?${key} built-in must be a lambda expression or a function/method, `
@@ -202,13 +209,13 @@ registerBuiltIn('filter', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('filter', target, env);
-    const transform = makeTransformer(argExprs[0], env, 'filter');
+    const transform = yield* makeTransformer(argExprs[0], env, 'filter');
     const out = [];
     for (const el of items) {
-      const ok = transform(el);
+      const ok = yield* transform(el);
       if (ok === null || ok === undefined) {
         throw new TemplateException(
           'The filter expression has returned no value (has returned null), rather than a boolean.');
@@ -235,13 +242,13 @@ registerBuiltIn('map', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('map', target, env);
-    const transform = makeTransformer(argExprs[0], env, 'map');
+    const transform = yield* makeTransformer(argExprs[0], env, 'map');
     const out = [];
     for (const el of items) {
-      const v = transform(el);
+      const v = yield* transform(el);
       if (v === null || v === undefined) {
         throw new TemplateException(
           'The element mapper function has returned no return value (has returned null).');
@@ -265,12 +272,16 @@ registerBuiltIn('join', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('join', target, env);
-    return new BuiltinArgMethod('join', 1, 1, (e, a) => {
-      const sep = typeof a[0] === 'string' ? a[0] : e.coerceToString(e.wrap(a[0]), ' as the separator');
-      return new StringModel(items.map((it) => e.coerceToString(it, ' as a ?join element')).join(sep));
+    return new BuiltinArgMethod('join', 1, 1, function* (e, a) {
+      const sep = typeof a[0] === 'string'
+        ? a[0]
+        : yield* e.coerceToString(e.wrap(a[0]), ' as the separator');
+      const parts = [];
+      for (const it of items) parts.push(yield* e.coerceToString(it, ' as a ?join element'));
+      return new StringModel(parts.join(sep));
     });
   },
 });
@@ -285,13 +296,13 @@ registerBuiltIn('seq_contains', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('seq_contains', target, env);
-    return new BuiltinArgMethod('seq_contains', 1, 1, (e, a) => {
+    return new BuiltinArgMethod('seq_contains', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
       for (const it of items) {
-        if (e.equals(it, needle)) return BooleanModel.TRUE;
+        if (yield* e.equals(it, needle)) return BooleanModel.TRUE;
       }
       return BooleanModel.FALSE;
     });
@@ -308,13 +319,13 @@ registerBuiltIn('seq_index_of', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('seq_index_of', target, env);
-    return new BuiltinArgMethod('seq_index_of', 1, 1, (e, a) => {
+    return new BuiltinArgMethod('seq_index_of', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
       for (let i = 0; i < items.length; i++) {
-        if (e.equals(items[i], needle)) return new NumberModel(i);
+        if (yield* e.equals(items[i], needle)) return new NumberModel(i);
       }
       return null; // ← upstream returns null; outputting it needs an ! or ?if_exists
     });
@@ -329,8 +340,8 @@ registerBuiltIn('reverse', {
      * @param {import('../environment.js').Environment} env
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
-  impl(target, argExprs, env) {
-    const items = sequenceItems(target);
+  * impl(target, argExprs, env) {
+    const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('reverse', target, env);
     return new SequenceModel([...items].reverse());
   },

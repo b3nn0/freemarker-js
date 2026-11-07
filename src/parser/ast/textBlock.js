@@ -26,7 +26,7 @@ export class TextBlock extends TemplateElement {
    * @param {import('../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     env.output.write(this.text);
     return null;
   }

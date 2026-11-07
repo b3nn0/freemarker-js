@@ -3,6 +3,7 @@
 
 import { TemplateElement } from '../templateElement.js';
 import { InvalidReferenceException, UnsupportedFeatureException } from '../../../errors.js';
+import { callOp } from '../../../async.js';
 
 /** <@call ...> ← UnifiedCall. */
 export class UnifiedCall extends TemplateElement {
@@ -29,8 +30,8 @@ export class UnifiedCall extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    const model = this.target.evaluate(env);
+  * execute(env) {
+    const model = yield* this.target.evaluate(env);
     if (model === null || model === undefined) {
       throw new InvalidReferenceException(
         `The expression ${this.target.getCanonicalForm()} evaluated to null or missing `
@@ -46,12 +47,15 @@ export class UnifiedCall extends TemplateElement {
         `The expression ${this.target.getCanonicalForm()} evaluated to a `
         + `${env.typeLabel(model)}, and can't be called with <@...>.`);
     }
-    const positional = this.positionalArgs === null ? [] : this.positionalArgs.map((a) => a.evaluate(env));
+    const positional = [];
+    if (this.positionalArgs !== null) {
+      for (const a of this.positionalArgs) positional.push(yield* a.evaluate(env));
+    }
     const named = new Map();
     if (this.namedArgs !== null) {
-      for (const [k, exp] of this.namedArgs) named.set(k, exp.evaluate(env));
+      for (const [k, exp] of this.namedArgs) named.set(k, yield* exp.evaluate(env));
     }
-    model.invoke(env, {
+    yield* callOp(`macro call "<@${this.target.getCanonicalForm()}>"`, model, 'invoke', env, {
       positionalArgs: positional,
       namedArgs: named,
       bodyChildren: this.bodyChildren,
@@ -103,12 +107,15 @@ export class NestedInstruction extends TemplateElement {
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
+  * execute(env) {
     const ctx = env._macroCallStack[env._macroCallStack.length - 1];
     if (ctx === undefined || ctx.bodyChildren === null || ctx.bodyChildren.length === 0) {
       return null;
     }
-    const values = this.bodyParameters === null ? [] : this.bodyParameters.map((e) => e.evaluate(env));
+    const values = [];
+    if (this.bodyParameters !== null) {
+      for (const e of this.bodyParameters) values.push(yield* e.evaluate(env));
+    }
     // ← BodyInstruction.accept: the body runs in the CALLER's context, so swap the
     // macro-scoped frames for the caller's chain saved at invoke time.
     const macroView = env._scopes.slice();
@@ -120,7 +127,7 @@ export class NestedInstruction extends TemplateElement {
       env._scopes.push(ps);
     }
     try {
-      for (const c of ctx.bodyChildren) env.visit(c);
+      for (const c of ctx.bodyChildren) yield* env.visit(c);
     } finally {
       env._scopes.length = 0;
       env._scopes.push(...macroView);
@@ -140,7 +147,7 @@ export class NestedInstruction extends TemplateElement {
 /** #fallback ← MacroFallback. */
 export class FallbackInstruction extends TemplateElement {
   /** @returns {null} */
-  execute() {
+  * execute() {
     throw new UnsupportedFeatureException(
       'The #fallback directive requires XML node processing (#visit), which this port does not support.');
   }

@@ -27,8 +27,8 @@ export class Interpolation extends TemplateElement {
    * @param {import('../../environment.js').Environment} env - rendering environment
    * @returns {null}
    */
-  execute(env) {
-    const value = this.expression.evaluate(env);
+  * execute(env) {
+    const value = yield* this.expression.evaluate(env);
     if (value === null || value === undefined) {
       throw new InvalidReferenceException(
         `The following has evaluated to null or missing: ==> ${this.expression.getCanonicalForm()}`);
@@ -58,7 +58,7 @@ export class Interpolation extends TemplateElement {
       }
       return null;
     }
-    const s = env.coerceToString(value, ' (output of an interpolation)');
+    const s = yield* env.coerceToString(value, ' (output of an interpolation)');
     env.output.write(
       this.autoEscape && this.outputFormat !== null && this.outputFormat.isMarkup
         ? this.outputFormat.escapePlainText(s)

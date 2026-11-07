@@ -15,6 +15,13 @@ const t = new Template('greeting', 'Hello ${user.name}!', cfg);
 const out = await t.processToString({ user: { name: 'World' } });
 ```
 
+Data model values and callbacks may be async (Promises awaited on demand):
+
+```js
+const out2 = await t.processToString({ user: { name: fetchName() } }); // fetchName(): Promise
+const syncOut = t.processToStringSync({ user: { name: 'World' } }); // throws on any async step
+```
+
 No runtime/dev dependencies, no build step. Run tests: `node tests/cli.mjs` or open `tests/index.html`.
 
 Runnable examples: `node examples/demo.mjs` (data model, macros, auto-escaping, `#setting`,
@@ -31,15 +38,18 @@ includes) and `examples/browser.html` (plain browser `<script type="module">`, n
 | Built-ins ~60 target (M11) | done | deferred regex/flag variants (UPSTREAM.md) |
 | Tag/interpolation syntax modes, naming conventions (M12) | done | angle + square bracket |
 | Whitespace stripping, `#t #lt #rt #nt`, `#compress`, `#noparse` (M13) | done | |
-| `#include`/`#import` via `setIncludeResolver`/`options.includeResolver`, `#stop`, `#flush` (M14) | done | sync resolver; name-only parse cache |
+| `#include`/`#import` via `setIncludeResolver`/`options.includeResolver`, `#stop`, `#flush` (M14) | done | sync/async resolver; name-only parse cache |
 | Output formats + escaping (M15) | done | HTML/XHTML/XML escapers; auto-esc; built-in escapers |
 | Number/date formatting subset (M16) | done | #setting; #{exp;m2M4}; named+pattern number formats; SimpleDateFormat+ISO subset; ?string |
+| Async data model / callbacks (M18) | done | Promises awaited on demand (`processToString`); strict sync via `processToStringSync` |
 | Zero-arg method policy (M6) | done | all 3 policy values |
 | TemplateLoader / filesystem / URL loading | out of scope | |
 | XML/DOM nodes, `#visit`, `#recurse`, `?node_*`, `?new`, `?api` | out of scope | parse OK, runtime `UnsupportedFeatureException` |
 | `classic_compatible`, `?interpret`, locale-aware formatting | out of scope | |
 
-All milestones (M0–M17) are complete; the suite has 406 tests.
+All milestones (M0–M18) are complete; the suite has 418 tests.
+See `IMPROVEMENTS.md` for the post-M17 self-review backlog (A: design, B: fidelity,
+C: performance, D: polish).
 
 ## Engineering audit
 
@@ -53,10 +63,17 @@ All milestones (M0–M17) are complete; the suite has 406 tests.
 - **Zero dependencies**; pure ES2022 modules, no Node-only APIs and no DOM in `src/`
   (browser and Node runtimes both work).
 - All production declarations carry JSDoc type hints.
+- **Green-thread async core** (`src/async.js`): the whole render/eval path is a generator tree that yields
+  `{ op, promise }` tokens at model-callback boundaries (`get`/`getByIndex`/`exec`/resolver);
+  `runAsync` awaits them, `runSync` throws `AsyncOperationNotAllowedException` instead.
+  No `async` leaks into the engine: one core, two drivers.
 
 ## Performance sanity (Node 20, dev machine)
 
-- Parse: ~0.1 ms for a 12-line template with a macro and a `#list` (100 parses ≈ 10 ms).
-- Render: 10 000 iterations of `<#list 1..10000>` with `#if`/macro/number-format ≈ 26 ms.
+- Parse: ~0.06 ms for a 12-line template with a macro and a `#list` (100 parses ≈ 6 ms);
+  the parser is sync-only, so the M18 generator core costs nothing there.
+- Render: 10 000 iterations of `<#list 1..10000>` with `#if`/number-format ≈ 4 ms per render
+  before M18 (commit `a422783`), ≈ 9 ms async / ≈ 11 ms sync after: the generator green-threads
+  core costs ~2.5× on the hot render loop (measured warm, Node 20, dev machine).
 
 These are order-of-magnitude figures, not a benchmark suite.
