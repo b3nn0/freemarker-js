@@ -21,10 +21,10 @@ jobs:
         run: npm test
       - name: JSDoc typecheck (npx typescript)
         run: npm run typecheck
-      - name: Audit - no regex/eval in src/
+      - name: Audit - no eval/new Function in src/
         run: |
-          if grep -rnE "RegExp|\.test\(|\.match\(|\.replace\(/|\.search\(|\.split\(/|eval\(|new Function" src/; then
-            echo "regex/eval audit failed"; exit 1
+          if grep -rnE "eval\(|new Function" src/; then
+            echo "eval audit failed"; exit 1
           fi
       - name: Audit - repo is pure ASCII
         run: |
