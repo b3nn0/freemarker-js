@@ -151,7 +151,10 @@ registerBuiltIn('cn', {
    * @returns {Object}
    */
   * impl(target, argExprs, env) {
-    return cLike(target, env, 'cn');
+    if (target === null || target === undefined) {
+      throw new InvalidReferenceException('Can\'t apply the ?cn built-in to null.');
+    }
+    return yield* cLike(target, env, 'cn');
   },
 });
 
@@ -340,7 +343,10 @@ function truncateBI(name, algo) {
               curLen += add;
             } else break;
           }
-          return new StringModel(kept.join(' ') + marker);
+          // <- upstream keeps the separating space of the last kept word when it
+          // still fits within the keep budget ("ab cd ef gh"?truncate_w(9) = "ab [...]")
+          const trailing = kept.length > 0 && curLen < keep ? ' ' : '';
+          return new StringModel(kept.join(' ') + trailing + marker);
         }
         return new StringModel(chars.slice(0, keep).join('') + marker);
       });
@@ -496,7 +502,9 @@ registerBuiltIn('item_cycle', {
    * @returns {Object}
    */
   * impl(target, argExprs, env) {
-    if (argExprs === null) throw new TemplateException('The ?item_cycle built-in requires an argument.');
+    if (argExprs === null || argExprs.length < 1) {
+      throw new TemplateException('The ?item_cycle built-in requires an argument.');
+    }
     const c = loopInfo(env, 'item_cycle');
     const arg = yield* argExprs[0].evaluate(env);
     let items = null;
@@ -601,7 +609,7 @@ registerBuiltIn('number', {
    * @param {import('../environment.js').Environment} env
    * @returns {Object}
    */
-  * impl(target, env) {
+  * impl(target, args, env) {
     if (target instanceof NumberModel) return target;
     if (typeof target.getAsString === 'function') {
       const s = (yield* callOp('getAsString', target, 'getAsString')).trim();
@@ -622,7 +630,7 @@ registerBuiltIn('boolean', {
    * @param {import('../environment.js').Environment} env
    * @returns {Object}
    */
-  * impl(target, env) {
+  * impl(target, args, env) {
     if (target instanceof BooleanModel) return target;
     if (typeof target.getAsString === 'function') {
       const s = yield* callOp('getAsString', target, 'getAsString');
@@ -645,7 +653,7 @@ for (const name of ['int', 'long', 'short', 'byte']) {
    * @param {import('../environment.js').Environment} env
    * @returns {Object}
    */
-    * impl(target, env) {
+    * impl(target, args, env) {
       if (typeof target.getAsNumber !== 'function') {
         throw new NonNumericalException(`Can't apply the ?${name} built-in to a non-number value.`);
       }
@@ -661,7 +669,7 @@ for (const name of ['float', 'double']) {
    * @param {import('../environment.js').Environment} env
    * @returns {Object}
    */
-    * impl(target, env) {
+    * impl(target, args, env) {
       if (typeof target.getAsNumber !== 'function') {
         throw new NonNumericalException(`Can't apply the ?${name} built-in to a non-number value.`);
       }
@@ -713,7 +721,7 @@ registerBuiltIn('eval_json', {
    * @param {import('../environment.js').Environment} env
    * @returns {Object}
    */
-  * impl(target, env) {
+  * impl(target, args, env) {
     const s = yield* str(target, env, 'eval_json');
     let v;
     try {

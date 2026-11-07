@@ -1736,6 +1736,10 @@ export class Parser {
         }
         // Otherwise the "(" is left for the primary loop to parse as a MethodCall
         // <- upstream: plain built-ins return immediately and the "(...)" is a call.
+        if (name.image === 'then' && args !== null && args.length !== 2) {
+          // <- upstream: BuiltIn catches then-arity at parse time
+          throw this._error('?then(...) requires exactly 2 parameters', name);
+        }
         if (!UPSTREAM_BUILT_INS.has(name.image)) {
           // <- upstream resolves built-in names at parse time
           throw this._error(

@@ -69,7 +69,7 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
   } else if (zone === 'local') {
     view = shiftedDate(d, -view.getTimezoneOffset());
   }
-  if (tzOffsetMinutes !== null && !nzExplicit) showOffset = true;
+  if (tzOffsetMinutes !== null && !nzExplicit && dateType !== DATE_TYPES.DATE) showOffset = true;
   if (showOffset && offMin === null) offMin = -view.getTimezoneOffset();
   const y = pad(view.getFullYear(), 4);
   const mo = pad(view.getMonth() + 1, 2);

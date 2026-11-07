@@ -150,7 +150,7 @@ describe('runtime: date/time formatting', () => {
     const iso = await render('${d?iso("GMT")}', new Configuration(), { d: d() });
     eq(iso.slice(0, 19), '2020-01-02T10:30:15');
     eq(await render('${d?iso_nz("GMT")}', new Configuration(), { d: d() }), '2020-01-02T10:30:15');
-    eq(await render('${d?date?iso("GMT+2")}', new Configuration(), { d: d() }), '2020-01-02+02:00');
+    eq(await render('${d?date?iso("GMT+2")}', new Configuration(), { d: d() }), '2020-01-02'); // <- upstream: DATE never shows an offset
     eq(await render('${d?date?iso_utc}', new Configuration(), { d: d() }), '2020-01-02');
     eq(await render('${d?date?iso_local}', new Configuration(), { d: d() }), '2020-01-02');
     eq(await render('${d?datetime?iso_utc}', new Configuration(), { d: d() }),

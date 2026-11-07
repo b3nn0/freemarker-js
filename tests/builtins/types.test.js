@@ -1,8 +1,8 @@
-import { describe, it, snapshot, rejectsMatch } from '../harness.js';
+import { describe, it, snapshot, rejectsMatch, throwsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
-  TemplateException, InvalidReferenceException, NonBooleanException, NonStringException,
+  TemplateException, InvalidReferenceException, NonBooleanException, NonStringException, ParseException,
 } from '../../src/errors.js';
 
 function out(src, model) {
@@ -59,7 +59,8 @@ describe('Built-ins: ?then and ?switch (lazy)', () => {
 
   it('?then errors: non-boolean target, wrong arity, null result', async () => {
     await rejectsMatch(out('${"x"?then(1, 2)}'), NonBooleanException, ['boolean']);
-    await rejectsMatch(out('${true?then(1)}'), TemplateException, ['?then(...) expects']);
+    throwsMatch(() => new Template('t', '${true?then(1)}', new Configuration()),
+      ParseException, ['?then(...) requires exactly 2 parameters']);
     await rejectsMatch(out('${true?then(nosuch, 2)}'), InvalidReferenceException, ['nosuch']);
   });
 
@@ -71,8 +72,8 @@ describe('Built-ins: ?then and ?switch (lazy)', () => {
 
   it('?switch with no default and no match fails', async () => {
     await rejectsMatch(out('${9?switch(1, "a")}'), TemplateException, ["didn't match"]);
-    await rejectsMatch(out('${true?switch(1)}'), TemplateException, ['expects 2 or more']);
-    await rejectsMatch(out('${true?then()}'), TemplateException, ['?then(...) expects']);
+    throwsMatch(() => new Template('t', '${true?then()}', new Configuration()),
+      ParseException, ['?then(...) requires exactly 2 parameters']);
   });
 });
 

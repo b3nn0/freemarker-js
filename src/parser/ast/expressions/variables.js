@@ -250,8 +250,8 @@ export class DynamicKeyName extends Expression {
         if (k.sizeValue === null) {
           throw new TemplateException('An unbounded range can\'t be used as an index key.');
         }
-        return new SequenceModel(s.slice(k.from, k.from + k.sizeValue).split('')
-          .map((ch) => new StringModel(ch)));
+        // <- upstream: a Range key on a scalar yields the substring, not a char sequence
+        return new StringModel(s.slice(k.from, k.from + k.sizeValue));
       }
       const n = Math.trunc(yield* env.toNumber(k, ' used as an index into a string'));
       if (n < 0) {
