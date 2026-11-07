@@ -95,7 +95,7 @@ describe('Built-ins: multi-type, hashes, sequences, numbers, type checks', () =>
     snapshot(await out('${[1, "x"]?seq_contains("x")}'), 'true');
     snapshot(await out('${[1, 2]?seq_contains(3)}'), 'false');
     snapshot(await out('${["a", "b"]?seq_index_of("b")}'), '1');
-    snapshot(await out('${["a"]?seq_index_of("z")?if_exists}|'), '|');
+    snapshot(await out('${["a"]?seq_index_of("z")}|'), '-1|');
     snapshot(await out('<#list [1, 2, 3]?reverse as i>${i}</#list>'), '321');
   });
 

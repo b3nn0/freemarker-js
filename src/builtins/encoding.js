@@ -6,11 +6,12 @@ import { StringModel, MarkupModel } from '../model/models.js';
 import {
   xhtmlEnc, xmlEnc, urlEnc, jsStringEnc,
 } from '../utility/stringUtil.js';
-import { TemplateException } from '../errors.js';
+import { TemplateException, InvalidReferenceException, NonStringException } from '../errors.js';
 import { Parser } from '../parser/parser.js';
 import { TT } from '../parser/tokenType.js';
 import * as LEX from '../parser/lexicalStates.js';
 import { callOp } from '../async.js';
+import { cNumberFormat, cStringLiteral } from '../format/cFormat.js';
 
 /**
  * @param {import('../model/templateModel.js').TemplateModel} target
@@ -129,7 +130,8 @@ registerBuiltIn('js_string', {
   },
 });
 
-// ?c: the computer-oriented ("C") form; strings return themselves unchanged.
+// ?c <- BuiltInsForMultipleTypes.cBI: C/Java literal form of a scalar (strings
+// get quoted and escaped; numbers use the CTemplateNumberFormat).
 registerBuiltIn('c', {
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
@@ -138,14 +140,21 @@ registerBuiltIn('c', {
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
   * impl(target, args, env) {
-    if (target instanceof StringModel) return target;
-    if (target && typeof target.getAsNumber === 'function') {
-      return new StringModel(String(yield* callOp('getAsNumber', target, 'getAsNumber')));
+    if (target === null || target === undefined) {
+      throw new InvalidReferenceException('Can\'t apply the ?c built-in to null.');
     }
-    if (target && typeof target.getAsBoolean === 'function') {
+    if (typeof target.getAsNumber === 'function') {
+      return new StringModel(cNumberFormat(yield* callOp('getAsNumber', target, 'getAsNumber')));
+    }
+    if (typeof target.getAsBoolean === 'function') {
       return new StringModel((yield* callOp('getAsBoolean', target, 'getAsBoolean')) ? 'true' : 'false');
     }
-    return new StringModel(yield* env.coerceToString(target, ' for the "?c" built-in'));
+    if (typeof target.getAsString === 'function') {
+      return new StringModel(cStringLiteral(yield* callOp('getAsString', target, 'getAsString')));
+    }
+    throw new NonStringException(
+      'For "?c" left-hand operand: Expected a number, boolean, or string, '
+      + `but this has evaluated to ${env.typeLabel(target)}`);
   },
 });
 

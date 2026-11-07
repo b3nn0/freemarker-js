@@ -11,6 +11,7 @@ import {
   TemplateException, InvalidReferenceException, NonStringException, NonNumericalException,
 } from '../errors.js';
 import { callOp } from '../async.js';
+import { cNumberFormat, cStringLiteral } from '../format/cFormat.js';
 
 // -------------------------------------------------------------- strings ----
 
@@ -68,17 +69,30 @@ function* call1(fn, s, a, e) {
   return fn(s, a, e);
 }
 
-// ?substring(from[, to]); negative indices count from the end (both clamped).
+// ?substring(from[, to]) <- _CoreStringUtils.SubstringBI: strict 0..len index checks.
 stringBI('substring', (s, a) => {
   const len = s.length;
-  let from = intArg(a[0], 'from');
-  let to = a.length > 1 ? intArg(a[1], 'to') : len;
-  if (from < 0) from += len;
-  if (to < 0) to += len;
-  from = Math.min(Math.max(from, 0), len);
-  to = Math.min(Math.max(to, 0), len);
+  const check = (v, n) => {
+    if (typeof v !== 'number' || !Number.isInteger(v)) {
+      throw new TemplateException(`?substring(...) argument #${n} had invalid value: it must be an integer.`);
+    }
+    if (v < 0) {
+      throw new TemplateException(
+        `?substring(...) argument #${n} had invalid value: The index must be at least 0, but was ${v}.`);
+    }
+    if (v > len) {
+      throw new TemplateException(
+        `?substring(...) argument #${n} had invalid value: The index mustn't be greater `
+        + `than the length of the string, ${len}, but it was ${v}.`);
+    }
+    return v;
+  };
+  const from = check(a[0], 1);
+  const to = a.length > 1 ? check(a[1], 2) : len;
   if (from > to) {
-    throw new TemplateException('The "begin" argument can\'t be greater than the "end" argument.');
+    throw new TemplateException(
+      '?substring(...) argument #1 had invalid value: '
+      + "The first index mustn't be greater than the second index.");
   }
   return s.slice(from, to);
 });
@@ -95,12 +109,12 @@ function intArg(v, name) {
 stringBI('keep_after', (s, a) => {
   const sep = String(a[0]);
   const i = s.indexOf(sep);
-  return i < 0 ? s : s.slice(i + sep.length);
+  return i < 0 ? '' : s.slice(i + sep.length);
 });
 stringBI('keep_after_last', (s, a) => {
   const sep = String(a[0]);
   const i = s.lastIndexOf(sep);
-  return i < 0 ? s : s.slice(i + sep.length);
+  return i < 0 ? '' : s.slice(i + sep.length);
 });
 stringBI('keep_before', (s, a) => {
   const sep = String(a[0]);
@@ -128,7 +142,7 @@ stringBI('uncap_first', (s) => {
   return s.slice(0, i) + s[i].toLowerCase() + s.slice(i + 1);
 });
 
-// ?cn <- BuiltInsForStringsMisc cnBI ("capitalize new"), a cap_first alias.
+// ?cn <- BuiltInsForMultipleTypes.cnBI (C/Java literal quoting of scalars).
 registerBuiltIn('cn', {
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
@@ -137,13 +151,71 @@ registerBuiltIn('cn', {
    * @returns {Object}
    */
   * impl(target, argExprs, env) {
-    return yield* getBuiltIn('cap_first').impl(target, argExprs, env);
+    return cLike(target, env, 'cn');
   },
 });
 
-// ASCII-only case mapping (Locale.ENGLISH patterns).
-stringBI('lower_abc', (s) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32)));
-stringBI('upper_abc', (s) => s.replace(/[a-z]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 32)));
+/**
+ * @param {import('../model/templateModel.js').TemplateModel|null} target
+ * @param {import('../environment.js').Environment} env
+ * @param {string} name - built-in name for messages
+ * @returns {Generator<unknown, Object|null, unknown>}
+ */
+function* cLike(target, env, name) {
+  if (target === null || target === undefined) return null;
+  if (typeof target.getAsNumber === 'function') {
+    return new StringModel(cNumberFormat(yield* callOp('getAsNumber', target, 'getAsNumber')));
+  }
+  if (typeof target.getAsBoolean === 'function') {
+    return new StringModel(
+      (yield* callOp('getAsBoolean', target, 'getAsBoolean')) ? 'true' : 'false');
+  }
+  if (typeof target.getAsString === 'function') {
+    return new StringModel(cStringLiteral(yield* callOp('getAsString', target, 'getAsString')));
+  }
+  throw new NonStringException(
+    `For "?${name}" left-hand operand: Expected a number, boolean, or string, `
+    + `but this has evaluated to ${env.typeLabel(target)}`);
+}
+
+// ?lower_abc / ?upper_abc <- BuiltInsForNumbers.abcBI: number to spreadsheet-style
+// column letters (1 -> a, 26 -> z, 27 -> aa).
+for (const [name, upper] of [['lower_abc', false], ['upper_abc', true]]) {
+  registerBuiltIn(name, {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {Object}
+   */
+    * impl(target, argExprs, env) {
+      if (typeof target.getAsNumber !== 'function') {
+        throw new NonNumericalException(
+          `For "?${name}" left-hand operand: Expected a number, `
+          + `but this has evaluated to ${env.typeLabel(target)}`);
+      }
+      const v = yield* callOp('getAsNumber', target, 'getAsNumber');
+      if (!Number.isInteger(v)) {
+        throw new NonNumericalException(
+          `The left side operand value isn't compatible with ?${name}: `
+          + `Can't convert ${cNumberFormat(v)} to type Integer without loss.`);
+      }
+      if (v <= 0) {
+        throw new NonNumericalException(
+          `The left side operand of to ?${name} must be at least 1, but was ${v}.`);
+      }
+      const base = upper ? 65 : 97;
+      let out = '';
+      let n = v;
+      while (n > 0) {
+        const r = (n - 1) % 26;
+        out = String.fromCharCode(base + r) + out;
+        n = Math.floor((n - 1) / 26);
+      }
+      return new StringModel(out);
+    },
+  });
+}
 
 // Word/line splitting <- StringUtil.splitLines / splitWords.
 stringBI('word_list', (s) => {
@@ -173,49 +245,71 @@ stringBI('dedent', (s) => {
   return lines.map((ln) => ln.slice(Math.min(common, ln.length))).join('\n');
 });
 
-// ?indent(addIndent = " ", lineLength = 80, firstLine = addIndent)
+// ?indent(lineIndentString = " ", onlyForBlankLines = false)
 stringBI('indent', (s, a) => {
-  const add = a.length > 0 ? String(a[0]) : ' ';
-  const lineLength = a.length > 1 ? intArg(a[1], 'lineLength') : 80;
-  const first = a.length > 2 ? String(a[2]) : add;
-  const lines = s.split('\n');
-  return lines.map((ln, i) => {
-    if (i === 0) return ln.length + first.length > lineLength ? first + ln : ln;
-    return ln.length === 0 ? ln : add + ln;
-  }).join('\n');
-});
-
-// ?wrap(lineWidth = 80, addIdent = "", removeIdent = "")
-stringBI('wrap', (s, a) => {
-  const lineWidth = a.length > 0 ? intArg(a[0], 'lineWidth') : 80;
-  const addIdent = a.length > 1 ? String(a[1]) : '';
-  const removeIdent = a.length > 2 ? String(a[2]) : '';
-  const out = [];
-  for (const line of s.split('\n')) {
-    let src = line.startsWith(removeIdent) ? line.slice(removeIdent.length) : line;
-    let first = true;
-    while (src.length > lineWidth) {
-      let cut = src.lastIndexOf(' ', lineWidth);
-      if (cut < 0) cut = src.indexOf(' ', lineWidth);
-      if (cut < 0) cut = lineWidth - addIdent.length;
-      out.push((first ? '' : addIdent) + src.slice(0, cut).replace(/\s+$/, ''));
-      src = src.slice(cut).replace(/^\s+/, '');
-      first = false;
+  let add = ' ';
+  if (a.length > 0) {
+    if (typeof a[0] !== 'string') {
+      throw new TemplateException(
+        `?indent(...) expects a string as argument #1, but received ${typeName(a[0])}.`);
     }
-    out.push((first ? '' : addIdent) + src);
+    add = a[0];
   }
-  return out.join('\n');
+  let onlyBlank = false;
+  if (a.length > 1) {
+    if (typeof a[1] !== 'boolean') {
+      throw new TemplateException(
+        `?indent(...) expects a boolean as argument #2, but received ${typeName(a[1])}.`);
+    }
+    onlyBlank = a[1];
+  }
+  const lines = s.split(/\r\n|\r|\n/);
+  if (onlyBlank) return lines.map((ln) => (ln.trim() === '' ? add + ln : ln)).join('\n');
+  return lines.map((ln) => add + ln).join('\n');
 });
 
-// ?truncate variants (subset of DefaultTruncateBuiltinAlgorithm; see UPSTREAM.md).
-registerBuiltIn('truncate', truncateBI('truncate', 'm'));
+// ?wrap(lineLength = 65): wraps only at spaces (long words are never split),
+// and always terminates the result with a newline.
+stringBI('wrap', (s, a) => {
+  const width = a.length > 0 ? intArg(a[0], 'lineLength') : 65;
+  const out = [];
+  for (const line of s.split(/\r\n|\r|\n/)) {
+    if (line.length === 0) {
+      out.push('');
+      continue;
+    }
+    let cur = null;
+    for (const w of line.split(/ +/)) {
+      if (cur === null) cur = w;
+      else if (cur.length + 1 + w.length <= width) cur += ` ${w}`;
+      else {
+        out.push(cur);
+        cur = w;
+      }
+    }
+    out.push(cur);
+  }
+  return `${out.join('\n')}\n`;
+});
+
+function typeName(v) {
+  if (typeof v === 'number') return 'a number';
+  if (typeof v === 'boolean') return 'a boolean';
+  if (typeof v === 'string') return 'a string';
+  return 'a value';
+}
+
+// ?truncate variants <- DefaultTruncateBuiltinAlgorithm: the default marker is
+// "[...]"; keep = maxLength - marker.length, whole-word variant keeps complete
+// words only. (?truncate_m renders the markup terminator span.)
+registerBuiltIn('truncate', truncateBI('truncate', 'c'));
 registerBuiltIn('truncate_c', truncateBI('truncate_c', 'c'));
 registerBuiltIn('truncate_m', truncateBI('truncate_m', 'm'));
 registerBuiltIn('truncate_w', truncateBI('truncate_w', 'w'));
 
 /**
  * @param {string} name
- * @param {'c' | 'm' | 'w'} algo - char | smart | word
+ * @param {'c' | 'm' | 'w'} algo - code-point | markup | whole-word
  * @returns {Object} BuiltInSpec
  */
 function truncateBI(name, algo) {
@@ -228,17 +322,27 @@ function truncateBI(name, algo) {
    */
     * impl(target, argExprs, env) {
       const s = yield* str(target, env, name);
-      return new BuiltinArgMethod(name, 1, 2, function* (e, a) {
+      return new BuiltinArgMethod(name, 1, 1, function* (e, a) {
         const max = intArg(a[0], 'maxLength');
-        const wholeWords = a.length > 1 ? Boolean(a[1]) : algo === 'w';
-        const marker = '\u2026'; // upstream default truncation marker
-        if (s.length <= max) return new StringModel(s);
-        let cut = Math.max(0, max - 1);
-        if (wholeWords || algo === 'm' || algo === 'w') {
-          const back = s.lastIndexOf(' ', cut);
-          if (back > 0) cut = back;
+        const markup = algo === 'm';
+        const marker = markup ? '<span class=\'truncateTerminator\'>[&#8230;]</span>' : '[...]';
+        const chars = Array.from(s);
+        if (chars.length <= max) return new StringModel(s);
+        const keep = Math.max(0, max - (markup ? 3 : 5));
+        if (algo === 'w') {
+          const words = s.match(/\S+/g) || [];
+          const kept = [];
+          let curLen = 0;
+          for (const w of words) {
+            const add = kept.length === 0 ? w.length : 1 + w.length;
+            if (curLen + add <= keep) {
+              kept.push(w);
+              curLen += add;
+            } else break;
+          }
+          return new StringModel(kept.join(' ') + marker);
         }
-        return new StringModel(s.slice(0, cut).replace(/\s+$/, '') + marker);
+        return new StringModel(chars.slice(0, keep).join('') + marker);
       });
     },
   };
@@ -246,7 +350,8 @@ function truncateBI(name, algo) {
 
 // ------------------------------------------------------------ sequences ----
 
-// ?seq_last_index_of(v): last lenient-equal index, else null.
+// ?seq_last_index_of(v): last equal index, -1 when absent (safe equals:
+// different types are simply unequal, <- EvalUtil.compare eq semantics).
 registerBuiltIn('seq_last_index_of', {
   acceptsMissing: true,
   /**
@@ -261,17 +366,29 @@ registerBuiltIn('seq_last_index_of', {
     return new BuiltinArgMethod('seq_last_index_of', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
       for (let i = items.length - 1; i >= 0; i--) {
-        const eq = yield* e.compare(items[i], needle, 'eq', null, {
-          typeMismatchMeansNotEqual: true,
-          leftNullReturnsFalse: true,
-          rightNullReturnsFalse: true,
-        });
-        if (eq === 0) return new NumberModel(i);
+        if (yield* safeEquals(e, items[i], needle)) return new NumberModel(i);
       }
-      return null;
+      return new NumberModel(-1);
     });
   },
 });
+
+/**
+ * @param {import('../environment.js').Environment} e
+ * @param {Object} a @param {Object} b
+ * @returns {Generator<unknown, boolean, unknown>}
+ */
+function* safeEquals(e, a, b) {
+  try {
+    return (yield* e.compare(a, b, 'eq', null, {
+      typeMismatchMeansNotEqual: true,
+      leftNullReturnsFalse: true,
+      rightNullReturnsFalse: true,
+    })) === 0;
+  } catch (err) {
+    return false;
+  }
+}
 
 // ?chunk(size): groups of `size` items (last group may be smaller).
 registerBuiltIn('chunk', {
@@ -285,20 +402,18 @@ registerBuiltIn('chunk', {
   * impl(target, argExprs, env) {
     const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('chunk', target, env);
-    if (argExprs === null || argExprs.length !== 1) throw argCntError('chunk', argExprs === null ? 0 : argExprs.length, 1, 1);
-    const m = yield* argExprs[0].evaluate(env);
-    if (m === null || typeof m.getAsNumber !== 'function') {
-      throw new TemplateException('The ?chunk size argument must be a number.');
-    }
-    const n = Math.floor(yield* callOp('getAsNumber', m, 'getAsNumber'));
-    if (!(n >= 1)) {
-      throw new TemplateException('The ?chunk size argument must be 1 or greater.');
-    }
-    const out = [];
-    for (let i = 0; i < items.length; i += n) {
-      out.push(new SequenceModel(items.slice(i, i + n)));
-    }
-    return new SequenceModel(out);
+    return new BuiltinArgMethod('chunk', 1, 1, function* (e, a) {
+      if (typeof a[0] !== 'number' || !Number.isFinite(a[0]) || a[0] < 1) {
+        throw new NonNumericalException(
+          '?chunk(...) argument #1 had invalid value: it must be a number of 1 or greater.');
+      }
+      const n = Math.floor(a[0]);
+      const out = [];
+      for (let i = 0; i < items.length; i += n) {
+        out.push(new SequenceModel(items.slice(i, i + n)));
+      }
+      return new SequenceModel(out);
+    });
   },
 });
 
@@ -400,17 +515,30 @@ registerBuiltIn('item_cycle', {
 
 // ----------------------------------------------------- existence/type ------
 
-// is_indexable / is_enumerable / is_collection / is_collection_ex: capability
-// checks over the port's model kinds (sequences and ranges are both indexable).
-const capBI = {
-  is_indexable: (t) => typeof t.getByIndex === 'function',
-  is_enumerable: (t) => typeof t.getByIndex === 'function' || typeof t.getKeys === 'function',
-  is_collection: (t) => typeof t.getByIndex === 'function',
-  is_collection_ex: (t) => typeof t.getByIndex === 'function' && typeof t.size === 'function',
-  is_hash_ex: (t) => typeof t.getKeys === 'function' || typeof t.getKeysAndValues === 'function',
-};
-for (const [name, pred] of Object.entries(capBI)) {
-  if (name === 'is_hash_ex') continue; // already registered in misc.js
+// is_indexable / is_enumerable / is_collection / is_collection_ex <- the
+// upstream instanceof checks; the port has no TemplateCollectionModel concept,
+// so the collection checks are always false (documented deviation).
+registerBuiltIn('is_indexable', {
+  acceptsMissing: true,
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @returns {Object}
+   */
+  * impl(target) {
+    return target instanceof SequenceModel ? BooleanModel.TRUE : BooleanModel.FALSE;
+  },
+});
+registerBuiltIn('is_enumerable', {
+  acceptsMissing: true,
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @returns {Object}
+   */
+  * impl(target) {
+    return target instanceof SequenceModel ? BooleanModel.TRUE : BooleanModel.FALSE;
+  },
+});
+for (const name of ['is_collection', 'is_collection_ex']) {
   registerBuiltIn(name, {
     acceptsMissing: true,
     /**
@@ -418,7 +546,7 @@ for (const [name, pred] of Object.entries(capBI)) {
    * @returns {Object}
    */
     * impl(target) {
-      return target !== null && pred(target) ? BooleanModel.TRUE : BooleanModel.FALSE;
+      return BooleanModel.FALSE;
     },
   });
 }
@@ -445,7 +573,7 @@ registerBuiltIn('has_next', {
    */
   * impl(target, argExprs, env) {
     const ctx = env._iterStack.length ? env._iterStack[env._iterStack.length - 1] : null;
-    if (ctx !== null && ctx.index !== undefined && ctx.size !== null) {
+    if (ctx !== null && ctx.index !== undefined && ctx.size != null) {
       return ctx.index + 1 < ctx.size ? BooleanModel.TRUE : BooleanModel.FALSE;
     }
     return BooleanModel.FALSE;
@@ -486,6 +614,8 @@ registerBuiltIn('number', {
   },
 });
 
+// ?boolean <- BuiltInsForMultipleTypes: booleans pass through, other scalars
+// are stringified and matched against the boolean_format pair (plus true/false).
 registerBuiltIn('boolean', {
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
@@ -493,13 +623,15 @@ registerBuiltIn('boolean', {
    * @returns {Object}
    */
   * impl(target, env) {
-    if (typeof target.getAsBoolean === 'function') {
-      return (yield* callOp('getAsBoolean', target, 'getAsBoolean'))
-        ? BooleanModel.TRUE : BooleanModel.FALSE;
-    }
-    if (typeof target.getAsNumber === 'function') {
-      return (yield* callOp('getAsNumber', target, 'getAsNumber')) !== 0
-        ? BooleanModel.TRUE : BooleanModel.FALSE;
+    if (target instanceof BooleanModel) return target;
+    if (typeof target.getAsString === 'function') {
+      const s = yield* callOp('getAsString', target, 'getAsString');
+      if (s === 'true') return BooleanModel.TRUE;
+      if (s === 'false') return BooleanModel.FALSE;
+      const [yes, no] = env.getBooleanFormat();
+      if (s === yes) return BooleanModel.TRUE;
+      if (s === no) return BooleanModel.FALSE;
+      throw new TemplateException(`Can't convert this string to boolean: ${JSON.stringify(s)}`);
     }
     throw new TemplateException(
       `Can't apply the ?boolean built-in to a value of type ${env.typeLabel(target)}`);

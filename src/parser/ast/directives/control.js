@@ -15,7 +15,7 @@ export class BreakInstruction extends TemplateElement {
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    return '<#break>';
+    return '<#break/>';
   }
 }
 
@@ -29,7 +29,7 @@ export class ContinueInstruction extends TemplateElement {
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    return '<#continue>';
+    return '<#continue/>';
   }
 }
 
@@ -52,6 +52,6 @@ export class ReturnInstruction extends TemplateElement {
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    return this.exp === null ? '<#return>' : `<#return ${this.exp.getCanonicalForm()}>`;
+    return this.exp === null ? '<#return/>' : `<#return ${this.exp.getCanonicalForm()}/>`;
   }
 }

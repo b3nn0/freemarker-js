@@ -6,7 +6,8 @@ import { registerBuiltIn, getBuiltIn } from './registry.js';
 import { argCntError, BuiltinArgMethod } from './common.js';
 import { StringModel, DateModel, HashModel, BooleanModel } from '../model/models.js';
 import {
-  UnsupportedFeatureException, NonDateException, InvalidFormatStringException,
+  UnsupportedFeatureException, NonDateException, NonStringException,
+  NonNumericalException, InvalidFormatStringException,
 } from '../errors.js';
 import { formatIsoDate, DATE_TYPES } from '../format/dateFormat.js';
 import { callOp } from '../async.js';
@@ -146,22 +147,38 @@ asType('date', DATE_TYPES.DATE);
 asType('time', DATE_TYPES.TIME);
 asType('datetime', DATE_TYPES.DATE_TIME);
 
-// <- isoBI family (2.3.36): method-like; "?iso" bare evaluates to a method,
-// "?iso()" / "?iso(tzString)" format the date. Named time zones aren't ported
-// (offset-style strings only; see UPSTREAM.md).
-const ISO_NAMES = [
-  'iso', 'iso_h', 'iso_m', 'iso_ms', 'iso_nz', 'iso_h_nz', 'iso_m_nz', 'iso_ms_nz',
-  'iso_local', 'iso_local_h', 'iso_local_m', 'iso_local_ms',
-  'iso_local_nz', 'iso_local_h_nz', 'iso_local_m_nz', 'iso_local_ms_nz',
-  'iso_utc', 'iso_utc_h', 'iso_utc_m', 'iso_utc_ms',
-  'iso_utc_nz', 'iso_utc_h_nz', 'iso_utc_m_nz', 'iso_utc_ms_nz', 'iso_utc_fz',
+// <- isoBI family (2.3.36). Two shapes:
+//  - iso / iso_nz / iso_ms / iso_ms_nz / iso_m / iso_m_nz / iso_h / iso_h_nz:
+//    a METHOD taking exactly one time-zone argument (bare ?iso is the method).
+//  - iso_utc* / iso_local* (with _h/_m/_ms/_nz/_fz variants): plain strings.
+// Named time zones aren't ported (offset-style strings only; see UPSTREAM.md).
+const ISO_METHOD_NAMES = ['iso', 'iso_nz', 'iso_ms', 'iso_ms_nz', 'iso_m', 'iso_m_nz', 'iso_h', 'iso_h_nz'];
+const ISO_STRING_NAMES = [
+  'iso_utc', 'iso_utc_fz', 'iso_utc_nz', 'iso_utc_ms', 'iso_utc_ms_nz',
+  'iso_utc_m', 'iso_utc_m_nz', 'iso_utc_h', 'iso_utc_h_nz',
+  'iso_local', 'iso_local_nz', 'iso_local_ms', 'iso_local_ms_nz',
+  'iso_local_m', 'iso_local_m_nz', 'iso_local_h', 'iso_local_h_nz',
 ];
+
+/**
+ * @param {import('../model/templateModel.js').TemplateModel} target
+ * @param {import('../environment.js').Environment} env
+ * @param {string} name
+ * @returns {number} the effective date-type
+ */
+function isoKind(target, env, name) {
+  if (!(target instanceof DateModel)) {
+    throw new NonDateException(
+      `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
+  }
+  return target.dateType === DATE_TYPES.NONE ? DATE_TYPES.DATE_TIME : target.dateType;
+}
 
 /**
  * @param {string} name - built-in name (also the ISO format string)
  * @returns {void}
  */
-function registerIso(name) {
+function registerIsoMethod(name) {
   registerBuiltIn(name, {
     /**
    * @param {import('../model/templateModel.js').TemplateModel} target
@@ -170,26 +187,30 @@ function registerIso(name) {
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
     * impl(target, args, env) {
-      if (!(target instanceof DateModel)) {
-        throw new NonDateException(
-          `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
-      }
-      return new BuiltinArgMethod(name, 0, 1, function* (e, a) {
-        if (name.startsWith('iso_local') && a.length > 0 && a[0] !== null && a[0] !== undefined) {
-          throw new UnsupportedFeatureException(
-            `The "?${name}" built-in doesn't accept a time zone argument.`);
-        }
-        let tzMin = null;
-        const tzArg = a.length > 0 ? a[0] : null;
-        if (typeof tzArg === 'string') tzMin = parseZoneOffsetMinutes(tzArg, name);
-        else if (tzArg !== null && tzArg !== undefined) {
-          throw new UnsupportedFeatureException(
-            `The "?${name}" built-in only accepts offset-style time zone strings like "GMT+2" or "UTC-05:00".`);
-        }
-        const d = target.getAsDate();
-        const kind = target.dateType === DATE_TYPES.NONE ? DATE_TYPES.DATE_TIME : target.dateType;
-        return new StringModel(formatIsoDate(d, name, kind, tzMin));
+      const kind = isoKind(target, env, name);
+      return new BuiltinArgMethod(name, 1, 1, function* (e, a) {
+        const tzMin = parseZoneOffsetMinutes(a[0], name);
+        return new StringModel(formatIsoDate(target.getAsDate(), name, kind, tzMin));
       });
+    },
+  });
+}
+
+/**
+ * @param {string} name - built-in name (also the ISO format string)
+ * @returns {void}
+ */
+function registerIsoString(name) {
+  registerBuiltIn(name, {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+    * impl(target, args, env) {
+      const kind = isoKind(target, env, name);
+      return new StringModel(formatIsoDate(target.getAsDate(), name, kind, null));
     },
   });
 }
@@ -200,13 +221,19 @@ function registerIso(name) {
  * @returns {number} minutes east of UTC
  */
 function parseZoneOffsetMinutes(s, name) {
+  if (typeof s !== 'string') {
+    throw new NonStringException(
+      `?${name}(...) argument #1: Expected a string time zone name, `
+      + `but this has evaluated to ${typeof s}.`);
+  }
   const m = /^(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$/.exec(s.trim())
-    || (s.trim() === 'UTC' || s.trim() === 'GMT' || s.trim() === 'Z' ? ['x', '+', '0', '0'] : null)
+    || (s.trim() === 'UTC' || s.trim() === 'GMT' ? ['x', '+', '0', '0'] : null)
     || (s.trim() === '' ? ['x', '+', '0', '0'] : null);
   if (m === null) {
-    throw new UnsupportedFeatureException(
-      `The "?${name}" built-in doesn't support the time zone "${s}" `
-      + '(only offset-style strings like "GMT+2" or "UTC-05:00" are ported).');
+    throw new NonNumericalException(
+      `The time zone string specified for ?${name}(...) `
+      + `is not recognized as a valid time zone name: "${s}" `
+      + '(named time zones aren\'t ported; use offset-style strings like "GMT+2").');
   }
   const sign = m[1] === '-' ? -1 : 1;
   const hh = parseInt(m[2], 10);
@@ -217,7 +244,8 @@ function parseZoneOffsetMinutes(s, name) {
   return sign * (hh * 60 + mm);
 }
 
-for (const n of ISO_NAMES) registerIso(n);
+for (const n of ISO_METHOD_NAMES) registerIsoMethod(n);
+for (const n of ISO_STRING_NAMES) registerIsoString(n);
 
 // <- BuiltInsForDates type-testing built-ins.
 const DATE_TYPE_TEST = {

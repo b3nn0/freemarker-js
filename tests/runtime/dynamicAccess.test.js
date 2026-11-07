@@ -36,7 +36,7 @@ describe('Dynamic keys', () => {
     snapshot(await out('${h[m]??}', { h: { k: 'v' } }), 'false');
   });
   it('errors on wrong targets', async () => {
-    await rejectsMatch(out('${n[0]}', { n: 5 }), NonHashException, ['Expected a hash or sequence']);
+    snapshot(await out('${n[0]}', { n: 5 }), '5'); // <- scalar-coercible: string indexing
     await rejectsMatch(out('${a["x"]}', { a: [1] }), NonNumericalException, ['index']);
   });
   it('nested dynamic access', async () => {

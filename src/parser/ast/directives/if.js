@@ -16,8 +16,9 @@ export class ConditionalBlock extends TemplateElement {
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
+    const kw = this.type === 'else-if' ? 'elseif' : this.type;
     const head = this.condition
-      ? `<#${this.type} ${this.condition.getCanonicalForm()}>`
+      ? `<#${kw} ${this.condition.getCanonicalForm()}>`
       : '<#else>';
     return head + this.children.map((c) => c.getCanonicalForm()).join('');
   }

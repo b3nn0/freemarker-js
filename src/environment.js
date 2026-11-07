@@ -496,6 +496,13 @@ export class Environment {
   }
 
   /**
+   * @returns {[string, string]} the current boolean_format true/false pair
+   */
+  getBooleanFormat() {
+    return validateBooleanFormat(this._settings.booleanFormat);
+  }
+
+  /**
    * <- Environment.formatDateFormatModel with the env date/time/datetime formats.
    * @param {Date} d
    * @param {number} [dateType] - DateModel.DATE / TIME / DATE_TIME

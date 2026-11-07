@@ -116,7 +116,7 @@ describe('runtime: escaping built-ins', () => {
   });
 
   it('?c returns the computer form', async () => {
-    eq(await render('${1.5?c}|${42?c}|${true?c}|${"a"?c}', new Configuration()), '1.5|42|true|a');
+    eq(await render('${1.5?c}|${42?c}|${true?c}|${"a"?c}', new Configuration()), '1.5|42|true|"a"');
   });
 
   it('?eval evaluates the string as an expression', async () => {

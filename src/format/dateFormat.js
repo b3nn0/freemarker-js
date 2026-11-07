@@ -32,8 +32,9 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
   if (!isIsoDateFormat(formatString)) {
     throw bad();
   }
-  let accuracy = 's'; // h | m | s (ms renders like s; fractional seconds unsupported)
-  let showOffset = dateType === DATE_TYPES.DATE_TIME;
+  let accuracy = 's'; // h | m | s | ms (ms fraction only shown when nonzero)
+  let showOffset = dateType !== DATE_TYPES.DATE;
+  let nzExplicit = false;
   let zone = null; // 'utc' | 'local'
   let i = 3;
   while (i < formatString.length) {
@@ -46,7 +47,7 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
     } else {
       const tok = formatString.slice(i).slice(0, 2);
       if (tok === 'ms' || tok === 'nz' || tok === 'fz') {
-        if (tok === 'nz') showOffset = false;
+        if (tok === 'nz') { showOffset = false; nzExplicit = true; }
         else if (tok === 'fz') showOffset = true;
         i += 2;
       } else if (tok[0] === 'h' || tok[0] === 'm' || tok[0] === 's') {
@@ -66,9 +67,9 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
     offMin = 0;
     view = shiftedDate(d, 0);
   } else if (zone === 'local') {
-    showOffset = false;
+    view = shiftedDate(d, -view.getTimezoneOffset());
   }
-  if (zone === 'utc' || tzOffsetMinutes !== null) showOffset = true;
+  if (tzOffsetMinutes !== null && !nzExplicit) showOffset = true;
   if (showOffset && offMin === null) offMin = -view.getTimezoneOffset();
   const y = pad(view.getFullYear(), 4);
   const mo = pad(view.getMonth() + 1, 2);
@@ -76,8 +77,14 @@ export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null)
   if (dateType === DATE_TYPES.DATE) {
     return `${y}-${mo}-${day}${showOffset && offMin !== null ? offsetString(offMin) : ''}`;
   }
-  let t = `${pad(view.getHours(), 2)}:${pad(view.getMinutes(), 2)}`;
-  if (accuracy === 's') t += `:${pad(view.getSeconds(), 2)}`;
+  let t = pad(view.getHours(), 2);
+  if (accuracy !== 'h') t += `:${pad(view.getMinutes(), 2)}`;
+  if (accuracy === 's' || accuracy === 'ms') {
+    t += `:${pad(view.getSeconds(), 2)}`;
+    if (accuracy === 'ms' && view.getMilliseconds() !== 0) {
+      t += `.${pad(view.getMilliseconds(), 3)}`;
+    }
+  }
   if (dateType === DATE_TYPES.TIME) {
     return t + (showOffset && offMin !== null ? offsetString(offMin) : '');
   }

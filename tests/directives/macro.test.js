@@ -122,13 +122,13 @@ describe('Directive: #macro / #function / <@call>', () => {
     snapshot(parse('<#macro m a b=2 q...><#nested a b></#macro>').getCanonicalForm(),
       '<#macro m a b=2 q...><#nested a b></#macro>');
     snapshot(parse('<#function f(x)><#return x+1></#function>').getCanonicalForm(),
-      '<#function f(x)><#return x + 1></#function>');
+      '<#function f(x)><#return x + 1/></#function>');
     snapshot(parse('<@m x=1 qz=9; p1, p2>${p1}</@m>').getCanonicalForm(),
       '<@m qz=9 x=1; p1, p2>${p1}</@m>');
     snapshot(parse('<@m 1, 2>x</@m>').getCanonicalForm(), '<@m 1, 2>x</@m>');
     snapshot(parse('<@m/>').getCanonicalForm(), '<@m/>');
     snapshot(parse('<@m></@m>').getCanonicalForm(), '<@m/>');
-    snapshot(parse('<#macro m><#return></#macro>').getCanonicalForm(), '<#macro m><#return></#macro>');
+    snapshot(parse('<#macro m><#return/></#macro>').getCanonicalForm(), '<#macro m><#return/></#macro>');
   });
   it('macros are in the namespace and shadow the data model', async () => {
     snapshot(await out('<#macro m>macro</#macro><@m/>', { m: 'model' }), 'macro');

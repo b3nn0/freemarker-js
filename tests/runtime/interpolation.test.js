@@ -1,10 +1,10 @@
-import { describe, it, snapshot, rejectsMatch, ok } from '../harness.js';
+import { describe, it, snapshot, ok, throwsMatch, rejectsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
   UnassignedVariableException, InvalidPropertyException, InvalidReferenceException,
   NonHashException, NonStringOrTemplateOutputException, NonNumericalException, NonBooleanException,
-  TemplateException,
+  TemplateException, ParseException,
 } from '../../src/errors.js';
 
 function out(src, model) {
@@ -124,8 +124,11 @@ describe('Interpolation: coercion errors', () => {
     await rejectsMatch(out('${s && true}', { s: 'a' }), NonBooleanException, ['string']);
     await rejectsMatch(out('${!s}', { s: 'a' }), NonBooleanException, ['string']);
   });
-  it('unknown builtin', async () => {
-    await rejectsMatch(out('${s?foo}', { s: 'a' }), TemplateException, ['no such built-in', 'foo']);
+  it('unknown builtin (<- detected at parse time, like upstream)', () => {
+    throwsMatch(() => new Template('t', '${s?foo}', new Configuration()),
+      ParseException, ['Unknown built-in: "foo"']);
+    throwsMatch(() => new Template('t', '${s?iso_datetime}', new Configuration()),
+      ParseException, ['Unknown built-in: "iso_datetime"']);
   });
 });
 

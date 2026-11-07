@@ -1,6 +1,7 @@
 // <- Assignment / AssignmentInstruction / block-assignment (#assign, #global, #local).
 
 import { TemplateElement } from '../templateElement.js';
+import { backslashEscapeIdentifier } from '../../../utility/stringUtil.js';
 import {
   InvalidReferenceException, NonNumericalException, UnsupportedFeatureException,
 } from '../../../errors.js';
@@ -119,7 +120,7 @@ export class Assignment extends TemplateElement {
   _namePart() {
     if (this.opKind === '++' || this.opKind === '--') return `${this.name}${this.opKind}`;
     if (this.exp === null) return `${this.name} ${this.opKind}`;
-    return `${this.name} ${this.opKind} ${this.exp.getCanonicalForm()}`;
+    return `${backslashEscapeIdentifier(this.name)} ${this.opKind} ${this.exp.getCanonicalForm()}`;
   }
 
   /**
@@ -129,7 +130,7 @@ export class Assignment extends TemplateElement {
     const tag = this._tag();
     if (this.blockChildren) {
       const op = this.opKind === 'block+=' ? '+=' : '';
-      return `<#${tag} ${this.name}${op}>`
+      return `<#${tag} ${backslashEscapeIdentifier(this.name)}${op}>`
         + this.blockChildren.map((c) => c.getCanonicalForm()).join('')
         + `</#${tag}>`;
     }

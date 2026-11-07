@@ -4,9 +4,10 @@ import { Expression } from './expression.js';
 import { backslashEscapeIdentifier } from '../../../utility/stringUtil.js';
 import {
   UnassignedVariableException, InvalidPropertyException, NonHashException, InvalidReferenceException,
+  NonNumericalException, TemplateException,
 } from '../../../errors.js';
 import { TemplateHashModel, TemplateSequenceModel } from '../../../model/templateModel.js';
-import { HashModel } from '../../../model/models.js';
+import { HashModel, RangeModel, SequenceModel, StringModel, NumberModel } from '../../../model/models.js';
 import { unwrap } from '../../../model/unwrap.js';
 import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
 
@@ -207,6 +208,17 @@ export class DynamicKeyName extends Expression {
     }
     if (k === null || k === undefined) throw keyMissingBlame();
     if (t instanceof TemplateSequenceModel) {
+      if (k instanceof RangeModel) {
+        // <- upstream: numeric Range key over a sequence = the sliced sublist
+        if (k.sizeValue === null) {
+          throw new TemplateException('An unbounded range can\'t be used as an index key.');
+        }
+        const out = [];
+        for (let i = 0; i < k.sizeValue; i++) {
+          out.push(yield* callOp('sequence index', t, 'getByIndex', k.from + i));
+        }
+        return new SequenceModel(out);
+      }
       const n = yield* env.toNumber(k, ' used as an index into a sequence');
       const v = yield* callOp('sequence index', t, 'getByIndex', Math.trunc(n));
       if (v === null || v === undefined) {
@@ -224,6 +236,33 @@ export class DynamicKeyName extends Expression {
       }
       const [m] = yield* applyZeroArgPolicy(env, t, s, v, null);
       return m;
+    }
+    if (t instanceof StringModel || t instanceof NumberModel) {
+      // <- upstream DynamicKeyName: string-coercible targets fall back to
+      // per-character indexing (and substring lists for range keys)
+      let s;
+      if (t instanceof NumberModel) {
+        s = String(t.getAsNumber()); // plain-text coercion of a number
+      } else {
+        s = yield* callOp('getAsString', t, 'getAsString');
+      }
+      if (k instanceof RangeModel) {
+        if (k.sizeValue === null) {
+          throw new TemplateException('An unbounded range can\'t be used as an index key.');
+        }
+        return new SequenceModel(s.slice(k.from, k.from + k.sizeValue).split('')
+          .map((ch) => new StringModel(ch)));
+      }
+      const n = Math.trunc(yield* env.toNumber(k, ' used as an index into a string'));
+      if (n < 0) {
+        throw new NonNumericalException(`Negative index not allowed: ${n}`);
+      }
+      if (n >= s.length) {
+        throw new NonNumericalException(
+          `String index out of range: The index was ${n} (0-based), but the length of the `
+          + `string is only ${s.length}.`);
+      }
+      return new StringModel(s[n]);
     }
     throw new NonHashException(
       typeBlameText('"...[...]" left-hand operand', 'a hash or sequence', `a ${env.typeLabel(t)}`, this.target));

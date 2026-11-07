@@ -143,22 +143,28 @@ describe('runtime: date/time formatting', () => {
     eq(await render('<#setting date_format="iso">${d?date}', new Configuration(), { d: d() }),
       '2020-01-02');
     eq(await render('<#setting time_format="iso">${d?time}', new Configuration(), { d: d() }),
-      '10:30:15');
+      `10:30:15${isoSuffix()}`);
   });
 
-  it('iso built-in family (method-model; bare form errors on output)', async () => {
-    const iso = await render('${d?iso()}', new Configuration(), { d: d() });
+  it('iso built-in family (method vs plain-string shapes)', async () => {
+    const iso = await render('${d?iso("GMT")}', new Configuration(), { d: d() });
     eq(iso.slice(0, 19), '2020-01-02T10:30:15');
-    eq(await render('${d?date?iso()}', new Configuration(), { d: d() }), '2020-01-02');
-    eq(await render('${d?time?iso_m()}', new Configuration(), { d: d() }), '10:30');
-    eq(await render('${d?date?iso_utc()}', new Configuration(), { d: d() }), '2020-01-02Z');
-    eq(await render('${d?date?iso_local()}', new Configuration(), { d: d() }), '2020-01-02');
-    // the bare form evaluates to a method, which can't be interpolated
-    await rejectsMatch(render('${d?iso}', new Configuration(), { d: d() }),
-      null, ['evaluated to a method']);
-    // 2.3.36 has no iso_date/iso_time/iso_datetime built-ins
-    await rejectsMatch(render('${d?iso_datetime}', new Configuration(), { d: d() }),
-      TemplateException, ['no such built-in']);
+    eq(await render('${d?iso_nz("GMT")}', new Configuration(), { d: d() }), '2020-01-02T10:30:15');
+    eq(await render('${d?date?iso("GMT+2")}', new Configuration(), { d: d() }), '2020-01-02+02:00');
+    eq(await render('${d?date?iso_utc}', new Configuration(), { d: d() }), '2020-01-02');
+    eq(await render('${d?date?iso_local}', new Configuration(), { d: d() }), '2020-01-02');
+    eq(await render('${d?datetime?iso_utc}', new Configuration(), { d: d() }),
+      `2020-01-02T10:30:15${isoSuffix()}`);
+    eq(await render('${d?time?iso_utc_h}', new Configuration(), { d: d() }), `10${isoSuffix()}`);
+    // the utc/local variants are plain strings: calling them fails
+    await rejectsMatch(render('${d?date?iso_utc()}', new Configuration(), { d: d() }),
+      null, ['not a method']);
+    // the method forms require the time-zone argument
+    await rejectsMatch(render('${d?iso()}', new Configuration(), { d: d() }),
+      null, ['argument']);
+    // 2.3.36 has no iso_date/iso_time/iso_datetime built-ins (parse-time check)
+    throwsMatch(() => new Template('m', '${d?iso_datetime}', new Configuration()),
+      ParseException, ['Unknown built-in: "iso_datetime"']);
   });
 
   it('?string(fmt) overrides per call', async () => {
@@ -175,7 +181,7 @@ describe('runtime: date/time formatting', () => {
   it('?date/?time/?datetime switch the formatting type', async () => {
     eq(await render('<#setting date_format="iso"><#setting time_format="iso"><#setting datetime_format="iso">'
       + '${d?date}|${d?time}|${d?datetime}', new Configuration(), { d: d() }),
-    '2020-01-02|10:30:15|2020-01-02T10:30:15' + isoSuffix());
+    `2020-01-02|10:30:15${isoSuffix()}|2020-01-02T10:30:15${isoSuffix()}`);
   });
 
   it('custom patterns cached: repeats identical, invalid patterns not cached', async () => {

@@ -21,6 +21,7 @@ import {
   NotExpression, ComparisonExpression, Range, AndExpression, OrExpression,
   DefaultToExpression, ExistsExpression,
 } from './ast/expressions/operators.js';
+import { UPSTREAM_BUILT_INS, BI_LIST_TEXT } from '../builtins/upstreamBIRegistry.js';
 import { BuiltIn } from './ast/expressions/builtIn.js';
 import { LocalLambdaExpression } from './ast/expressions/lambda.js';
 import { IfBlock, ConditionalBlock } from './ast/directives/if.js';
@@ -1735,6 +1736,13 @@ export class Parser {
         }
         // Otherwise the "(" is left for the primary loop to parse as a MethodCall
         // <- upstream: plain built-ins return immediately and the "(...)" is a call.
+        if (!UPSTREAM_BUILT_INS.has(name.image)) {
+          // <- upstream resolves built-in names at parse time
+          throw this._error(
+            `Unknown built-in: "${name.image}". Help (latest version): `
+            + "https://freemarker.apache.org/docs/ref_builtins.html; you're using FreeMarker 2.3.36.\n"
+            + 'The alphabetical list of built-ins:\n  ' + BI_LIST_TEXT, name);
+        }
         exp = this._span(new BuiltIn(exp, name.image, args), exp, name);
       } else if (t.type === TT.EXCLAM) {
         this._next();

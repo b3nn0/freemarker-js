@@ -65,9 +65,19 @@ function* sortItems(items, keyOf, env, biLabel, valueWord, valueWordPlural) {
     else cmpKey = yield* callOp('getAsString', key, 'getAsString');
     pairs.push([cmpKey, items[i], i]);
   }
-  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  // <- upstream sorting orders strings with java.text.Collator (locale-aware);
+  // Intl.Collator is the port's equivalent (default locale; see UPSTREAM.md).
+  const coll = keyType[0] === 'string' ? sortCollator() : null;
+  const cmp = (a, b) => (coll !== null ? coll(a, b) : (a < b ? -1 : a > b ? 1 : 0));
   pairs.sort((p, q) => cmp(p[0], q[0]) || p[2] - q[2]);
   return new SequenceModel(pairs.map((p) => p[1]));
+}
+
+/** @returns {Function} a cached default-locale string comparator */
+let sortCollatorCache = null;
+function sortCollator() {
+  if (sortCollatorCache === null) sortCollatorCache = new Intl.Collator().compare;
+  return sortCollatorCache;
 }
 
 registerBuiltIn('sort', {
@@ -315,15 +325,15 @@ registerBuiltIn('seq_index_of', {
       for (let i = 0; i < items.length; i++) {
         if (yield* lenientEquals(e, items[i], needle, i)) return new NumberModel(i);
       }
-      return null; // <- upstream returns null; outputting it needs an ! or ?if_exists
+      return new NumberModel(-1); // <- upstream: -1 when absent (2.3.36)
     });
   },
 });
 
 /**
  * <- BuiltInsForSequences.seqContainsBI/seqIndexOfBI: EvalUtil.compare with
- * typeMismatchMeansNotEqual and null-flags set, with comparison errors wrapped
- * with the index context message.
+ * typeMismatchMeansNotEqual and null-flags set; a comparison error simply means
+ * "not equal" (upstream's eq-comparison never errors on type mismatch anyway).
  * @param {import('../environment.js').Environment} e
  * @param {Object} item
  * @param {Object} needle
@@ -338,12 +348,7 @@ function* lenientEquals(e, item, needle, index) {
       rightNullReturnsFalse: true,
     })) === 0;
   } catch (err) {
-    if (err instanceof TemplateException) {
-      err.prependMessage(
-        `This error has occurred when comparing sequence item at 0-based index ${index} `
-        + 'to the searched item:');
-    }
-    throw err;
+    return false;
   }
 }
 
