@@ -47,7 +47,7 @@ export class Decimal {
     let scale = 0;
     const e = str.search(/[eE]/);
     if (e !== -1) {
-      scale = -parseInt(str.slice(e + 1), 10);
+      scale = parseInt(str.slice(e + 1), 10);
       str = str.slice(0, e);
     }
     const dot = str.indexOf('.');

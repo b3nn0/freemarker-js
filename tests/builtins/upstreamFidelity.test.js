@@ -10,6 +10,7 @@ import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
   ParseException, TemplateException, InvalidReferenceException, NonStringOrTemplateOutputException,
+  NonNumericalException,
 } from '../../src/errors.js';
 
 function out(src, model) {
@@ -698,5 +699,48 @@ describe('Upstream SequenceBuiltInTest (ported subset)', () => {
     ok(e.message.includes('Expected a sequence or collection'), e.message);
     const e2 = await rejectsMatch(out('${1?sequence}', {}), TemplateException);
     ok(e2.message.includes('a number'), e2.message);
+  });
+});
+
+// <- Upstream NumberBiTest (ported; upstream pins i2=2.3.21 whose legacy ?c
+// prints "INF"/"-INF". The port targets current 2.3.36 behavior, JVM-verified:
+// "Infinity"/"-Infinity", and exact BigDecimal parsing).
+describe('Upstream NumberBiTest (ported)', () => {
+  /** @param {string} input @param {string} output */
+  async function assertNumberBi(input, output) {
+    snapshot(await out(`\${'${input}'?number?c}`, {}), output);
+  }
+
+  it('parses numbers exactly', async () => {
+    await assertNumberBi('1', '1');
+    await assertNumberBi('-1', '-1');
+    await assertNumberBi('1.9000', '1.9');
+    await assertNumberBi('19E-1', '1.9');
+    await assertNumberBi('1.5E-5', '0.000015');
+    await assertNumberBi('12345678901234567890', '12345678901234567890');
+  });
+
+  it('accepts + prefix', async () => {
+    await assertNumberBi('+1', '1');
+  });
+
+  it('special values', async () => {
+    await assertNumberBi('INF', 'Infinity');
+    await assertNumberBi('-Infinity', '-Infinity');
+    await assertNumberBi('NaN', 'NaN');
+    snapshot(await out("${'INF'?number}", {}), '\u221E');
+    snapshot(await out("<#setting number_format='$#,##0'>${'-INF'?number}", {}), '-$\u221E');
+    snapshot(await out("${'NaN'?number}", {}), 'NaN');
+  });
+
+  it('rejects non-numbers (no trim, no grouping)', async () => {
+    const e1 = await rejectsMatch(out("${'abc'?number}", {}), NonNumericalException);
+    ok(e1.message.includes("Can't convert this string to number"), e1.message);
+    await rejectsMatch(out("${'1,234'?number?c}", {}), NonNumericalException);
+    await rejectsMatch(out("${' 5 '?number?c}", {}), NonNumericalException);
+    await rejectsMatch(out("${''?number}", {}), NonNumericalException);
+    await rejectsMatch(out("${'+INF'?number?c}", {}), NonNumericalException);
+    const e2 = await rejectsMatch(out('${true?number}', {}), TemplateException);
+    ok(e2.message.includes('boolean_format'), e2.message);
   });
 });

@@ -12,6 +12,7 @@ import {
 } from '../errors.js';
 import { callOp } from '../async.js';
 import { cNumberFormat, cStringLiteral } from '../format/cFormat.js';
+import { Decimal } from '../format/decimal.js';
 
 // -------------------------------------------------------------- strings ----
 
@@ -811,12 +812,23 @@ registerBuiltIn('number', {
    */
   * impl(target, args, env) {
     if (target instanceof NumberModel) return target;
+    if (target instanceof BooleanModel) {
+      // <- auto stringification of a boolean (legacy boolean_format error)
+      return yield* this.impl(new StringModel(env._autoFormatBoolean(target.value)), args, env);
+    }
     if (typeof target.getAsString === 'function') {
-      const s = (yield* callOp('getAsString', target, 'getAsString')).trim();
+      // <- NumberBI: no trimming; special NaN/INF tokens are accepted (with or
+      // without sign); the rest is a BigDecimal literal (grouping chars rejected)
+      const s = yield* callOp('getAsString', target, 'getAsString');
+      if (s === 'NaN') return new NumberModel(NaN);
+      if (s === 'INF') return new NumberModel(Infinity);
+      if (s === '-INF') return new NumberModel(-Infinity);
+      if (s === 'Infinity') return new NumberModel(Infinity);
+      if (s === '-Infinity') return new NumberModel(-Infinity);
       if (!/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(s)) {
-        throw new NonNumericalException(`Can't parse this as a number: ${JSON.stringify(s)}.`);
+        throw new NonNumericalException(`Can't convert this string to number: ${JSON.stringify(s)}`);
       }
-      return new NumberModel(parseFloat(s));
+      return new NumberModel(parseFloat(s), Decimal.fromLiteral(s));
     }
     throw new NonNumericalException('This value can\'t be converted to a number.');
   },

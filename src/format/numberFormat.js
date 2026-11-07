@@ -114,9 +114,8 @@ const NAMED = new Map([
  * @returns {string}
  */
 export function cFormat(v) {
-  if (!Number.isFinite(v)) {
-    throw new InvalidFormatStringException(`The number ${String(v)} can't be converted to a string.`);
-  }
+  // <- CTemplateNumberFormat on infinities/NaN (2.3.36): Java's toString forms.
+  if (!Number.isFinite(v)) return String(v);
   return String(v);
 }
 
@@ -130,8 +129,13 @@ export function cFormat(v) {
  * @returns {string}
  */
 export function formatNumber(v, formatString, fracOpts, dec = null) {
+  // <- DecimalFormat on non-finite doubles: NaN prints as "NaN"; infinities
+  // print as the infinity symbol after the (negative-)sign and prefix.
+  if (Number.isNaN(v)) return 'NaN';
   if (!Number.isFinite(v)) {
-    throw new InvalidFormatStringException(`The number ${String(v)} can't be converted to a string.`);
+    const fmt0 = formatString === null || formatString === undefined ? 'number' : formatString;
+    if (fmt0 === 'c' || fmt0 === 'computer') return String(v);
+    return `${v < 0 ? '-' : ''}${compiled(fmt0).prefix}\u221E`;
   }
   const fmt = formatString === null || formatString === undefined ? 'number' : formatString;
   if (fmt === 'c' || fmt === 'computer') {
