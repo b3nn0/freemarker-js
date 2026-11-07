@@ -1909,3 +1909,84 @@ describe('Upstream MapBiTest (ported)', () => {
       ParseException, ['lambda', '1 parameter', 'declared 2']);
   });
 });
+
+describe('Upstream LamdaAndEscapeTest (ported)', () => {
+  it('escape placeholder can\'t be a lambda parameter', async () => {
+    const e = throwsMatch(() => new Template('t',
+      "<#escape myPlaceholder as ['a', 'b', 'c']?map(myPlaceholder -> 'x')>${'X'}</#escape>",
+      new Configuration()), ParseException, ['myPlaceholder', 'lambda']);
+    ok(e.message.includes('Escape placeholder'));
+  });
+  it('escape placeholder usable in lambda right-hand side', async () => {
+    snapshot(await new Template('t',
+      "<#escape x as ['a', 'b', 'c']?map(it -> it + x)?join(', ')>${'X'}</#escape>",
+      new Configuration()).processToString({}), 'aX, bX, cX');
+  });
+  it('escape wraps every interpolation lexically in the body', async () => {
+    snapshot(await new Template('t',
+      "<#escape x as x + 'y'>${'X'}</#escape>", new Configuration()).processToString({}), 'Xy');
+    snapshot(await new Template('t',
+      "<#escape x as x + 'y'>${1}</#escape>", new Configuration()).processToString({}), '1y');
+    snapshot(await new Template('t',
+      "<#escape x as x + 'y'>${'A'}${'B'}</#escape>", new Configuration()).processToString({}), 'AyBy');
+    snapshot(await new Template('t',
+      "<#escape x as x + 'y'>text ${'A'} text</#escape>",
+      new Configuration()).processToString({}), 'text Ay text');
+    snapshot(await new Template('t',
+      "<#escape x as x?html>${'a<b'}</#escape>", new Configuration()).processToString({}), 'a&lt;b');
+  });
+  it('noescape suppresses; macro bodies stay unescaped; nested escapes chain inner first', async () => {
+    snapshot(await new Template('t',
+      "<#escape x as x + 'y'><#noescape>${'X'}</#noescape></#escape>",
+      new Configuration()).processToString({}), 'X');
+    snapshot(await new Template('t',
+      "<#macro m>${'M'}</#macro><#escape x as x + 'y'><@m /></#escape>",
+      new Configuration()).processToString({}), 'M');
+    snapshot(await new Template('t',
+      "<#escape x as x + '1'><#escape x as x + '2'>${'v'}</#escape></#escape>",
+      new Configuration()).processToString({}), 'v21');
+  });
+  it('boolean under legacy boolean_format fails during auto-escaping', async () => {
+    // port wording: "Reached through: <#escape ...>" stack line instead of JVM's
+    // "auto-escaped" suffix on the failing interpolation
+    await rejectsMatch(new Template('t',
+      "<#escape x as x + 'y'>${true}</#escape>", new Configuration())
+      .processToString({}), TemplateException, ['boolean_format', 'escape']);
+  });
+});
+
+describe('Upstream CapturingAssignmentTest (ported)', () => {
+  const cap = (src, files) => {
+    const cfg = new Configuration();
+    if (files) cfg.setIncludeResolver((n) => (n in files ? files[n] : null));
+    return new Template('t', src, cfg).processToString({});
+  };
+  it('testAssign', async () => {
+    snapshot(await cap('<#assign x></#assign>[${x}]'), '[]');
+    snapshot(await cap("<#assign x><p>${1 + 1}</#assign>${x + '&'}"), '<p>2&');
+    snapshot(await cap("<#ftl outputFormat='HTML'><#assign x><p>${1 + 1}</#assign>${x + '&'}"),
+      '<p>2&amp;');
+  });
+  it('testAssignNs', async () => {
+    snapshot(await cap("<#import 'lib.ftl' as lib><#assign x in lib></#assign>[${lib.x}]",
+      { 'lib.ftl': '' }), '[]');
+    snapshot(await cap("<#import 'lib.ftl' as lib>"
+      + "<#assign x in lib><p>${1 + 1}</#assign>${lib.x + '&'}", { 'lib.ftl': '' }), '<p>2&');
+    snapshot(await cap("<#ftl outputFormat='HTML'>"
+      + "<#import 'lib.ftl' as lib>"
+      + "<#assign x in lib><p>${1 + 1}</#assign>${lib.x + '&'}", { 'lib.ftl': '' }), '<p>2&amp;');
+  });
+  it('testGlobal', async () => {
+    snapshot(await cap('<#global x></#global>[${.globals.x}]'), '[]');
+    snapshot(await cap("<#global x><p>${1 + 1}</#global>${.globals.x + '&'}"), '<p>2&');
+    snapshot(await cap("<#ftl outputFormat='HTML'>"
+      + "<#global x><p>${1 + 1}</#global>${.globals.x + '&'}"), '<p>2&amp;');
+  });
+  it('testLocal', async () => {
+    snapshot(await cap("<#macro m><#local x></#local>[${x}]</#macro><@m/>${x!}"), '[]');
+    snapshot(await cap("<#macro m><#local x><p>${1 + 1}</#local>${x + '&'}</#macro><@m/>${x!}"),
+      '<p>2&');
+    snapshot(await cap("<#ftl outputFormat='HTML'>"
+      + "<#macro m><#local x><p>${1 + 1}</#local>${x + '&'}</#macro><@m/>${x!}"), '<p>2&amp;');
+  });
+});
