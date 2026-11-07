@@ -1643,3 +1643,71 @@ describe('Upstream InterpolationSyntaxTest (ported)', () => {
       ParseException, ['Expected "}" to close the interpolation']);
   });
 });
+
+describe('Upstream CallerTemplateNameTest (ported)', () => {
+  const files = {
+    'main.ftl': "<#macro m>${.callerTemplateName}</#macro><#function f()><#return .callerTemplateName>"
+      + "</#function><@m /> ${f()} [<#include 'other.ftl'>] <@m /> ${f()}",
+    'other.ftl': "<@m /> ${f()} [<#include 'yet-another.ftl'>] <@m /> ${f()}",
+    'yet-another.ftl': "<@m /> ${f()}",
+    'lib1.ftl': "<#macro m1>${.callerTemplateName} [<@m2>${.callerTemplateName}</@m2>] ${.callerTemplateName}</#macro>",
+    'lib2.ftl': "<#macro m2>${.callerTemplateName} [<#nested>] ${.callerTemplateName}</#macro>",
+    'mmain.ftl': "<#include 'lib1.ftl'><#include 'lib2.ftl'><@m1 />",
+    'smain.ftl': "<#macro m>${.callerTemplateName}</#macro><@m />",
+    'fmain.ftl': "<#import 'lib/foo.ftl' as foo><@foo.m />, <@foo.m2 />",
+    'lib/foo.ftl': "<#macro m>${.callerTemplateName}</#macro><#macro m2><@m3/></#macro>"
+      + "<#macro m3>${.callerTemplateName}</#macro>",
+    'nmain.ftl': "<#macro m><#list 1..2 as _><#if true>${.callerTemplateName}</#if>;</#list></#macro><@m/>",
+    'ainc.ftl': "<#macro m x y=.callerTemplateName>x: ${x}; y: ${y}; caller: ${.callerTemplateName};</#macro>"
+      + "<#macro m2><@m .callerTemplateName /></#macro>",
+    'amain.ftl': "<#include 'ainc.ftl'><#macro start><@m .callerTemplateName /><@m2 /></#macro><@start />",
+  };
+  const cfg = () => {
+    const c = new Configuration();
+    c.setIncludeResolver((name) => files[name] ?? null);
+    return c;
+  };
+  const run = async (name, src) => new Template(name, src, cfg()).processToString({});
+  it('basics: call site template across includes', async () => {
+    snapshot(await run('main.ftl', files['main.ftl']),
+      'main.ftl main.ftl [other.ftl other.ftl [yet-another.ftl yet-another.ftl] other.ftl other.ftl] '
+      + 'main.ftl main.ftl');
+  });
+  it('no macro/function call in context is an error', async () => {
+    for (const src of ['${.callerTemplateName}', '${.caller_template_name}',
+      '<#macro m><#nested></#macro><@m>${.callerTemplateName}</@>']) {
+      await rejectsMatch(run('t', src), TemplateException, ['no macro or function']);
+    }
+  });
+  it('caller template nameless gives empty string', async () => {
+    snapshot(await run(null, '<#macro m2>${.callerTemplateName}</#macro>[<@m2/>]'), '[]');
+  });
+  it('nested macro bodies see the caller of the nesting template', async () => {
+    snapshot(await run('mmain.ftl', files['mmain.ftl']),
+      'mmain.ftl [lib1.ftl [mmain.ftl] lib1.ftl] mmain.ftl');
+  });
+  it('top-level call site is the main template itself', async () => {
+    snapshot(await run('smain.ftl', files['smain.ftl']), 'smain.ftl');
+  });
+  it('imported macros report their defining template, not the importer', async () => {
+    snapshot(await run('fmain.ftl', files['fmain.ftl']), 'fmain.ftl, lib/foo.ftl');
+  });
+  it('nested non-user code keeps the caller', async () => {
+    snapshot(await run('nmain.ftl', files['nmain.ftl']), 'nmain.ftl;nmain.ftl;');
+  });
+  it('special variable as directive-call argument (whitespace dot is not part of the name)', async () => {
+    snapshot(await run('amain.ftl', files['amain.ftl']),
+      'x: amain.ftl; y: amain.ftl; caller: amain.ftl;x: amain.ftl; y: ainc.ftl; caller: ainc.ftl;');
+  });
+  it('adjacent dot in call target is a name chain; separated dot is an argument', async () => {
+    const c = new Configuration();
+    snapshot(await new Template('t', '<#macro m2 p>[${p}]</#macro><@m2 .now />', c).processToString({})
+      .then((s) => /^\[(.*)\]$/.exec(s)[1] && 'arg-ok'), 'arg-ok');
+    throwsMatch(() => new Template('t', '<#macro m2 p>[${p}]</#macro><@m2 .bogusVar />', c),
+      ParseException, ['bogusVar']);
+    await rejectsMatch(new Template('t', '<#macro m2 p>[${p}]</#macro><@m2.x />', c).processToString({}),
+      TemplateException, ['Expected a hash']);
+    await rejectsMatch(new Template('t', '${m2.callerTemplateName}', c).processToString({ m2: 'str' }),
+      TemplateException, ['Expected a hash']);
+  });
+});

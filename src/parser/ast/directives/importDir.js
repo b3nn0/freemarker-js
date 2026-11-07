@@ -41,7 +41,10 @@ export class ImportDirective extends TemplateElement {
     env.assignVariable(this.nsVarName, ns, 'namespace');
 
     // <- initializeImportLibNamespace(): currentNamespace = new ns, out = NullWriter.
-    for (const m of template.macros) ns.source.set(m.name, m.macroModel);
+    for (const m of template.macros) {
+      m.macroModel.defTemplate = template;
+      ns.source.set(m.name, m.macroModel);
+    }
     const prevOut = env.output;
     const prevNs = env._nsScope;
     env.output = new StringWriter();

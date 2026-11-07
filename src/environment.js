@@ -80,6 +80,9 @@ export class Environment {
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
     this._escapeValueStack = []; // active #escape target values (innermost last)
     this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
+    // <- Environment.currentMacroContext: {callTemplate, codeTemplate, prev};
+    // drives .caller_template_name and call-site attribution of nested calls.
+    this._macroCtx = null;
     this.loadedLibs = new Map(); // imported-template namespaces <- Environment.loadedLibs
     // <- Environment.outputFormat (built-ins consult it; interpolations carry
     // their own parse-time binding instead)
@@ -142,6 +145,7 @@ export class Environment {
   * process() {
     // <- Template's macros are part of the namespace from the very start.
     for (const m of this.template.macros) {
+      m.macroModel.defTemplate = this.template;
       if (!this._nsScope.has(m.name)) this._nsScope.set(m.name, m.macroModel);
     }
     yield* this.visit(this.rootElement);

@@ -80,6 +80,12 @@ export class IncludeDirective extends TemplateElement {
     // <- Environment.include(): same data model and namespace; children visit inline.
     // The included template becomes the "current" one (.current_template_name,
     // relative #include resolution) for the duration of the visit.
+    // <- Environment.include: the included template's macros join the
+    // namespace from this point on (visible in the including template).
+    for (const m of included.macros) {
+      m.macroModel.defTemplate = included;
+      if (!env._nsScope.has(m.name)) env._nsScope.set(m.name, m.macroModel);
+    }
     const savedTemplate = env.template;
     env.template = included;
     try {

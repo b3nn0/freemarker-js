@@ -66,6 +66,7 @@ export class MacroModel extends TemplateModel {
     this.macroDef = macroDef;
     this.isMacroLike = !macroDef.isFunction;
     this.isFunctionModel = macroDef.isFunction;
+    this.defTemplate = null; // set when the model is seeded into a namespace
   }
 
   // <- Environment.invokeMacroOrFunctionCommonPart + Macro.accept
@@ -142,8 +143,24 @@ export class MacroModel extends TemplateModel {
     // the namespace / data model), never the caller's loop/macro scopes.
     const callerScopes = env._scopes.slice();
     env._scopes.length = 0;
+    // <- the defining template's namespace stays visible to the macro body
+    // (macros defined in an imported lib see their own lib's namespace).
+    if (this.defTemplate !== null && this.defTemplate !== undefined) {
+      const libNs = env.loadedLibs.get(this.defTemplate.name ?? '');
+      if (libNs !== undefined && libNs.isMap && libNs.source !== env._nsScope) {
+        env._scopes.push(libNs.source);
+      }
+    }
     env._scopes.push(scope);
     env._macroCallStack.push({ callerScopes, bodyChildren, bodyParamNames });
+    // <- Environment.pushMacroContext: call-site template = the template of the
+    // executing code (its def template when inside another macro body).
+    const prevMacroCtx = env._macroCtx;
+    env._macroCtx = {
+      callTemplate: env._macroCtx !== null ? env._macroCtx.codeTemplate : (env.template ?? null),
+      codeTemplate: this.defTemplate ?? null,
+      prev: prevMacroCtx,
+    };
     try {
       // <- Macro.java MultiPassDefaultsInvoker: defaults may reference each
       // other; they are re-tried in repeated passes until no progress is made
@@ -203,6 +220,7 @@ export class MacroModel extends TemplateModel {
       throw e;
     } finally {
       env._macroCallStack.pop();
+      env._macroCtx = prevMacroCtx;
       env._scopes.length = 0;
       env._scopes.push(...callerScopes);
     }

@@ -134,19 +134,17 @@ export class BuiltinVariable extends Expression {
       return new StringModel(env._recoverError.message);
     }
     if (this.name === 'caller_template_name') {
-      let inMacro = false;
-      for (let i = env._scopes.length - 1; i >= 0; i--) {
-        if (env._scopes[i].isMacroScope) { inMacro = true; break; }
-      }
-      if (!inMacro) {
-        throw new InvalidReferenceException(
-          "Can't get .caller_template_name here, as there's no macro or function "
+      // <- BuiltinVariable eval: the innermost macro/function CALL frame's call
+      // place template (switched to the enclosing frame inside #nested bodies).
+      const ctx = env._macroCtx;
+      if (ctx === null) {
+        throw new TemplateException(
+          `Can't get .${this.name} here, as there's no macro or function `
           + "(that's implemented in the template) call in context.");
       }
-      // deviation: reports the template being processed; the port doesn't track
-      // per-call-site template names for cross-namespace macro calls
-      return env.template && env.template.name !== null
-        ? new StringModel(env.template.name) : null;
+      const t = ctx.callTemplate;
+      return t && t.name !== null && t.name !== undefined
+        ? new StringModel(t.name) : new StringModel('');
     }
     if (this.name === 'node' || this.name === 'current_node') {
       throw new TemplateException(

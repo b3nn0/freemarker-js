@@ -132,6 +132,8 @@ export class Parser {
     this._buf = [];
     // directive context tracking <- FTL.jj parserIteratorBlockContexts / *DirectiveNesting
     this._iterCtx = [];
+    this._lastTok = null;
+    this._dotChainNeedsAdjacency = false;
     this.breakableDepth = 0;
     this.continuableDepth = 0;
     this.inMacroOrFunction = false; // <- #local is only legal inside macros/functions (M9)
@@ -211,7 +213,8 @@ export class Parser {
   /** @returns {import('./token.js').Token} */
   _next() {
     this._ensure(1);
-    return this._buf.shift();
+    this._lastTok = this._buf.shift();
+    return this._lastTok;
   }
 
   /**
@@ -1529,7 +1532,13 @@ export class Parser {
   // <- FTL.jj UnifiedCall() (the `<@name ...>` form; legacy `<#call>` stays unsupported)
   /** @param {import('./token.js').Token} startTok @returns {UnifiedCall} */
   _parseUnifiedCall(startTok) {
-    const target = this._parseExpression();
+    this._dotChainNeedsAdjacency = true;
+    let target;
+    try {
+      target = this._parseExpression();
+    } finally {
+      this._dotChainNeedsAdjacency = false;
+    }
     // <- FTL.jj UnifiedMacroTransform: startTagNameExp - the callee expression with a
     // single ?withArgs(...) wrapper stripped, when it is an Identifier or an
     // identifier-only Dot chain; it drives the required </@name>.
@@ -1909,6 +1918,14 @@ export class Parser {
     for (;;) {
       const t = this._peek();
       if (t.type === TT.DOT) {
+        // <- UnifiedMacroTransform target: a dot separated from the callee name by
+        // whitespace is NOT part of the name; it starts a special-variable argument
+        // (a non-special name there is the "Unknown special variable" error).
+        if (this._dotChainNeedsAdjacency && this._lastTok
+          && (t.beginLine !== this._lastTok.endLine
+            || t.beginColumn !== this._lastTok.endColumn + 1)) {
+          return exp;
+        }
         this._next();
         const k = this._peek();
         if (!DOT_KEY_TOKENS.has(k.type)) {

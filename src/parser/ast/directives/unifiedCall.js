@@ -145,6 +145,11 @@ export class NestedInstruction extends TemplateElement {
     const macroView = env._scopes.slice();
     env._scopes.length = 0;
     env._scopes.push(...ctx.callerScopes);
+    // <- Environment.invokeNestedContent: during the body the macro context is
+    // the one enclosing the macro CALL (so .caller_template_name blames the
+    // body's template, and calls inside the body are attributed to it).
+    const prevMacroCtx = env._macroCtx;
+    env._macroCtx = prevMacroCtx === null ? null : prevMacroCtx.prev;
     if (ctx.bodyParamNames !== null && ctx.bodyParamNames.length > 0) {
       const ps = new Map();
       const fb = env.configuration.getFallbackOnNullLoopVariable();
@@ -159,6 +164,7 @@ export class NestedInstruction extends TemplateElement {
     try {
       for (const c of ctx.bodyChildren) yield* env.visit(c);
     } finally {
+      env._macroCtx = prevMacroCtx;
       env._scopes.length = 0;
       env._scopes.push(...macroView);
     }
