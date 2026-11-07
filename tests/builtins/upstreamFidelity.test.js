@@ -2150,3 +2150,216 @@ describe('Upstream ListWithStreamLikeBuiltinsTest (ported)', () => {
     '1->10, 2->20, ');
   });
 });
+
+// Upstream IncludeAndImportTest / GetOptionalTemplateTest (ported subset;
+// locale-based lookup-strategy and byte-array-loader cases are excluded).
+function filesCfg(files, tweak) {
+  const c = new Configuration();
+  c.setIncludeResolver((n) => (n in files ? files[n] : null));
+  if (tweak) tweak(c);
+  return c;
+}
+
+const INC_IMPORT_FILES = () => ({
+  'inc1.ftl': "[inc1]<#global inc1Cnt = (inc1Cnt!0) + 1><#global history = (history!) + 'I'>",
+  'inc2.ftl': '[inc2]',
+  'inc3.ftl': '[inc3]',
+  'lib1.ftl': "<#global lib1Cnt = (lib1Cnt!0) + 1><#global history = (history!) + 'L1'>"
+    + '<#macro m>In lib1</#macro>',
+  'lib2.ftl': "<#global history = (history!) + 'L2'><#macro m>In lib2</#macro>",
+  'lib3.ftl': "<#global history = (history!) + 'L3'><#macro m>In lib3</#macro>",
+  'lib2CallsLib1.ftl': "<#global history = (history!) + 'L2'>"
+    + '<#macro m>In lib2 (<@lib1.m/>)</#macro>',
+  'lib3ImportsLib1.ftl': "<#import 'lib1.ftl' as lib1><#global history = (history!) + 'L3'>"
+    + '<#macro m>In lib3 (<@lib1.m/>)</#macro>',
+  'containsError.ftl': '${noSuchVar}',
+});
+
+describe('Upstream IncludeAndImportTest (ported subset)', () => {
+  it('include and import run once per directive occurrence', async () => {
+    snapshot(await new Template('t', "<#include 'inc1.ftl'>${inc1Cnt}"
+      + "<#include 'inc1.ftl'>${inc1Cnt}", filesCfg(INC_IMPORT_FILES())).processToString({}),
+    '[inc1]1[inc1]2');
+    snapshot(await new Template('t', "<#import 'lib1.ftl' as i1>${lib1Cnt} "
+      + "<#import 'lib1.ftl' as i2>${lib1Cnt}", filesCfg(INC_IMPORT_FILES())).processToString({}),
+    '1 1');
+  });
+  it('import in main creates a global, nested library import does not', async () => {
+    snapshot(await new Template('t', '${.main.lib1???c} ${.globals.lib1???c}'
+      + "<#import 'lib1.ftl' as lib1> ${.main.lib1???c} ${.globals.lib1???c}",
+    filesCfg(INC_IMPORT_FILES())).processToString({}), 'false false true true');
+    snapshot(await new Template('t', "<#import 'lib3ImportsLib1.ftl' as lib3>${lib1Cnt} "
+      + '${.main.lib1???c} ${.globals.lib1???c}, '
+      + "<#import 'lib1.ftl' as lib1>${lib1Cnt} ${.main.lib1???c} ${.globals.lib1???c}",
+    filesCfg(INC_IMPORT_FILES())).processToString({}), '1 false false, 1 true true');
+  });
+  it('auto-includes run after auto-imports, before the main template', async () => {
+    const c = filesCfg(INC_IMPORT_FILES(), (x) => {
+      x.addAutoInclude('inc1.ftl');
+      x.addAutoInclude('inc2.ftl');
+      x.addAutoImport('lib1', 'lib1.ftl');
+      x.addAutoImport('lib2', 'lib2CallsLib1.ftl');
+    });
+    snapshot(await new Template('t', "<#include 'inc3.ftl'>[main] ${inc1Cnt}, ${history}, "
+      + '<@lib1.m/>, <@lib2.m/>', c).processToString({}),
+    '[inc1][inc2][inc3][main] 1, L1L2I, In lib1, In lib2 (In lib1)');
+  });
+  it('lazy imports initialize on first touch, eager ones immediately', async () => {
+    const fi = "<#import 'lib1.ftl' as l1><#import 'lib2.ftl' as l2>"
+      + "<#import 'lib3ImportsLib1.ftl' as l3>";
+    const fc = '<@l2.m/>, <@l1.m/>; ${history}';
+    snapshot(await new Template('t', fi + fc, filesCfg(INC_IMPORT_FILES())).processToString({}),
+    'In lib2, In lib1; L1L2L3');
+    snapshot(await new Template('t', fi + fc,
+      filesCfg(INC_IMPORT_FILES(), (x) => x.setLazyImports(true))).processToString({}),
+    'In lib2, In lib1; L2L1');
+    snapshot(await new Template('t', fi + '<@l3.m/>, ' + fc,
+      filesCfg(INC_IMPORT_FILES(), (x) => x.setLazyImports(true))).processToString({}),
+    'In lib3 (In lib1), In lib2, In lib1; L3L1L2');
+  });
+  it('lazyAutoImports tri-state selects lazy initialization for auto-imports', async () => {
+    const fc = '<@l2.m/>, <@l1.m/>; ${history}';
+    const mk = (lazyImports, lazyAutoImports) => filesCfg(INC_IMPORT_FILES(), (x) => {
+      x.addAutoImport('l1', 'lib1.ftl');
+      x.addAutoImport('l2', 'lib2.ftl');
+      x.addAutoImport('l3', 'lib3.ftl');
+      if (lazyImports !== null) x.setLazyImports(lazyImports);
+      if (lazyAutoImports !== null) x.setLazyAutoImports(lazyAutoImports);
+    });
+    snapshot(await new Template('t', fc, mk(null, null)).processToString({}), 'In lib2, In lib1; L1L2L3');
+    snapshot(await new Template('t', fc, mk(true, null)).processToString({}), 'In lib2, In lib1; L2L1');
+    snapshot(await new Template('t', fc, mk(false, null)).processToString({}), 'In lib2, In lib1; L1L2L3');
+    snapshot(await new Template('t', fc, mk(false, true)).processToString({}), 'In lib2, In lib1; L2L1');
+    snapshot(await new Template('t', fc, mk(null, true)).processToString({}), 'In lib2, In lib1; L2L1');
+    snapshot(await new Template('t', fc, mk(null, null)).processToString({}), 'In lib2, In lib1; L1L2L3');
+    snapshot(await new Template('t', fc, mk(true, false)).processToString({}), 'In lib2, In lib1; L1L2L3');
+  });
+  it('template names are normalized so equivalent names share a namespace', async () => {
+    const fc = '<@l2.m/>, <@l1.m/>; ${history}';
+    const mk = (lazy) => filesCfg(INC_IMPORT_FILES(), (x) => {
+      x.addAutoImport('l1', 'lib1.ftl');
+      x.addAutoImport('l2', '/./lib2.ftl');
+      x.addAutoImport('l3', 'lib3.ftl');
+      x.setLazyAutoImports(true);
+      if (lazy) x.setLazyImports(true);
+    });
+    for (const [imp, hist] of [
+      ['', 'L2L1'], ["<#import 'lib1.ftl' as l1>", 'L1L2'],
+      ["<#import './x/../lib1.ftl' as l1>", 'L1L2'],
+      ["<#import 'lib2.ftl' as l2>", 'L2L1'], ["<#import 'lib3.ftl' as l3>", 'L3L2L1'],
+    ]) {
+      snapshot(await new Template('t', imp + fc, mk(false)).processToString({}), `In lib2, In lib1; ${hist}`);
+    }
+    for (const [imp, hist] of [
+      ['', 'L2L1'], ["<#import 'lib1.ftl' as l1>", 'L2L1'],
+      ["<#import './x/../lib1.ftl' as l1>", 'L2L1'],
+      ["<#import 'lib2.ftl' as l2>", 'L2L1'], ["<#import 'lib3.ftl' as l3>", 'L2L1'],
+    ]) {
+      snapshot(await new Template('t', imp + fc, mk(true)).processToString({}), `In lib2, In lib1; ${hist}`);
+    }
+  });
+  it('lazy namespace initialization errors surface on first access', async () => {
+    const lazy = filesCfg(INC_IMPORT_FILES(), (x) => x.setLazyImports(true));
+    snapshot(await new Template('t', "<#import 'noSuchTemplate.ftl' as wrong>x", lazy)
+      .processToString({}), 'x');
+    await rejectsMatch(new Template('t', '${wrong.x}',
+      filesCfg(INC_IMPORT_FILES(), (x) => {
+        x.setLazyImports(true);
+        x.addAutoImport('wrong', 'noSuchTemplate.ftl');
+      })).processToString({}), TemplateException,
+    ['Lazy initialization', 'noSuchTemplate.ftl']);
+    await rejectsMatch(new Template('t', "<#import 'containsError.ftl' as lib>${lib.x}", lazy)
+      .processToString({}), TemplateException, ['Lazy initialization', 'containsError.ftl']);
+  });
+});
+
+describe('Upstream GetOptionalTemplateTest (ported subset)', () => {
+  it('exists, include and import members', async () => {
+    const files = { 'inc.ftl': '<#assign x = (x!0) + 1>inc ${x}' };
+    snapshot(await new Template('t', "<#assign t = .getOptionalTemplate('inc.ftl')>"
+      + 'Exists: ${t.exists?c}; Include: <@t.include />, <@t.include />; '
+      + 'Import: <#assign ns1 = t.import()><#assign ns2 = t.import()>${ns1.x}, ${ns2.x}; '
+      + "Aliased: <#assign x = 9 in ns1>${ns1.x}, ${ns2.x}, <#import 'inc.ftl' as ns3>${ns3.x}",
+    filesCfg(files)).processToString({}), 'Exists: true; Include: inc 1, inc 2; Import: 1, 1; '
+      + 'Aliased: 9, 9, 9');
+  });
+  it('missing template: exists false, null members', async () => {
+    snapshot(await new Template('t', "<#assign t = .getOptionalTemplate('missing.ftl')>"
+      + 'Exists: ${t.exists?c}; Include: ${t.include???c}; Import: ${t.import???c}',
+    filesCfg({})).processToString({}), 'Exists: false; Include: false; Import: false');
+  });
+  it('parse option includes the raw source', async () => {
+    const files = { 'inc.ftl': '${1}' };
+    snapshot(await new Template('t', "<#assign t = .getOptionalTemplate('inc.ftl', "
+      + "{ 'parse': false })><@t.include />", filesCfg(files)).processToString({}), '${1}');
+    snapshot(await new Template('t', "<#assign t = .getOptionalTemplate('inc.ftl')>"
+      + '<@t.include />', filesCfg(files)).processToString({}), '1');
+    snapshot(await new Template('t', "<#assign t = .getOptionalTemplate('inc.ftl', {})>"
+      + '<@t.include />', filesCfg(files)).processToString({}), '1');
+  });
+  it('relative and absolute names resolve against the current template', async () => {
+    const files = { 'lib/inc.ftl': 'included' };
+    snapshot(await new Template('test1.ftl',
+      "<@.getOptionalTemplate('lib/inc.ftl').include />", filesCfg(files)).processToString({}),
+    'included');
+    snapshot(await new Template('lib/test2.ftl',
+      "<@.getOptionalTemplate('/lib/inc.ftl').include />", filesCfg(files)).processToString({}),
+    'included');
+    snapshot(await new Template('lib/test3.ftl',
+      "<@.getOptionalTemplate('inc.ftl').include />", filesCfg(files)).processToString({}),
+    'included');
+    snapshot(await new Template('sub/test4.ftl',
+      "<@.getOptionalTemplate('../lib/inc.ftl').include />", filesCfg(files)).processToString({}),
+    'included');
+  });
+  it('defaulting chains pick the first existing template', async () => {
+    const files = { 'lib/inc.ftl': 'included' };
+    snapshot(await new Template('t', '<#macro test templateName>'
+      + '<#local t = .getOptionalTemplate(templateName)><#if t.exists>'
+      + 'before <@t.include /> after<#else>missing</#if></#macro>'
+      + "<@test 'lib/inc.ftl' />; <@test 'inc.ftl' />", filesCfg(files)).processToString({}),
+    'before included after; missing');
+    const f2 = { 'found.ftl': 'found' };
+    snapshot(await new Template('t', '<@('
+      + ".getOptionalTemplate('missing1.ftl').include!"
+      + ".getOptionalTemplate('missing2.ftl').include!"
+      + ".getOptionalTemplate('found.ftl').include!"
+      + ".getOptionalTemplate('missing3.ftl').include) />", filesCfg(f2)).processToString({}),
+    'found');
+    snapshot(await new Template('t', '<#macro fallback>fallback</#macro><@('
+      + ".getOptionalTemplate('missing1.ftl').include!"
+      + ".getOptionalTemplate('missing2.ftl').include!fallback) />",
+    filesCfg(f2)).processToString({}), 'fallback');
+  });
+  it('argument validation', async () => {
+    const run = (src) => new Template('t', src, filesCfg({})).processToString({});
+    await rejectsMatch(run('<#assign t = .getOptionalTemplate()>'), TemplateException,
+      ['.getOptionalTemplate', 'arguments', 'none']);
+    await rejectsMatch(run('<#assign t = .get_optional_template()>'), TemplateException,
+      ['.get_optional_template', 'arguments', 'none']);
+    await rejectsMatch(run('<#assign t = .getOptionalTemplate(1, 2, 3)>'), TemplateException,
+      ['arguments', '3']);
+    await rejectsMatch(run('<#assign t = .getOptionalTemplate(1)>'), TemplateException,
+      ['#1', 'string', 'number']);
+    await rejectsMatch(run("<#assign t = .getOptionalTemplate('x', 1)>"), TemplateException,
+      ['#2', 'hash', 'number']);
+    await rejectsMatch(run("<#assign t = .getOptionalTemplate('x', { 'foo': 1 })>"),
+      TemplateException, ['#2', 'foo', 'encoding', 'parse']);
+    await rejectsMatch(run("<#assign t = .getOptionalTemplate('x', { 'parse': 1 })>"),
+      TemplateException, ['#2', 'parse', 'number', 'boolean']);
+    await rejectsMatch(run("<#assign t = .getOptionalTemplate('x', { 'encoding': 1 })>"),
+      TemplateException, ['#2', 'encoding', 'number', 'string']);
+  });
+  it('include/import members reject call-time extras', async () => {
+    const files = { 'inc.ftl': 'Exists...' };
+    const run = (src) => new Template('t', src, filesCfg(files)).processToString({});
+    await rejectsMatch(run("<@.getOptionalTemplate('inc.ftl').include x=1 />"),
+      TemplateException, ['no parameters']);
+    await rejectsMatch(run("<@.getOptionalTemplate('inc.ftl').include>x</@>"),
+      TemplateException, ['no nested content']);
+    await rejectsMatch(run("<@.getOptionalTemplate('inc.ftl').include; x />"),
+      TemplateException, ['no loop variables']);
+    await rejectsMatch(run("<#assign x = .getOptionalTemplate('inc.ftl').import(1)>"),
+      TemplateException, ['no parameters']);
+  });
+});
