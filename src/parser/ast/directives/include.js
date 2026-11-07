@@ -1,7 +1,7 @@
 // <- freemarker.core.Include (#include).
 
 import { TemplateElement } from '../templateElement.js';
-import { UnsupportedFeatureException, NonBooleanException } from '../../../errors.js';
+import { NonBooleanException } from '../../../errors.js';
 import { StringModel, BooleanModel } from '../../../model/models.js';
 
 /**
@@ -57,12 +57,19 @@ export class IncludeDirective extends TemplateElement {
     const rawName = yield* env.coerceToString(yield* this.nameExp.evaluate(env),
       ' used as the #include template name');
     const parse = yield* this._bool(env, this.parseExp, true, 'parse');
-    if (!parse) {
-      throw new UnsupportedFeatureException(
-        'The "#include" parameter parse=false (parsing the included file as XML) '
-        + 'is not supported by this port.');
-    }
     const ignoreMissing = yield* this._bool(env, this.ignoreMissingExp, false, 'ignore_missing');
+    if (!parse) {
+      // <- #include parse=false: write the file source verbatim, unparsed.
+      let src;
+      try {
+        src = yield* env.loadIncludedSource(rawName);
+      } catch (e) {
+        if (ignoreMissing) return null;
+        throw e;
+      }
+      env.output.write(src);
+      return null;
+    }
     let included;
     try {
       included = yield* env.loadIncludedTemplate(rawName);

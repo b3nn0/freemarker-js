@@ -236,6 +236,10 @@ export class Environment {
    * @param {string} name
    * @returns {Generator<unknown, Template, unknown>} the parsed template
    */
+  * loadIncludedSource(name) {
+    return yield* this._resolveTemplateSource(name);
+  }
+
   * loadIncludedTemplate(name) {
     const cfg = this.configuration;
     let t = cfg._templateCache.get(name);

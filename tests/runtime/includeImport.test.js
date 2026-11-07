@@ -3,7 +3,7 @@
 import { describe, it, eq, throwsMatch, rejectsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
-import { TemplateException, StopException, UnsupportedFeatureException } from '../../src/errors.js';
+import { TemplateException, StopException } from '../../src/errors.js';
 
 const LIBS = {
   'footer.ftl': '<hr>${footer}',
@@ -53,14 +53,16 @@ describe('runtime: #include', () => {
       ['Could not find the included template "nope"']);
   });
 
-  it('parse=false (XML inclusion) is unsupported', async () => {
-    await rejectsMatch(render('<#include "b.ftl" parse=false/>'), UnsupportedFeatureException,
-      ['parse=false']);
+  it('parse=false writes the file source verbatim (JVM-pinned)', async () => {
+    eq(await render('[<#include "footer.ftl" parse=false/>]', cfg(), { footer: 'F' }),
+      '[<hr>\${footer}]');
+    eq(await render('[<#include "broken.ftl" parse=false/>]'), '[<#if>]');
   });
 
   it('legacy string values for parse/ignore_missing are honored', async () => {
-    await rejectsMatch(render('<#include "b.ftl" parse="no"/>'), UnsupportedFeatureException, ['parse=false']);
+    eq(await render('[<#include "b.ftl" parse="no"/>]'), '[B]');
     eq(await render('[<#include "nope" ignore_missing="yes"/>]'), '[]');
+    eq(await render('[<#include "nope" parse=false ignore_missing="yes"/>]'), '[]');
   });
 
   it('unknown named parameter errors with the supported list', async () => {

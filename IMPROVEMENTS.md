@@ -57,7 +57,8 @@ is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
 - [ ] **B5. Unported surfaces** (all documented in UPSTREAM.md/README):
   MarkupModel concatenation in expressions; RTF/CSS/JSON output formats;
   `?new`, `?api`, XML/DOM models, `#visit/#recurse`, `classic_compatible`
-  (parse-accepted but inert), TemplateLoader/relative names, `#include parse=false`.
+  (parse-accepted but inert), TemplateLoader/relative names. (`#include
+  parse=false` was ported this round: verbatim source dump, JVM-pinned.)
 - [x] **B6. Auto-escaping off by default** DONE (docs): loud README warning +
   recommended `cfg.setOutputFormat('HTML')` snippet added; default left at
   Undefined for upstream-2.3 fidelity.
