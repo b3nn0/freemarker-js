@@ -1369,3 +1369,102 @@ describe('Upstream NullTransparencyTest (ported)', () => {
     });
   }
 });
+
+// Upstream LambdaParsingTest (ported): lambda body precedence inside BI chains.
+describe('Upstream LambdaParsingTest (ported)', () => {
+  it('lambda consumes ||, BI chain applies to the filter result', async () => {
+    snapshot(await out("${[1, 2, 3]?filter(it -> it == 1 || it == 3)?join(', ')}", {}), '1, 3');
+  });
+});
+
+// Upstream UnclosedCommentTest (ported; fixed-behavior cases only -- the port
+// has no pre-2.3.21 version branching). JVM bare-EOF case says "end of file";
+// the port says "Unclosed" (wording-only, same PARSE status).
+describe('Upstream UnclosedCommentTest (ported)', () => {
+  const bad = ['foo<#--', 'foo<#-- ', 'foo<#--bar', 'foo\n<#--\n'];
+  for (const [i, src] of bad.entries()) {
+    it(`unclosed comment ${i}`, () => {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException, ['Unclosed']);
+    });
+  }
+  const bad2 = ['foo<#noparse>', 'foo<#noparse> ', 'foo<#noparse>bar', 'foo\n<#noparse>\n'];
+  for (const [i, src] of bad2.entries()) {
+    it(`unclosed noparse ${i}`, () => {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException,
+        ['Unclosed', '#noparse']);
+    });
+  }
+});
+
+// Upstream SepParsingBugTest (ported; the fixed 2.3.34+ behavior -- the port
+// has no pre-2.3.34 incompatible-improvements branching, so the "bug
+// recreated" method is out of scope). JVM-pinned via p25 probe.
+describe('Upstream SepParsingBugTest (ported)', () => {
+  const mk = (ts) => { const c = new Configuration(); c.setTagSyntax(ts); return c; };
+  const run = (src, ts) => new Template('t', src, mk(ts)).processToString({});
+  it('auto-detect tag syntax', async () => {
+    const ts = Configuration.AUTO_DETECT_TAG_SYNTAX;
+    snapshot(await run('<#list [1, 2] as i>${i}<#sep>, </#list>', ts), '1, 2');
+    snapshot(await run('[#list [1, 2] as i]${i}[#sep], [/#list]', ts), '1, 2');
+    snapshot(await run('<#list [1, 2] as i>${i}[#sep], </#list>', ts), '1[#sep], 2[#sep], ');
+    snapshot(await run('[#list [1, 2] as i]${i}<#sep>, [/#list]', ts), '1<#sep>, 2<#sep>, ');
+    snapshot(await run('[#list [1, 2] as i]${i}[sep], [/#list]', ts), '1[sep], 2[sep], ');
+    snapshot(await run('[#list [1, 2] as i]${i}<sep>, [/#list]', ts), '1<sep>, 2<sep>, ');
+    for (const s of ['<#sep>', '[#sep]']) {
+      throwsMatch(() => new Template('t.ftl', s, mk(ts)), ParseException, ['#sep must be inside']);
+    }
+  });
+  it('angle-bracket tag syntax', async () => {
+    const ts = Configuration.ANGLE_BRACKET_TAG_SYNTAX;
+    snapshot(await run('<#list [1, 2] as i>${i}<#sep>, </#list>', ts), '1, 2');
+    snapshot(await run('[#list [1, 2] as i]${i!\'-\'}[#sep], [/#list]', ts),
+      '[#list [1, 2] as i]-[#sep], [/#list]');
+    snapshot(await run('<#list [1, 2] as i>${i}[#sep], </#list>', ts), '1[#sep], 2[#sep], ');
+    snapshot(await run('<#list [1, 2] as i>${i}<sep>, </#list>', ts), '1<sep>, 2<sep>, ');
+    snapshot(await run('<#list [1, 2] as i>${i}[sep], </#list>', ts), '1[sep], 2[sep], ');
+    throwsMatch(() => new Template('t.ftl', '[#list [1, 2] as i]${i}<#sep>, [/#list]', mk(ts)),
+      ParseException, ['#sep must be inside']);
+    throwsMatch(() => new Template('t.ftl', '<#sep>', mk(ts)), ParseException, ['#sep must be inside']);
+    snapshot(await run('[#sep]', ts), '[#sep]');
+  });
+  it('square-bracket tag syntax', async () => {
+    const ts = Configuration.SQUARE_BRACKET_TAG_SYNTAX;
+    snapshot(await run('<#list [1, 2] as i>${i!\'-\'}<#sep>, </#list>', ts),
+      '<#list [1, 2] as i>-<#sep>, </#list>');
+    snapshot(await run('[#list [1, 2] as i]${i}[#sep], [/#list]', ts), '1, 2');
+    throwsMatch(() => new Template('t.ftl', '<#list [1, 2] as i>${i}[#sep], </#list>', mk(ts)),
+      ParseException, ['#sep must be inside']);
+    snapshot(await run('[#list [1, 2] as i]${i}<#sep>, [/#list]', ts), '1<#sep>, 2<#sep>, ');
+    snapshot(await run('[#list [1, 2] as i]${i}[sep], [/#list]', ts), '1[sep], 2[sep], ');
+    snapshot(await run('[#list [1, 2] as i]${i}<sep>, [/#list]', ts), '1<sep>, 2<sep>, ');
+    snapshot(await run('<#sep>', ts), '<#sep>');
+    throwsMatch(() => new Template('t.ftl', '[#sep]', mk(ts)), ParseException, ['#sep must be inside']);
+  });
+});
+
+// Upstream HexLiteralTest (ported value/comparison cases; the dump()-based
+// hexValueTypes/leadingZeros methods report Java Integer/Long/BigInteger class
+// names via JVM API -- out of scope for the port). numberFormat 'c' and plain
+// outputs are JVM-pinned byte-identical via Drv80b.
+describe('Upstream HexLiteralTest (ported)', () => {
+  const mk = () => { const c = new Configuration(); c.setNumberFormat('c'); return c; };
+  const run = (src) => new Template('t', src, mk()).processToString({});
+  it('basic values and case-insensitivity', async () => {
+    for (const [src, exp] of [['0xFF', '255'], ['0x0', '0'], ['0x1', '1'], ['0x10', '16'],
+      ['0xA', '10'], ['0xDEAD', '57005'], ['0xCAFE', '51966'], ['0XCAFE', '51966'],
+      ['0Xcafe', '51966'], ['0xCafE', '51966']]) {
+      snapshot(await run('${' + src + '}'), exp);
+    }
+  });
+  it('expressions, assignment, comparison, negatives', async () => {
+    snapshot(await run('${0xFF + 1}'), '256');
+    snapshot(await run('${0x10 * 2}'), '32');
+    snapshot(await run('${0xFF - 0x0F}'), '240');
+    snapshot(await run('<#assign x = 0xFF>${x}'), '255');
+    snapshot(await run('<#assign x = 0x00FF00>${x}'), '65280');
+    snapshot(await run('<#if 0xFF == 255>yes</#if>'), 'yes');
+    snapshot(await run('<#if (0xFF > 0xFE)>yes</#if>'), 'yes');
+    snapshot(await run('${-0xFF}'), '-255');
+    snapshot(await run('${-0x80000000}'), '-2147483648');
+  });
+});
