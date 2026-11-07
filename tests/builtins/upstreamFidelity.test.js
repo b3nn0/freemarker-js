@@ -1468,3 +1468,70 @@ describe('Upstream HexLiteralTest (ported)', () => {
     snapshot(await run('${-0x80000000}'), '-2147483648');
   });
 });
+
+// Upstream SwitchTest (ported): #switch/#case/#on/#default semantics,
+// oddly-placed #default, and the #on-after-#default / #on-#case-mixing parse
+// errors (JVM-pinned message substrings).
+describe('Upstream SwitchTest (ported)', () => {
+  const run = (src) => new Template('t', src, new Configuration()).processToString({});
+  for (const hasDefault of [true, false]) {
+    it(`case basics (hasDefault=${hasDefault})`, async () => {
+      for (let i = 1; i <= 6; i++) {
+        snapshot(await run('[<#switch ' + i + '>\n'
+          + '<#case 3>Case 3<#break>'
+          + '<#case 1>Case 1<#break>'
+          + '<#case 4><#case 5>Case 4 or 5<#break>'
+          + '<#case 2>Case 2<#break>'
+          + (hasDefault ? '<#default>D' : '')
+          + '</#switch>]'),
+        i < 6 ? '[Case ' + (i < 4 ? i : '4 or 5') + ']' : (hasDefault ? '[D]' : '[]'));
+      }
+    });
+    it(`#on basics (hasDefault=${hasDefault})`, async () => {
+      for (let i = 1; i <= 6; i++) {
+        snapshot(await run('[<#switch ' + i + '>\n'
+          + '<#on 3>On 3'
+          + '<#on 1>On 1'
+          + '<#on 4, 5>On 4 or 5'
+          + '<#on 2>On 2'
+          + (hasDefault ? '<#default>D' : '')
+          + '</#switch>]'),
+        i < 6 ? '[On ' + (i < 4 ? i : '4 or 5') + ']' : (hasDefault ? '[D]' : '[]'));
+      }
+    });
+  }
+  it('oddly placed #default, default-only, case whitespace', async () => {
+    snapshot(await run('<#list 1..3 as i><#switch i><#case 1>1<#default>D<#case 3>3</#switch>;</#list>'),
+      '1D3;D;3;');
+    snapshot(await run('<#switch 1><#default>D</#switch>'), 'D');
+    snapshot(await run('<#list 1..2 as i><#switch 1><#default>D<#break>unreachable</#switch></#list>'), 'DD');
+    snapshot(await run('<#list 1..3 as i>\n[\n  <#switch i>\n'
+      + '    <#case 1>C1\n    <#case 2>C2<#break>\n    <#default>D\n  </#switch>\n]\n</#list>'),
+    '[\nC1\n    C2]\n[\nC2]\n[\nD\n]\n');
+  });
+  it('#on parsing errors', () => {
+    const cases = [
+      ['<#switch x><#on 1>On 1<#default>D<#on 2>On 2</#switch>', ['#on after #default']],
+      ['<#switch x><#on 1>On 1<#case 2>On 2</#switch>', ["can't use both #on, and #case", 'already had an #on']],
+      ['<#switch x><#case 1>On 1<#on 2>On 2</#switch>', ["can't use both #on, and #case", 'already had a #case']],
+      ['<#switch x><#on 1>On 1<#default>D<#case 2>On 2</#switch>', ["can't use both #on, and #case", 'already had an #on']],
+      ['<#switch x><#on 1>On 1<#default>D1<#default>D2</#switch>', ['already had a #default']],
+      ['<#switch x><#case 1>On 1<#default>D1<#default>D2</#switch>', ['already had a #default']],
+      ['<#switch x><#default>D<#on 2>On 2</#switch>', ['#on after #default']],
+    ];
+    for (const [src, subs] of cases) {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException, subs);
+    }
+  });
+  it('#on whitespace (implicit #break)', async () => {
+    snapshot(await run('<#list 1..3 as i>\n[\n  <#switch i>\n'
+      + '    <#on 1>C1\n    <#on 2>C2\n    <#default>D\n  </#switch>\n]\n</#list>'),
+    '[\nC1\n    ]\n[\nC2\n    ]\n[\nD\n]\n');
+    snapshot(await run('<#list 1..3 as i>\n[\n  <#switch i>\n'
+      + '    <#on 1>C1<#t>\n    <#on 2>C2<#t>\n    <#default>D<#t>\n  </#switch>\n]\n</#list>'),
+    '[\nC1]\n[\nC2]\n[\nD]\n');
+    snapshot(await run('<#list 1..3 as i>\n[\n  <#switch i>\n'
+      + '    <#on 1>\n      C1\n    <#on 2>\n      C2\n    <#default>\n      D\n  </#switch>\n]\n</#list>'),
+    '[\n      C1\n]\n[\n      C2\n]\n[\n      D\n]\n');
+  });
+});
