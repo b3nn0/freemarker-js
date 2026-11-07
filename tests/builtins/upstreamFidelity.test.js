@@ -1788,3 +1788,124 @@ describe('Upstream TemplateNameSpecialVariablesTest (ported)', () => {
       'p1=main.ftl, p2=inc.ftl, inside=inc.ftl');
   });
 });
+
+describe('Upstream FilterBiTest (ported)', () => {
+  const filterSets = [
+    [['a', 'aX', 'bX', 'b', 'cX', 'c'], 'a, b, c'],
+    [['a', 'b', 'c'], 'a, b, c'],
+    [['aX', 'bX', 'a', 'b', 'c', 'cX', 'cX'], 'a, b, c'],
+    [['aX', 'bX', 'cX'], ''],
+    [[], ''],
+  ];
+  it('lambda filters (lazy and eager)', async () => {
+    for (const [xs, result] of filterSets) {
+      snapshot(await new Template('t',
+        "<#list xs?filter(it -> !it?contains('X')) as x>${x}<#sep>, </#list>",
+        new Configuration()).processToString({ xs }), result);
+      snapshot(await new Template('t',
+        "<#assign fxs = xs?filter(it -> !it?contains('X'))>${fxs?join(', ')}",
+        new Configuration()).processToString({ xs }), result);
+    }
+  });
+  it('function filters', async () => {
+    for (const [xs, result] of filterSets) {
+      const fd = "<#function noX s><#return !s?contains('X')></#function>";
+      snapshot(await new Template('t', fd + "<#list xs?filter(noX) as x>${x}<#sep>, </#list>",
+        new Configuration()).processToString({ xs }), result);
+      snapshot(await new Template('t', fd + "<#assign fxs = xs?filter(noX)>${fxs?join(', ')}",
+        new Configuration()).processToString({ xs }), result);
+    }
+  });
+  it('number elements', async () => {
+    const xs = [1, 1.5, 2, 2.3, 3];
+    snapshot(await new Template('t', '<#list xs?filter(n -> n == n?int) as x>${x}<#sep>, </#list>',
+      new Configuration()).processToString({ xs }), '1, 2, 3');
+    snapshot(await new Template('t',
+      '<#function isInteger n><#return n == n?int></#function>'
+      + '<#list xs?filter(isInteger) as x>${x}<#sep>, </#list>',
+      new Configuration()).processToString({ xs }), '1, 2, 3');
+  });
+  it('filter error messages', async () => {
+    await rejectsMatch(new Template('t', '${1?filter(it -> true)}', new Configuration())
+      .processToString({}), TemplateException, ['filter', 'number']);
+    await rejectsMatch(new Template('t', '${[]?filter(1)}', new Configuration())
+      .processToString({}), TemplateException, ['lambda', 'number']);
+    await rejectsMatch(new Template('t', "${['x']?filter(it -> 1)}", new Configuration())
+      .processToString({}), TemplateException, ['boolean', 'number']);
+    await rejectsMatch(new Template('t',
+      '<#function f></#function>${["x"]?filter(f)}', new Configuration())
+      .processToString({}), TemplateException, ['Function', '0 parameters']);
+    await rejectsMatch(new Template('t',
+      '<#function f x y z></#function>${["x"]?filter(f)}', new Configuration())
+      .processToString({}), TemplateException, ['missing the required argument "y"']);
+    await rejectsMatch(new Template('t', '<#function f x></#function>${["x"]?filter(f)}',
+      new Configuration()).processToString({}), TemplateException, ['null']);
+    throwsMatch(() => new Template('t', '${[]?filter(() -> true)}', new Configuration()),
+      ParseException, ['lambda', '1 parameter', 'declared 0']);
+    throwsMatch(() => new Template('t', '${[]?filter((i, j) -> true)}', new Configuration()),
+      ParseException, ['lambda', '1 parameter', 'declared 2']);
+  });
+});
+
+describe('Upstream MapBiTest (ported)', () => {
+  const mk = () => {
+    const c = new Configuration();
+    c.setNumberFormat('0.####');
+    c.setBooleanFormat('c');
+    return c;
+  };
+  it('lazy transformation stops as soon as the consumer stops', async () => {
+    snapshot(await new Template('t',
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x};'><#return x * 10></#function>"
+      + '${(1..3)?map(tenTimes)?first} ${s}', mk()).processToString({}), '10 1;');
+    snapshot(await new Template('t',
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x};'><#return x * 10></#function>"
+      + '${(1..3)?map(tenTimes)?seq_contains(20)} ${s}', mk()).processToString({}), 'true 1;2;');
+    snapshot(await new Template('t',
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x};'><#return x * 10></#function>"
+      + '${(1..3)?map(tenTimes)?seq_index_of(20)} ${s}', mk()).processToString({}), '1 1;2;');
+    snapshot(await new Template('t',
+      "<#assign s = ''><#function tenTimes(x)><#assign s += '${x};'><#return x * 10></#function>"
+      + '${[1, 2, 3, 2, 5]?map(tenTimes)?seq_last_index_of(20)} ${s}', mk()).processToString({}),
+    '3 1;2;3;2;5;');
+  });
+  it('lambda and function maps', async () => {
+    for (const [xs, result] of [[['a', 'b', 'c'], 'A, B, C'], [['a'], 'A'], [[], '']]) {
+      snapshot(await new Template('t', '<#list xs?map(it -> it?upper_case) as x>${x}<#sep>, </#list>',
+        mk()).processToString({ xs }), result);
+      snapshot(await new Template('t',
+        '<#assign fxs = xs?map(it -> it?upper_case)>${fxs?join(\', \')}', mk())
+        .processToString({ xs }), result);
+    }
+    snapshot(await new Template('t',
+      '<#function toUpper s><#return s?upper_case></#function>'
+      + '<#list xs?map(toUpper) as x>${x}<#sep>, </#list>',
+      mk()).processToString({ xs: ['a', 'b', 'c'] }), 'A, B, C');
+    snapshot(await new Template('t', '<#list xs?map(n -> n * 10) as x>${x}<#sep>, </#list>',
+      mk()).processToString({ xs: [1, 1.55, 3] }), '10, 15.5, 30');
+  });
+  it('consumer built-ins on lazy maps', async () => {
+    snapshot(await new Template('t',
+      '${(1..3)?map(it -> it * 10)?min} ${(1..3)?map(it -> it * 10)?max} '
+      + '${(1..3)?map(it -> it * 10)?join(\', \')}', mk()).processToString({}),
+    '10 30 10, 20, 30');
+  });
+  it('map error messages', async () => {
+    await rejectsMatch(new Template('t', '${1?map(it -> it)}', new Configuration())
+      .processToString({}), TemplateException, ['map', 'number']);
+    await rejectsMatch(new Template('t', '${[]?map(1)}', new Configuration())
+      .processToString({}), TemplateException, ['lambda', 'number']);
+    await rejectsMatch(new Template('t',
+      '<#function f></#function>${["x"]?map(f)}', new Configuration())
+      .processToString({}), TemplateException, ['Function', '0 parameters']);
+    await rejectsMatch(new Template('t',
+      '<#function f x y z></#function>${["x"]?map(f)}', new Configuration())
+      .processToString({}), TemplateException, ['missing the required argument "y"']);
+    await rejectsMatch(new Template('t', '<#function f x></#function>${["x"]?map(f)}',
+      new Configuration()).processToString({}), TemplateException, ['null']);
+    throwsMatch(() => new Template('t', '${[]?map(() -> 1)}', new Configuration()),
+      ParseException, ['lambda', '1 parameter', 'declared 0']);
+    throwsMatch(() => new Template('t', '${[]?map((i, j) -> 1)}', new Configuration()),
+      ParseException, ['lambda', '1 parameter', 'declared 2']);
+  });
+});

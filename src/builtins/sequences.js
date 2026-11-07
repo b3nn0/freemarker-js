@@ -10,7 +10,7 @@ import { TemplateMethodModel, TemplateHashModel, TemplateSequenceModel } from '.
 import { LocalLambdaExpression } from '../parser/ast/expressions/lambda.js';
 import { InvalidReferenceException, TemplateException, NonMethodException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
-import { awaitOp, callOp } from '../async.js';
+import { awaitOp, callOp, isGenerator } from '../async.js';
 
 /** @param {Object} key - a key model @returns {string[]|null} [singular, plural] labels; null = unsortable type */
 function keyTypeName(key) {
@@ -207,6 +207,78 @@ function* makeTransformer(argExp, env, key) {
 }
 
 // ?filter: <- filterBI + FilterLikeBI.elementMatches
+// <- Filtered/MappedSequence (FilterLikeBI): lazy transformation; elements are
+// pulled from the source and transformed only as far as the consumer asks,
+// and each source element is visited (and the function called) at most once.
+class LazySequence extends TemplateSequenceModel {
+  /**
+   * @param {Object} target - the source sequence model
+   * @param {(el: Object) => Generator} transform - element transformer
+   * @param {'filter'|'map'} mode
+   * @param {import('../environment.js').Environment} env
+   */
+  constructor(target, transform, mode, env) {
+    super();
+    this.target = target;
+    this.transform = transform;
+    this.mode = mode;
+    this.env = env;
+    this.cache = [];
+    this.si = 0;
+    this.exhausted = false;
+    this.limit = undefined;
+  }
+  * _pullNext() {
+    if (this.exhausted) return;
+    if (this.limit === undefined) {
+      // <- index protocol when the source has a known size (null source elements
+      // are missing values, not end-of-sequence); unbounded only for lazy
+      // sources, where a null getByIndex means end.
+      const raw = this.target.size();
+      this.limit = isGenerator(raw) ? Infinity : yield* awaitOp('size', raw);
+    }
+    if (this.si >= this.limit) { this.exhausted = true; return; }
+    const el = yield* callOp('getByIndex', this.target, 'getByIndex', this.si++);
+    if ((el === null || el === undefined) && this.limit === Infinity) {
+      this.exhausted = true; return;
+    }
+    const v = yield* this.transform(el);
+    if (this.mode === 'filter') {
+      if (v === null || v === undefined) {
+        throw new TemplateException(
+          'The filter expression has returned no value (has returned null), rather than a boolean.');
+      }
+      if (!(v instanceof BooleanModel)) {
+        throw new TemplateException(
+          'The filter expression had to return a boolean value, but it returned a '
+          + `${this.env.typeLabel(v)} instead.`);
+      }
+      if (v.value) this.cache.push(el);
+    } else {
+      if (v === null || v === undefined) {
+        throw new TemplateException(
+          'The element mapper function has returned no return value (has returned null).');
+      }
+      this.cache.push(v);
+    }
+  }
+  * _ensure(count) {
+    while (!this.exhausted && this.cache.length <= count) yield* this._pullNext();
+  }
+  * getByIndex(i) {
+    if (i < 0) return null;
+    yield* this._ensure(i);
+    return i < this.cache.length ? this.cache[i] : null;
+  }
+  size() {
+    const self = this;
+    return (function* () {
+      while (!self.exhausted) yield* self._pullNext();
+      return self.cache.length;
+    })();
+  }
+}
+
 registerBuiltIn('filter', {
   acceptsMissing: true,
   /**
@@ -216,24 +288,13 @@ registerBuiltIn('filter', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
-    if (items === null) throw nonSequenceError('filter', target, env);
+    if (!(target && typeof target.getByIndex === 'function')) throw nonSequenceError('filter', target, env);
     const transform = yield* makeTransformer(argExprs[0], env, 'filter');
-    const out = [];
-    for (const el of items) {
-      const ok = yield* transform(el);
-      if (ok === null || ok === undefined) {
-        throw new TemplateException(
-          'The filter expression has returned no value (has returned null), rather than a boolean.');
-      }
-      if (!(ok instanceof BooleanModel)) {
-        throw new TemplateException(
-          'The filter expression had to return a boolean value, but it returned a '
-          + `${env.typeLabel(ok)} instead.`);
-      }
-      if (ok.value) out.push(el);
-    }
-    return new SequenceModel(out);
+    const seq = new LazySequence(target, transform, 'filter', env);
+    // <- JVM applies the predicate to the first source element eagerly, so
+    // mapper/argument errors surface at the built-in call, not at printing.
+    yield* seq._pullNext();
+    return seq;
   },
 });
 
@@ -318,19 +379,11 @@ registerBuiltIn('map', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
-    if (items === null) throw nonSequenceError('map', target, env);
+    if (!(target && typeof target.getByIndex === 'function')) throw nonSequenceError('map', target, env);
     const transform = yield* makeTransformer(argExprs[0], env, 'map');
-    const out = [];
-    for (const el of items) {
-      const v = yield* transform(el);
-      if (v === null || v === undefined) {
-        throw new TemplateException(
-          'The element mapper function has returned no return value (has returned null).');
-      }
-      out.push(v);
-    }
-    return new SequenceModel(out);
+    const seq = new LazySequence(target, transform, 'map', env);
+    yield* seq._pullNext();
+    return seq;
   },
 });
 
@@ -368,12 +421,16 @@ registerBuiltIn('seq_contains', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
-    if (items === null) throw nonSequenceError('seq_contains', target, env);
+    if (!(target && typeof target.getByIndex === 'function')) {
+      throw nonSequenceError('seq_contains', target, env);
+    }
     return new BuiltinArgMethod('seq_contains', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
-      for (let i = 0; i < items.length; i++) {
-        if (yield* lenientEquals(e, items[i], needle, i)) return BooleanModel.TRUE;
+      // <- lazy: pull elements one by one, stop at the first match.
+      for (let i = 0; ; i++) {
+        const item = yield* callOp('getByIndex', target, 'getByIndex', i);
+        if (item === null || item === undefined) break;
+        if (yield* lenientEquals(e, item, needle, i)) return BooleanModel.TRUE;
       }
       return BooleanModel.FALSE;
     });
@@ -394,7 +451,10 @@ registerBuiltIn('seq_index_of', {
       const needle = e.wrap(a[0]);
       // <- upstream iterates by index (lazily), which keeps unbounded ranges
       // working: it stops at Integer.MAX_VALUE or when the item is found.
-      const size = yield* awaitOp('size', target.size());
+      // <- a lazy transformation's size() itself consumes it; skip the size
+      // bound there and scan until the source ends.
+      const rawSize = target.size();
+      const size = isGenerator(rawSize) ? Infinity : yield* awaitOp('size', rawSize);
       for (let i = 0; i < size; i++) {
         const item = yield* awaitOp('getByIndex', target.getByIndex(i));
         if (item === null || item === undefined) break;

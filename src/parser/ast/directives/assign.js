@@ -7,6 +7,8 @@ import {
 } from '../../../errors.js';
 import { StringWriter } from '../../../io/writer.js';
 import { StringModel, MarkupModel } from '../../../model/models.js';
+import { AddConcatExpression } from '../expressions/operators.js';
+import { Identifier } from '../expressions/variables.js';
 
 /** @type {{ NAMESPACE: string, GLOBAL: string, LOCAL: string }} */
 export const ASSIGN_SCOPE = { NAMESPACE: 'namespace', GLOBAL: 'global', LOCAL: 'local' };
@@ -63,6 +65,13 @@ export class Assignment extends TemplateElement {
           throw new InvalidReferenceException(
             `Can't do "#assign ${this.name} ${this.opKind}": the variable has no old value.`);
         }
+        if (this.opKind === '+=') {
+          // <- "+=" follows the "+" operator: string+string concatenates,
+          // sequence+sequence appends, number+number adds.
+          value = yield* new AddConcatExpression(new Identifier(this.name), this.exp)
+            .evaluate(env);
+          break;
+        }
         const oldN = yield* env.toNumber(old, ` as the old value of "${this.name}"`);
         let result;
         if (this.opKind === '++') result = oldN + 1;
@@ -70,7 +79,6 @@ export class Assignment extends TemplateElement {
         else {
           const r = yield* env.toNumber(yield* this.exp.evaluate(env), ` as the right side of "${this.opKind}"`);
           switch (this.opKind) {
-            case '+=': result = oldN + r; break;
             case '-=': result = oldN - r; break;
             case '*=': result = oldN * r; break;
             case '/=':

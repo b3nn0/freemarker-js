@@ -39,7 +39,10 @@ describe('Directive: #assign / #global / #local', () => {
   it('compound assignment on missing or non-numeric variables fails', async () => {
     const e = await rejectsMatch(out('<#assign z += 1>'), InvalidReferenceException);
     ok(e.message.includes('no old value'));
-    await rejectsMatch(out('<#assign s = "a"><#assign s += 1>'), NonNumericalException);
+    // <- JVM 2.3.36: "+=" follows the "+" operator (string + number concatenates);
+    // only the other compound ops require numbers.
+    snapshot(await out('<#assign s = "a"><#assign s += 1>${s}'), 'a1');
+    await rejectsMatch(out('<#assign s = "a"><#assign s -= 1>'), NonNumericalException);
   });
   it('block assignment captures output', async () => {
     snapshot(await out('<#assign s>Hello ${name}</#assign>[${s}]', { name: 'W' }), '[Hello W]');

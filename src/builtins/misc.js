@@ -267,6 +267,10 @@ registerBuiltIn('first', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
+    if (target && typeof target.getByIndex === 'function') {
+      // <- lazy: only the first element is materialized.
+      return yield* callOp('getByIndex', target, 'getByIndex', 0);
+    }
     const items = yield* sequenceItems(target);
     if (items === null) throw nonSequenceError('first', target, env);
     return items.length === 0 ? null : items[0];
