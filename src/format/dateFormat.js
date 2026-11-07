@@ -86,13 +86,34 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  */
 export function formatJavaDate(d, pattern, _dateType) {
   let out = '';
+  for (const seg of compiledPattern(pattern)) {
+    out += seg.field !== undefined ? formatField(seg.field, seg.width, d) : seg.text;
+  }
+  return out;
+}
+
+// Pattern -> pre-split segments, cached (IMPROVEMENTS C1); formatField
+// errors ("Unsupported letter ...") still surface at format time.
+/** @type {Map<string, Array<Object>>} */
+const PATTERN_CACHE = new Map();
+const PATTERN_CACHE_LIMIT = 512;
+
+/**
+ * Splits a pattern into literal / field-run segments.
+ * @param {string} pattern
+ * @returns {Array<{ text?: string, field?: string, width?: number }>}
+ */
+function parseJavaDatePattern(pattern) {
+  const segs = [];
   let i = 0;
   while (i < pattern.length) {
     const c = pattern[i];
     if (c === '\'') {
       i++;
-      if (pattern[i] === '\'') { out += '\''; i++; continue; }
-      while (i < pattern.length && pattern[i] !== '\'') { out += pattern[i]; i++; }
+      if (pattern[i] === '\'') { segs.push({ text: '\'' }); i++; continue; }
+      while (i < pattern.length && pattern[i] !== '\'') {
+        segs.push({ text: pattern[i] }); i++;
+      }
       if (i === pattern.length) {
         throw new InvalidFormatStringException(
           `Unterminated quoted literal in date format pattern: ${JSON.stringify(pattern)}`);
@@ -103,14 +124,28 @@ export function formatJavaDate(d, pattern, _dateType) {
     if (isLetter(c)) {
       let j = i;
       while (j < pattern.length && pattern[j] === c) j++;
-      out += formatField(c, j - i, d);
+      segs.push({ field: c, width: j - i });
       i = j;
       continue;
     }
-    out += c;
+    segs.push({ text: c });
     i++;
   }
-  return out;
+  return segs;
+}
+
+/**
+ * @param {string} pattern
+ * @returns {Array<Object>} cached segment list
+ */
+function compiledPattern(pattern) {
+  let segs = PATTERN_CACHE.get(pattern);
+  if (segs === undefined) {
+    segs = parseJavaDatePattern(pattern);
+    if (PATTERN_CACHE.size >= PATTERN_CACHE_LIMIT) PATTERN_CACHE.delete(PATTERN_CACHE.keys().next().value);
+    PATTERN_CACHE.set(pattern, segs);
+  }
+  return segs;
 }
 
 /**

@@ -29,10 +29,14 @@ export function parseNumberPattern(pattern) {
   while (i < pattern.length) {
     const c = pattern[i];
     if (phase === "prefix") {
+      // digit chars fall through to the int phase WITHOUT being consumed:
+      // "0.00" needs minIntDigits=1 (DecimalFormat("0.00").format(0) = "0.00")
       if (c === '0' || c === '#') phase = "int";
-      else if (c === '.') throw invalidPattern(pattern);
-      else spec.prefix += c;
-      i++;
+      else {
+        if (c === '.') throw invalidPattern(pattern);
+        spec.prefix += c;
+        i++;
+      }
     } else if (phase === "int") {
       if (c === '0') { spec.minIntDigits++; i++; }
       else if (c === '#') i++;
@@ -60,6 +64,31 @@ function invalidPattern(p) {
   return new InvalidFormatStringException(
     `Invalid number format pattern: ${JSON.stringify(p)}. `
     + 'The pattern must contain 0/# digit characters.');
+}
+
+// <- upstream FormatFactory caches Format objects per format string;
+// cache custom compiled patterns here instead of re-parsing per output
+// (IMPROVEMENTS C1). FIFO eviction above the cap bounds memory.
+/** @type {Map<string, NumberPattern>} */
+const CUSTOM_CACHE = new Map();
+const CACHE_LIMIT = 512;
+
+/**
+ * Named format or cached compiled custom pattern.
+ * Invalid patterns throw on every call (parse failures are not cached).
+ * @param {string} fmt
+ * @returns {NumberPattern}
+ */
+function compiled(fmt) {
+  const named = NAMED.get(fmt);
+  if (named !== undefined) return named;
+  let spec = CUSTOM_CACHE.get(fmt);
+  if (spec === undefined) {
+    spec = parseNumberPattern(fmt);
+    if (CUSTOM_CACHE.size >= CACHE_LIMIT) CUSTOM_CACHE.delete(CUSTOM_CACHE.keys().next().value);
+    CUSTOM_CACHE.set(fmt, spec);
+  }
+  return spec;
 }
 
 /** named number formats (en_US symbols). @type {Map<string, Object>} */
@@ -103,7 +132,7 @@ export function formatNumber(v, formatString, fracOpts) {
     // CTemplateNumberFormat ignores the #{exp;mN} fraction-digit limits (deviation).
     return cFormat(v);
   }
-  const spec = NAMED.get(fmt) ?? parseNumberPattern(fmt);
+  const spec = compiled(fmt);
   let minFrac = spec.minFrac;
   let maxFrac = spec.maxFrac;
   if (fracOpts !== undefined && fracOpts !== null) {
@@ -139,6 +168,7 @@ function applyPattern(v, spec, minFrac, maxFrac) {
     intPart = fixed.slice(0, dot);
     fracPart = fixed.slice(dot + 1);
   }
+  while (intPart.length < spec.minIntDigits) intPart = '0' + intPart; // "0000": 7 -> "0007"
   if (spec.minIntDigits === 0 && intPart === '0') {
     intPart = ''; // "#" pattern: 0.5 prints ".5"
   }

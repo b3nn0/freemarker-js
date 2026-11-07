@@ -170,6 +170,21 @@ describe('runtime: date/time formatting', () => {
     '2020-01-02|10:30:15|2020-01-02T10:30:15' + isoSuffix());
   });
 
+  it('custom patterns cached: repeats identical, invalid patterns not cached', async () => {
+    const c = new Configuration();
+    eq(await render('${x?string("#,##0.00#")}|${x?string("#,##0.00#")}', c, { x: 1234.5 }),
+      '1,234.50|1,234.50');
+    eq(await render('${x?string("0000")}|${x?string("0000")}', c, { x: 7 }), '0007|0007');
+    eq(await render('${d?string("yyyy-MM-dd \'(X)\'")} | ${d?string("yyyy-MM-dd \'(X)\'")}', c, { d: d() }),
+      '2020-01-02 (X) | 2020-01-02 (X)');
+    for (let i = 0; i < 2; i++) {
+      await rejectsMatch(render('${x?string(",,")}', new Configuration(), { x: 1 }),
+        InvalidFormatStringException, ['Invalid number format pattern']);
+      await rejectsMatch(render('<#setting date_format="a\'b">${d?date}', new Configuration(), { d: d() }),
+        InvalidFormatStringException, ['Unterminated quoted literal']);
+    }
+  });
+
   it('unsupported letters in date patterns error', async () => {
     await rejectsMatch(render('<#setting date_format="Q">${d?date}', new Configuration(), { d: d() }),
       InvalidFormatStringException, ['Unsupported letter']);

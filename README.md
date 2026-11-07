@@ -70,6 +70,8 @@ script filters that class and fails only on other type errors.
 - **Zero dependencies**; pure ES2022 modules, no Node-only APIs and no DOM in `src/`
   (browser and Node runtimes both work).
 - All production declarations carry JSDoc type hints.
+- Number/date format patterns are compiled once and cached per format string
+  (FIFO cap 512; invalid patterns are never cached and keep throwing).
 - **Green-thread async core** (`src/async.js`): the whole render/eval path is a generator tree that yields
   `{ op, promise }` tokens at model-callback boundaries (`get`/`getByIndex`/`exec`/resolver);
   `runAsync` awaits them, `runSync` throws `AsyncOperationNotAllowedException` instead.

@@ -48,11 +48,16 @@ Reference: HEAD `a422783`, suite 406 green.
 
 ## C. Performance
 
-- [ ] **C1. Format patterns re-parsed on every output.** Every
-  `${x?string("#,##0")}` / date output inside a loop calls `parseNumberPattern` /
-  date-pattern parsing per iteration. Add a per-Configuration (or env) cache:
-  format-string -> parsed pattern/printer. Biggest single win; the 26 ms / 10k
-  iteration benchmark already contains this waste.
+- [x] **C1. Format patterns re-parsed on every output.** FIXED: `numberFormat.js`
+  caches compiled custom patterns (named formats were already constant specs) and
+  `dateFormat.js` caches pattern -> segment splits; FIFO cap 512 each, parse
+  failures are not cached (still throw per call). Measured win is modest, not the
+  "biggest single win" guessed here: ~16% on `formatJavaDate` and ~7% on
+  `formatNumber` micro-benchmarks (200k calls), invisible end-to-end (format
+  parse cost is dwarfed by model/generator plumbing). The cache pass did expose a
+  real fidelity bug: `parseNumberPattern` dropped the leading digit, so
+  `0000`/`0.00`-style patterns had minIntDigits off by one (fixed;
+  DecimalFormat("0000").format(7) = "0007" now).
 - [ ] **C2. Micro:** date formatting allocates per-field; number formatting does
   `toFixed` + manual grouping loop. Fine at current scale; revisit only with real
   profiles.
