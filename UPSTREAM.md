@@ -6,7 +6,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 ## Version baseline
 
 - Baseline = FreeMarker **2.3.36** (latest `Configuration.VERSION_2_3_36` in the clone); hard-coded once in `src/version.js`.
-- Only current syntax: no `incompatibleImprovements` branches, no pre-2.3 quirks. `#set`/`#var`/`#elif`/`#else_if`/`#{...}`/`classic_compatible` are parse errors.
+- Only current syntax: no `incompatibleImprovements` branches, no pre-2.3 quirks. `#set`/`#var`/`#elif`/`#else_if`/`#{...}` are parse errors; the `classic_compatible` setting parses but is inert (missing values still error -- documented B5 gap).
 
 ## Decisions
 
