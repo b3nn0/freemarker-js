@@ -144,13 +144,24 @@ must match or be recorded here as deviations.
   previous code-point order, but not byte-identical).
 - `?min`/`?max` are sequence-only built-ins (numbers/strings give the upstream
   "Expected a sequence or collection" style errors).
+- `?take_while`/`?drop_while` ported (sequence-only, same lambda/method/boolean-seq
+  argument handling as `?filter`; eager materialization like `?filter`).
+- `?with_args`/`?with_args_last` ported in the 2.3.36 form: the built-in returns a
+  BIMethod; the following call binds exactly one sequence-or-hash argument
+  ("expects 1 argument but has received N/none"; "expects an extended hash or
+  sequence as argument #1"), the call after that invokes the target with bound
+  arguments appended/prepended. Hash arguments are only accepted for `#macro`
+  targets ("When applied on a method|function, ?with_args can't have a hash
+  argument. Use a sequence argument."). Left-operand errors use
+  NonMethodException with the upstream wording (upstream class
+  UnexpectedTypeException; documented naming deviation).
 - String built-in semantics pinned to probes: `?truncate` default marker
   `[...]` (keep = maxLength - 5; `_w` keeps whole words and keeps the trailing
   separator space when it still fits; `_m` uses the markup terminator span);
   `?wrap` breaks only at spaces and always ends with a newline; `?indent(
   lineIndentString, onlyForBlankLines)`; `?keep_after` miss -> "";
-  `?substring` strict index checks; `?cn` = quoted C literal (null target ->
-  InvalidReferenceException).
+  `?substring` strict index checks; `?cn` = quoted C literal; unlike `?c` a
+  null/missing `?cn` target renders as the literal `null` (cnBI).
 - `?lower_abc`/`?upper_abc` are NUMBER built-ins (spreadsheet column letters,
   1-based); `?boolean` converts via boolean_format + true/false (numbers are
   stringified first, upstream-style error on non-boolean strings).

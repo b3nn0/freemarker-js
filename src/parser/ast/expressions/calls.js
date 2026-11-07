@@ -46,7 +46,7 @@ export class MethodCall extends Expression {
       return yield* callOp(`function call "${this.target.getCanonicalForm()}"`, t, 'invoke', env,
         { positionalArgs: models, namedArgs: new Map() });
     }
-    if (!(t instanceof TemplateMethodModel)) {
+    if (!(t instanceof TemplateMethodModel) && typeof t.exec !== 'function') {
       throw new NonMethodException(
         `Can't call ${this.target.getCanonicalForm()}: it is a ${env.typeLabel(t)}, not a method.`);
     }

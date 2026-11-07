@@ -144,6 +144,7 @@ stringBI('uncap_first', (s) => {
 
 // ?cn <- BuiltInsForMultipleTypes.cnBI (C/Java literal quoting of scalars).
 registerBuiltIn('cn', {
+  acceptsMissing: true,
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
    * @param {Array<Object>|null} argExprs - unevaluated argument expressions
@@ -151,9 +152,9 @@ registerBuiltIn('cn', {
    * @returns {Object}
    */
   * impl(target, argExprs, env) {
-    if (target === null || target === undefined) {
-      throw new InvalidReferenceException('Can\'t apply the ?cn built-in to null.');
-    }
+    // <- cnBI: a null/missing target renders as the literal "null" (unlike ?c,
+    // which rejects missing targets)
+    if (target === null || target === undefined) return new StringModel('null');
     return yield* cLike(target, env, 'cn');
   },
 });
@@ -235,64 +236,261 @@ stringBI('lines', (s) => {
   return new SequenceModel(out);
 });
 
-// ?dedent: removes the common leading whitespace of all non-blank lines.
-stringBI('dedent', (s) => {
-  const lines = s.split(/\r\n|\r|\n/);
-  let common = null;
-  for (const ln of lines) {
-    if (/^\s*$/.test(ln)) continue;
-    const ws = /^\s*/.exec(ln)[0].length;
-    if (common === null || ws < common) common = ws;
-  }
-  if (common === null || common === 0) return s;
-  return lines.map((ln) => ln.slice(Math.min(common, ln.length))).join('\n');
-});
+// <- _CoreStringUtils line-break/trim helpers (indent/dedent/wrap family).
+function _findLineBreakFrom(s, from) {
+  let i = from;
+  while (i < s.length && s[i] !== '\r' && s[i] !== '\n') i++;
+  return i;
+}
 
-// ?indent(lineIndentString = " ", onlyForBlankLines = false)
-stringBI('indent', (s, a) => {
-  let add = ' ';
-  if (a.length > 0) {
-    if (typeof a[0] !== 'string') {
-      throw new TemplateException(
-        `?indent(...) expects a string as argument #1, but received ${typeName(a[0])}.`);
-    }
-    add = a[0];
-  }
-  let onlyBlank = false;
-  if (a.length > 1) {
-    if (typeof a[1] !== 'boolean') {
-      throw new TemplateException(
-        `?indent(...) expects a boolean as argument #2, but received ${typeName(a[1])}.`);
-    }
-    onlyBlank = a[1];
-  }
-  const lines = s.split(/\r\n|\r|\n/);
-  if (onlyBlank) return lines.map((ln) => (ln.trim() === '' ? add + ln : ln)).join('\n');
-  return lines.map((ln) => add + ln).join('\n');
-});
+function _isTrimmableInlineWhitespace(c) {
+  if (c === '\r' || c === '\n') return false;
+  return /\s/.test(c) && c !== '\u00a0';
+}
 
-// ?wrap(lineLength = 65): wraps only at spaces (long words are never split),
-// and always terminates the result with a newline.
-stringBI('wrap', (s, a) => {
-  const width = a.length > 0 ? intArg(a[0], 'lineLength') : 65;
-  const out = [];
-  for (const line of s.split(/\r\n|\r|\n/)) {
-    if (line.length === 0) {
-      out.push('');
-      continue;
-    }
-    let cur = null;
-    for (const w of line.split(/ +/)) {
-      if (cur === null) cur = w;
-      else if (cur.length + 1 + w.length <= width) cur += ` ${w}`;
-      else {
-        out.push(cur);
-        cur = w;
+function _appendSameTypeLineBreak(sb, s, lineBreakPos) {
+  const len = s.length;
+  if (lineBreakPos >= len) return len;
+  const c = s[lineBreakPos];
+  sb.push(c);
+  if (c === '\r' && lineBreakPos + 1 < len && s[lineBreakPos + 1] === '\n') {
+    sb.push('\n');
+    return lineBreakPos + 2;
+  }
+  return lineBreakPos + 1;
+}
+
+// <- _CoreStringUtils.indent
+function coreIndent(s, prefix, rightTrim) {
+  if (s === '' || prefix === '') return s;
+  const sb = [];
+  let lineStartPos = 0;
+  while (lineStartPos < s.length) {
+    const lineBreakPos = _findLineBreakFrom(s, lineStartPos);
+    const lineStartSb = sb.length;
+    sb.push(prefix, s.slice(lineStartPos, lineBreakPos));
+    if (rightTrim) {
+      let end = sb.length;
+      while (end > lineStartSb) {
+        const piece = sb[end - 1];
+        if (piece === '') { sb.pop(); end--; continue; }
+        let cut = piece.length;
+        while (cut > 0 && _isTrimmableInlineWhitespace(piece[cut - 1])) cut--;
+        if (cut === 0) { sb.pop(); end--; continue; }
+        if (cut < piece.length) sb[end - 1] = piece.slice(0, cut);
+        break;
       }
     }
-    out.push(cur);
+    lineStartPos = _appendSameTypeLineBreak(sb, s, lineBreakPos);
   }
-  return `${out.join('\n')}\n`;
+  return sb.join('');
+}
+
+// <- _CoreStringUtils.dedent(s, prefixToRemove, rightTrim)
+function coreDedentPrefix(s, prefixToRemove, rightTrim) {
+  if (s === '' || prefixToRemove === '') return s;
+  const sb = [];
+  let lineStartPos = 0;
+  while (lineStartPos < s.length) {
+    const lineBreakPos = _findLineBreakFrom(s, lineStartPos);
+    let matchedLen = 0;
+    while (matchedLen < prefixToRemove.length && lineStartPos + matchedLen < lineBreakPos
+        && s[lineStartPos + matchedLen] === prefixToRemove[matchedLen]) matchedLen++;
+    const lineStartSb = sb.length;
+    sb.push(s.slice(lineStartPos + matchedLen, lineBreakPos));
+    if (rightTrim) {
+      let end = sb.length;
+      while (end > lineStartSb) {
+        const piece = sb[end - 1];
+        let cut = piece.length;
+        while (cut > 0 && _isTrimmableInlineWhitespace(piece[cut - 1])) cut--;
+        if (cut === 0) { sb.pop(); end--; continue; }
+        if (cut < piece.length) sb[end - 1] = piece.slice(0, cut);
+        break;
+      }
+    }
+    lineStartPos = _appendSameTypeLineBreak(sb, s, lineBreakPos);
+  }
+  return sb.join('');
+}
+
+const _isIndentationWs = (c) => c === ' ' || c === '\t';
+
+// <- _CoreStringUtils.dedent(s): the common-indentation variant (bare ?dedent).
+function coreDedentCommon(s) {
+  if (s === '') return s;
+  const len = s.length;
+  let longest = null;
+  let lineStartPos = 0;
+  while (lineStartPos < len) {
+    let identEndPos = lineStartPos;
+    while (identEndPos < len && _isIndentationWs(s[identEndPos])) identEndPos++;
+    let contentEndPos = identEndPos;
+    while (contentEndPos < len && s[contentEndPos] !== '\r' && s[contentEndPos] !== '\n') contentEndPos++;
+    if (identEndPos < contentEndPos) {
+      const ind = s.slice(lineStartPos, identEndPos);
+      if (longest === null) {
+        longest = ind;
+      } else {
+        const cur = longest;
+        const maxLen = Math.min(cur.length, ind.length);
+        let matchingLen = 0;
+        while (matchingLen < maxLen && cur[matchingLen] === ind[matchingLen]) matchingLen++;
+        longest = cur.slice(0, matchingLen);
+        if (longest === '') return longest;
+      }
+    }
+    if (contentEndPos < len) {
+      if (s[contentEndPos] === '\r' && contentEndPos + 1 < len && s[contentEndPos + 1] === '\n') {
+        contentEndPos += 2;
+      } else {
+        contentEndPos++;
+      }
+    }
+    lineStartPos = contentEndPos;
+  }
+  if (longest === null || longest === '') return s;
+  const prefixLen = longest.length;
+  const sb = [];
+  lineStartPos = 0;
+  while (lineStartPos < len) {
+    let lineBreakPos = lineStartPos;
+    let blankLine = true;
+    while (lineBreakPos < len) {
+      const c = s[lineBreakPos];
+      if (c === '\r' || c === '\n') break;
+      if (blankLine && !_isIndentationWs(c)) blankLine = false;
+      lineBreakPos++;
+    }
+    if (!blankLine) sb.push(s.slice(lineStartPos + prefixLen, lineBreakPos));
+    if (lineBreakPos < len) lineBreakPos = _appendSameTypeLineBreak(sb, s, lineBreakPos);
+    lineStartPos = lineBreakPos;
+  }
+  return sb.join('');
+}
+
+// <- _CoreStringUtils.wrap
+function coreWrap(s, width, firstPrefix, restPrefix) {
+  const words = s.split(/\s+/);
+  if (words.length === 0 || (words.length === 1 && words[0] === '')) return firstPrefix + '\n';
+  let sb = '';
+  let currentPrefix = firstPrefix;
+  let lineLen = currentPrefix.length;
+  sb += currentPrefix;
+  let firstWord = true;
+  for (const word of words) {
+    if (word === '') continue;
+    if (firstWord) {
+      sb += word;
+      lineLen += word.length;
+      firstWord = false;
+    } else if (lineLen + 1 + word.length > width) {
+      sb += '\n' + restPrefix + word;
+      currentPrefix = restPrefix;
+      lineLen = currentPrefix.length + word.length;
+    } else {
+      sb += ' ' + word;
+      lineLen += 1 + word.length;
+    }
+  }
+  return sb + '\n';
+}
+
+function argTypeError(name, pos, want, got) {
+  throw new TemplateException(
+    `?${name}(...) expects a ${want} as argument #${pos}, but received ${got}.`);
+}
+
+// ?dedent: bare read is the common-indentation dedent (string); as a method it
+// takes (indentString[, rightTrim=true]) <- dedentBI.BIMethod (dual model).
+registerBuiltIn('dedent', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {Object}
+   */
+  * impl(target, argExprs, env) {
+    const s = yield* str(target, env, 'dedent');
+    return new DedentModel(coreDedentCommon(s), s);
+  },
+});
+
+/** StringModel + TemplateMethodModel dual <- dedentBI.BIMethod. */
+class DedentModel extends StringModel {
+  /**
+   * @param {string} base - the bare (common-indentation) dedent result
+   * @param {string} s - the original target string
+   */
+  constructor(base, s) {
+    super(base);
+    this.sourceString = s;
+  }
+  /**
+   * @param {import('../environment.js').Environment} env
+   * @param {unknown[]} args - unwrapped call arguments
+   * @returns {import('../model/models.js').StringModel}
+   */
+  exec(env, args = []) {
+    if (args.length < 1 || args.length > 2) {
+      throw argCntError('dedent', args.length, 1, 2);
+    }
+    if (typeof args[0] !== 'string') argTypeError('dedent', 1, 'string', typeName(args[0]));
+    const rightTrim = args.length > 1
+      ? (typeof args[1] === 'boolean' ? args[1]
+        : (argTypeError('dedent', 2, 'boolean', typeName(args[1])), true))
+      : true;
+    return new StringModel(coreDedentPrefix(this.sourceString, args[0], rightTrim));
+  }
+}
+
+// ?indent(lineIndentString[, rightTrim=true]) <- indentBI (method only).
+registerBuiltIn('indent', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {Object}
+   */
+  * impl(target, argExprs, env) {
+    const s = yield* str(target, env, 'indent');
+    return new BuiltinArgMethod('indent', 1, 2, (e, a) => {
+      if (typeof a[0] !== 'string') argTypeError('indent', 1, 'string', typeName(a[0]));
+      let rightTrim = true;
+      if (a.length > 1) {
+        if (typeof a[1] !== 'boolean') argTypeError('indent', 2, 'boolean', typeName(a[1]));
+        rightTrim = a[1];
+      }
+      return new StringModel(coreIndent(s, a[0], rightTrim));
+    });
+  },
+});
+
+// ?wrap(maxWidth[, firstLinePrefix = ""[, restPrefix = firstLinePrefix]])
+// <- wrapBI.BIMethod: reflows words (whitespace-collapsed), every output line
+// terminated by a newline.
+registerBuiltIn('wrap', {
+  /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {Object}
+   */
+  * impl(target, argExprs, env) {
+    const s = yield* str(target, env, 'wrap');
+    return new BuiltinArgMethod('wrap', 1, 3, (e, a) => {
+      if (typeof a[0] !== 'number') argTypeError('wrap', 1, 'number', typeName(a[0]));
+      const width = Math.trunc(a[0]);
+      if (width < 1) {
+        throw new TemplateException('?wrap(...) argument #1 (width) must be at least 1.');
+      }
+      if (a.length > 1 && typeof a[1] !== 'string') argTypeError('wrap', 2, 'string', typeName(a[1]));
+      if (a.length > 2 && typeof a[2] !== 'string') argTypeError('wrap', 3, 'string', typeName(a[2]));
+      const first = a.length > 1 ? a[1] : '';
+      const rest = a.length > 2 ? a[2] : first;
+      return new StringModel(coreWrap(s, width, first, rest));
+    });
+  },
 });
 
 function typeName(v) {
