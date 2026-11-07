@@ -628,3 +628,55 @@ describe('Upstream StringBuiltInTest (ported)', () => {
     ok(e2.message.includes('markup_output'), e2.message);
   });
 });
+
+// <- Upstream CamelCaseTest (ported subset; JVM-verified). The header-parameter
+// twins are covered in tests/syntax/modes.test.js.
+describe('Upstream CamelCaseTest (ported subset)', () => {
+  it('camelCase built-in names', async () => {
+    snapshot(await out("${'x'?upperCase}", {}), 'X');
+    snapshot(await out("${'x'?upper_case}", {}), 'X');
+    throwsMatch(() => new Template('t.ftl', "${'x'?upperCase}${'y'?upper_case}", new Configuration()),
+      ParseException, ['Naming convention mismatch', 'upper_case']);
+  });
+
+  it('camelCase special variables', async () => {
+    snapshot(await out('${.dataModel?isHash?c}', {}), 'true');
+    snapshot(await out('${.templateName?length?c}', {}), '5');
+    throwsMatch(() => new Template('t.ftl', '${.dataModel?isHash?c}${.template_name}', new Configuration()),
+      ParseException, ['Naming convention mismatch']);
+  });
+
+  it('camelCase setting names', async () => {
+    snapshot(await out("<#setting booleanFormat='Y,N'>${true} <#setting booleanFormat='+,-'>${true}", {}), 'Y +');
+    // still works inside ?interpret:
+    snapshot(await out('<@r"<#setting booleanFormat=\'Y,N\'>${true}"?interpret />', {}), 'Y');
+    throwsMatch(() => new Template('t.ftl',
+      '<#if true><#elseIf false>x</#if><#setting boolean_format=\'Y,N\'>', new Configuration()),
+    ParseException, ['Naming convention mismatch']);
+    throwsMatch(() => new Template('t.ftl', '<#setting fooBar=1>', new Configuration()),
+      ParseException, ['Unknown setting name']);
+  });
+
+  it('camelCase #include parameters', async () => {
+    snapshot(await out("<#ftl stripWhitespace=true>[<#include 'noSuch' ignoreMissing=true>]", {}), '[]');
+    snapshot(await out("<#ftl strip_whitespace=true>[<#include 'noSuch' ignore_missing=true>]", {}), '[]');
+    throwsMatch(() => new Template('t.ftl',
+      "<#ftl stripWhitespace=true>[<#include 'noSuch' ignore_missing=true>]", new Configuration()),
+    ParseException, ['Naming convention mismatch']);
+    throwsMatch(() => new Template('t.ftl',
+      "<#ftl strip_whitespace=true>[<#include 'noSuch' ignoreMissing=true>]", new Configuration()),
+    ParseException, ['Naming convention mismatch']);
+  });
+
+  it("?eval and ?interpret don't leak naming convention <- CamelCaseTest", async () => {
+    snapshot(await out("${\"'x'?upperCase\"?eval}${'x'?upper_case}", {}), 'XX');
+    snapshot(await out("<@r\"${'x'?upperCase}\"?interpret />${'x'?upper_case}", {}), 'XX');
+  });
+
+  it('unknown names keep convention-aware suggestions', async () => {
+    throwsMatch(() => new Template('t.ftl', '<#ftl strip_text=true xmlns={}>', new Configuration()),
+      ParseException, ['ns_prefixes']);
+    throwsMatch(() => new Template('t.ftl', "<#ftl ns_prefixes={'p':'u'}><#p:if true>x</#p:if>",
+      new Configuration()), ParseException, ['Unknown directive']);
+  });
+});
