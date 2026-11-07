@@ -22,22 +22,33 @@ Reference: HEAD `a422783`, suite 406 green.
   only serving `?no_esc`/legacy bypass; `?interpret` would need the upstream writer
   stack -- flag before porting it.
 
-## B. Fidelity risks (no differential testing -- no JVM in this environment)
+## B. Fidelity risks (differential harness now available: upstream 2.3.36-SNAPSHOT
+is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
+123-case corpus on both JVM and port and `cmp.mjs` classifies status/payload)
 
-- [ ] **B1. Error message texts are approximations** of upstream style, never compared
-  against real 2.3.36 output. Rare-path divergence plausible (operator-precedence
-  corners, multi-line hint blocks absent). Consider a fixture file with captured
-  upstream messages if a JVM becomes available.
+- [x] **B1. Error message texts are approximations** of upstream style. DONE: three
+  differential rounds pinned ground truth via JVM probes (Drv1..Drv8) and fixed real
+  divergences (strict compare matrix, iso family split, C-format ?c/?cn, DynamicKeyName
+  scalar/range indexing, truncate/indent/wrap, seq builtins -1 + safe equals,
+  parse-time unknown-built-in and ?then-arity checks, canonical-dump shapes).
+  Remaining corpus diffs are wording-only (both sides report the failing expression
+  with line/column) or documented deviations in B3/B5.
 - [ ] **B2. `#{x;m2 M4}`**: format split by whitespace into two ID tokens is rejected;
   upstream may tolerate it. Verify FTL.jj `hashInterpolationFormat` and relax if so.
 - [ ] **B3. Locale/timezone subset** (documented deviations, but list of gaps):
   fixed en_US number symbols; no `Locale`-dependent formats; `time_zone` /
   `sql_date_and_time_time_zone` settings inert; browser-local rendering;
-  `c` format digits differ from BigDecimal for irrational values (e.g. `1/3?c`);
-  sorting uses JS code-unit order, not java.text.Collator (visible for non-ASCII).
-- [ ] **B4. ISO format modifiers partial**: `_h/_m/_s/_ms/_nz/_fz` only; `_u`/UTC
-  variants and fractional-second accuracy unsupported; `?iso_*` hardcodes `'iso'`
-  (ignores `date_format` modifiers like `_m`).
+  `c` format digits differ from BigDecimal for division values (upstream divides
+  with scale 12: `(1/3)?c` = `0.333333333333`; the port prints the IEEE double);
+  sorting now uses `Intl.Collator` (close to java.text.Collator for common locales,
+  not byte-identical); iso time-zone arguments accept offset-style ids only
+  (`GMT+2`, `UTC-05:00`, `UTC`, `GMT`; named zones like `Europe/Berlin` rejected,
+  `Z` rejected).
+- [x] **B4. ISO format modifiers partial.** DONE: the full 2.3.36 iso family is
+  ported with the upstream method-vs-string split (`?iso*` without `_utc/_local`
+  are methods taking one time-zone argument; `?iso_utc*` / `?iso_local*` are plain
+  strings), `_h/_m/_ms/_nz/_fz` accuracy/padding modifiers, DATE never showing an
+  offset, `_ms` fraction only when nonzero.
 - [ ] **B5. Unported surfaces** (all documented in UPSTREAM.md/README):
   MarkupModel concatenation in expressions; RTF/CSS/JSON output formats;
   `?new`, `?api`, XML/DOM models, `#visit/#recurse`, `classic_compatible`
@@ -70,6 +81,7 @@ Reference: HEAD `a422783`, suite 406 green.
 - [x] **D2. Repo hygiene**: stray `core.*` crash dumps were silently committed at M9
   and removed at M17 -- `git add -A` swept them for 8 milestones. Add a `.gitignore`
   (`core.*`, `*.log`, editor cruft) so it cannot recur.
-- [ ] **D3. Test-suite gaps to fill while touching the above**: no tests for
-  `?sort` non-ASCII ordering, no canonical-form sweep over all node types (spot
-  checks only), `?eval` under non-default tag syntax untested.
+- [ ] **D3. Test-suite gaps to fill while touching the above**: canonical-form
+  sweep over all node types (spot checks only), `?eval` under non-default tag
+  syntax untested. (`?sort` collation and the iso/C/indexing/built-in areas gained
+  fidelity tests in the differential rounds.)

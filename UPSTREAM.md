@@ -98,3 +98,69 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M18: the model protocols are generators by contract: HashModel.get, SequenceModel.getByIndex, MethodModel.exec, MacroModel/lambda invoke, and builtin impl target/arg evaluation. Deviation from the Java TemplateHashModelEX/TemplateSequenceModel signatures (plain return values); JS consumers must use yield*/callOp.
 - M18: Template.processToString/processAsync are the async-capable drivers (Promise-valued, upstream-incompatible by necessity: the port's data usually comes from fetch/Promises); Template.process/processToStringSync are the strict sync drivers matching upstream semantics and throwing AsyncOperationNotAllowedException at async attempts.
 - M18: includeResolver may return a Promise (awaited in async mode); parse-once TemplateCache semantics unchanged (parsing itself stays sync).
+
+## Fidelity rounds (JVM differential testing against the upstream clone)
+
+Three differential rounds ran a shared template corpus through the built upstream
+2.3.36-SNAPSHOT (JVM) and the port, comparing status + payload (`/tmp/opencode`
+corpus + Drv/cmp drivers, semantics pinned with Drv probes). Accepted policy:
+error-message wording may differ as long as both sides explain the problem with
+template line/column; status-class (PARSE vs runtime) and behavior differences
+must match or be recorded here as deviations.
+
+- Unknown built-ins are now detected at PARSE time against the full upstream
+  2.3.36 name list (187 names, `src/builtins/upstreamBIRegistry.js`), with the
+  upstream "Unknown built-in: \"x\"..." message plus the alphabetical list.
+  Names that exist upstream but are unported still parse and fail at runtime
+  (this overrides the M11 run-time detection note).
+- `?then` arity is checked at parse time ("?then(...) requires exactly 2
+  parameters") like upstream (overrides the uniform run-time arity note in M11
+  for this built-in; others keep run-time arity errors).
+- `?index`/`?has_next` on non-loop-variable targets: upstream fails at parse
+  time ("must be a simple loop variable name"); the port fails at render time
+  with a plain TemplateException (deviation; must not crash).
+- iso built-in family now matches the 2.3.36 registry exactly: `?iso`/`?iso_nz`/
+  `?iso_ms(_nz)`/`?iso_m(_nz)`/`?iso_h(_nz)` are METHODS taking one time-zone
+  argument; `?iso_utc*`/`?iso_local*` (with `_h/_m/_ms/_nz/_fz` variants) are
+  plain strings - calling them yields NonMethodException (this replaces the
+  partial M16/M17 notes). Offset-style zone ids only (`GMT+2`, `UTC`, `GMT`,
+  `UTC-05:00`); `Z` and named zones are rejected. DATE-typed values never show
+  an offset (upstream AbstractISOBI); `_fz` forces the offset for datetime/time.
+- `?c`/`?cn`: C/Java literal rendering (`src/format/cFormat.js`): strings are
+  quoted/escaped like StringUtil.javaStringEnc, numbers use the
+  CTemplateNumberFormat double branch (`1.0` -> `1`, `1E20`, `1E-8`). Only
+  division results differ (upstream BigDecimal scale 12 vs IEEE double -
+  pre-existing documented deviation, now with an exact corpus probe:
+  `${(1/3)?c}` upstream `0.333333333333`).
+- DynamicKeyName (`t[k]`): Range keys yield sequence slices / string substrings
+  (a scalar range key is a SUBSTRING, not a char sequence); numeric keys on
+  string/number scalars index into the plain-text form, with upstream's
+  "String index out of range: ..." / "Negative index not allowed: N" errors;
+  date targets return null/missing.
+- `?seq_index_of`/`?seq_last_index_of` return -1 on misses (not null), and
+  seq_contains/index_of use safe comparison (no errors on mismatched types) <-
+  upstream; `?sort` string comparison uses `Intl.Collator` (upstream
+  java.text.Collator; locale defaults to the environment's - closer than the
+  previous code-point order, but not byte-identical).
+- `?min`/`?max` are sequence-only built-ins (numbers/strings give the upstream
+  "Expected a sequence or collection" style errors).
+- String built-in semantics pinned to probes: `?truncate` default marker
+  `[...]` (keep = maxLength - 5; `_w` keeps whole words and keeps the trailing
+  separator space when it still fits; `_m` uses the markup terminator span);
+  `?wrap` breaks only at spaces and always ends with a newline; `?indent(
+  lineIndentString, onlyForBlankLines)`; `?keep_after` miss -> "";
+  `?substring` strict index checks; `?cn` = quoted C literal (null target ->
+  InvalidReferenceException).
+- `?lower_abc`/`?upper_abc` are NUMBER built-ins (spreadsheet column letters,
+  1-based); `?boolean` converts via boolean_format + true/false (numbers are
+  stringified first, upstream-style error on non-boolean strings).
+- `is_indexable` (sequences), `is_enumerable` (sequences/collections),
+  `is_collection(_ex)`: the port has no TemplateCollectionModel, so
+  is_collection/is_collection_ex are always false (deviation).
+- Canonical-form dumps now match upstream: `<#elseif`, self-closing `<#break/>`
+  / `<#continue/>` / `<#return expr/>`, backslash-escaped identifiers in
+  #assign/#local/#global targets.
+- Data-model JS `Date` objects wrap as DATE_TIME and print via the configured
+  date/time/datetime format; upstream wraps `java.util.Date` as an UNKNOWN date
+  type whose output throws (deviation, probed: `${d}` for a plain util.Date
+  errors upstream but renders in the port).
