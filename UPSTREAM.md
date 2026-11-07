@@ -222,3 +222,10 @@ Sixth fidelity round (JVM-pinned, corpus now 160 cases):
 - More upstream test classes ported: BreakAndContinuePlacementTest,
   SwitchTest (#case/#on basics, oddly-placed #default, whitespace + `#t`,
   mixing errors), UnclosedCommentTest (modern i21 behavior).
+- `#setting date_format|time_format|datetime_format` keyword set differs:
+  the port also accepts `default` (its own internal default) as a preset
+  value, while upstream only resolves `short`/`medium`/`long`/`full`/`iso*`
+  and rejects `default`/`none`/`simple` as malformed pattern strings
+  ("malformed date/time/datetime format string ... Illegal pattern
+  character"). Matching that exactly would require porting the
+  SimpleDateFormat pattern validator; documented deviation.
