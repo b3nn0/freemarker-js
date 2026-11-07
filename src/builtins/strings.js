@@ -267,6 +267,23 @@ registerBuiltIn('split', {
   },
 });
 
+// ?word_list <- stringWordList: whitespace split (java split("\\s") minus
+// the empty leading token); empty string -> zero words.
+registerBuiltIn('word_list', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
+  * impl(target, args, env) {
+    const s = yield* targetString(target, env, 'word_list');
+    const trimmed = s.trim();
+    const pieces = trimmed === '' ? [] : (s === trimmed ? [s] : trimmed.split(/\s+/));
+    return new SequenceModel(pieces.map((p) => new StringModel(p)));
+  },
+});
+
 // 2.3.36 literal (non-regex) replace of every occurrence <- replaceBI.
 registerBuiltIn('replace', {
   /**

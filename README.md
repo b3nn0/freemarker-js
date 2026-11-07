@@ -64,10 +64,10 @@ Honest summary; details and rationale in `UPSTREAM.md`.
 - `TemplateLoader`, filesystem/URL loading, cache configuration - `#include`/`#import` resolve
   through a plain `setIncludeResolver((name) => source)` callback instead.
 - XML/DOM node models: `#visit`, `#recurse`, `?node_*`, `?new`, `?api`, `#fallback` bodies.
-- `classic_compatible`, `?interpret`, and the `?keep_* / ?remove_* / ?ensure_* /
-  ?word_list` string built-ins (plus regex/flag string variants). `?substring`,
-  `?split`, `?truncate/_c/_m/_w` and `?indent / ?dedent / ?dedent_with_line_wraps /
-  ?wrap` are supported.
+- `classic_compatible`, `?interpret`, and the `?keep_* / ?remove_* / ?ensure_*`
+  string built-ins (plus regex/flag string variants). `?substring`, `?split`,
+  `?word_list`, `?truncate/_c/_m/_w` and `?indent / ?dedent /
+  ?dedent_with_line_wraps / ?wrap` are supported.
 - Locale-aware behavior everywhere: number/date formatting is fixed to en_US symbols;
   dates render in browser-local time unless a `time_zone` setting (IANA or offset
   form, DST-aware) is given; the `locale` setting parses but is inert.

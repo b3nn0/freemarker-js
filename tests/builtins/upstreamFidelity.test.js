@@ -424,3 +424,13 @@ describe('#attempt/#recover (JVM-pinned, FTL.jj Attempt/Recover)', () => {
       + '<#recover>r</#attempt></#list>]', {}), '[13]');
   });
 });
+
+describe('Upstream ?word_list (JVM-pinned)', () => {
+  it('splits on whitespace, no empty words', async () => {
+    snapshot(await out('${" a  b\tc\n "?word_list?join("|")}', {}), 'a|b|c');
+    snapshot(await out('${""?word_list?size}', {}), '0');
+    snapshot(await out('${" "?word_list?size}', {}), '0');
+    snapshot(await out('${"abc"?word_list?size}', {}), '1');
+    snapshot(await out('${"a b"?word_list?last}', {}), 'b');
+  });
+});

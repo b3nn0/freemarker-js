@@ -55,7 +55,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M11: string case mapping uses JS toUpperCase/toLowerCase (upstream is locale-sensitive); ?trim is Java-style (chars <= U+0020, not JS Unicode trim); capitalize mirrors StringUtil.capitalize word logic.
 - M11: ?round follows upstream Math.round(doubleValue) (halves toward +infinity: 2.5 -> 3, -2.5 -> -2); JVM-pinned.
 - M11: date-kind built-ins (?is_date_only / ?is_time / ?is_datetime) are deferred to M16 (date kinds not modeled); ?is_date matches every date value; ?is_node / ?is_transform always false (no XML/transform models in this port).
-- M11: deferred string built-ins: ?keep_*, ?remove_*, ?ensure_*, ?word_list, ?substring, ?truncate*, ?interpret, and the regex/flag string variants (<- BuiltInsForStringsRegexp / flag strings).
+- M11: deferred string built-ins: ?interpret and the regex/flag string variants (<- BuiltInsForStringsRegexp / flag strings). NOTE: ?keep_*/?remove_*/?ensure_* are not FTL keywords in 2.3.36 either (JVM parse-errors them; port matches). ?word_list, ?substring, ?truncate* are ported.
 - M12: interpolation default is LEGACY (Configuration.java:573), so `#{...}` interpolates out of the box; DOLLAR/SQUARE demote the other openers (startInterpolation).
 - M12: `#ftl` is parsed at template start only (at most one, after optional leading whitespace); parameter expressions restricted to literals (upstream evaluates any data-less expression at parse-time).
 - M12: `#ftl` ns_prefixes / attributes params and strict_syntax behavior deferred to later milestones (auto-esc/output_format land M15, strip_* land M13); recorded on template.ftlHeader.settings meanwhile.
