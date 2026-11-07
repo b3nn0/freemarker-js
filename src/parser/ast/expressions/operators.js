@@ -69,7 +69,8 @@ export class AddConcatExpression extends Expression {
       return env.wrap(
         (yield* callOp('getAsNumber', l, 'getAsNumber')) + (yield* callOp('getAsNumber', r, 'getAsNumber')));
     }
-    return env.wrap((yield* env.coerceToString(l)) + (yield* env.coerceToString(r)));
+    return env.wrap((yield* env.coerceToString(l, ' used with the "+" operator'))
+      + (yield* env.coerceToString(r, ' used with the "+" operator')));
   }
 }
 

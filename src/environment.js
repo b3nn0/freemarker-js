@@ -2,7 +2,7 @@
 
 import {
   TemplateException, InvalidReferenceException,
-  NonStringException, NonNumericalException, NonBooleanException, NonHashException,
+  NonStringException, NonStringOrTemplateOutputException, NonNumericalException, NonBooleanException, NonHashException,
   BreakInstructionException, ContinueInstructionException, ReturnInstructionException,
   InvalidSettingException,
 } from './errors.js';
@@ -469,8 +469,11 @@ export class Environment {
     if (model instanceof NumberModel) return this._formatNumber(model.getAsNumber());
     if (model instanceof BooleanModel) return this._formatBoolean(model.getAsBoolean());
     if (model instanceof DateModel) return this._formatDate(model.getAsDate(), model.dateType);
-    throw new NonStringException(
-      `Can't convert to string${context}: the value is a ${this.typeLabel(model)}.`);
+    // <- CoercionUtil: same core message as the "${...}" content coercion
+    throw new NonStringOrTemplateOutputException(
+      `Expected a string or something automatically convertible to string `
+      + `(number, date or boolean), or "template output" , but this has evaluated `
+      + `to ${comparisonDescription(model)}${context}:`);
   }
 
   /**

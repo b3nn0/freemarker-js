@@ -9,7 +9,7 @@ import { describe, it, snapshot, throwsMatch, rejectsMatch } from '../harness.js
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
-  ParseException, TemplateException, InvalidReferenceException,
+  ParseException, TemplateException, InvalidReferenceException, NonStringOrTemplateOutputException,
 } from '../../src/errors.js';
 
 function out(src, model) {
@@ -326,5 +326,21 @@ describe('Upstream ListBreakContinueTest + SepParsingBugTest (ported subset)', (
     snapshot(await out('<#list [1, 2] as i>${i}<sep>, </#list>', {}), '1<sep>, 2<sep>, ');
     throwsMatch(() => new Template('t.ftl', '<#sep>', new Configuration()),
       ParseException, ['#sep must be inside']);
+  });
+});
+
+describe('Upstream ConcatenatedSequenceTest / + operator (ported subset)', () => {
+  it('seq + seq makes a listable concatenated sequence, not printable directly', async () => {
+    snapshot(await out('<#list [1,2]+[3] as x>${x}</#list>', {}), '123');
+    snapshot(await out('${([1,2]+[3])?size}', {}), '3');
+    snapshot(await out('<#assign c = [1]+[2]>${c?first}-${c?last}', {}), '1-2');
+    await rejectsMatch(out('${[1,2]+[3]?size}', {}), NonStringOrTemplateOutputException,
+      ['Expected a string or something automatically convertible to string']);
+    snapshot(await out('${"a"+[1,2]?size}', {}), 'a2'); // "a" + 2
+  });
+
+  it('?map / ?filter lambda built-ins', async () => {
+    snapshot(await out('[${[1, 2]?map(x -> x*2)?join(",")}] [${[1,2,3]?filter(x -> x>1)?join(",")}]', {}),
+      '[2,4] [2,3]');
   });
 });
