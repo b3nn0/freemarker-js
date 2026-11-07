@@ -88,6 +88,10 @@ const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1], ['take_while', 1
 /** builtins with parse-time (unevaluated) args. @type {Set<string>} */
 const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string']);
 
+// <- BuiltInForLoopVariable subclasses in BuiltInsForLoopVariables.java
+const LOOP_VAR_BUILT_INS = new Set(['index', 'counter', 'has_next', 'is_last', 'is_first',
+  'is_odd_item', 'is_even_item', 'item_parity', 'item_parity_cap', 'item_cycle']);
+
 /**
  * Recursive-descent parser mirroring the upstream JavaCC grammar (current syntax only).
  * @property {Object[]} macros - Macro nodes collected at parse time (namespace seeding)
@@ -185,6 +189,28 @@ export class Parser {
   _next() {
     this._ensure(1);
     return this._buf.shift();
+  }
+
+  /**
+   * <- FTL.jj checkLoopVariableBuiltInLHO: the left-hand operand of a
+   * loop-variable built-in must be a loop variable of an enclosing iterator.
+   * @param {string} biName @param {Object} exp @param {import('./token.js').Token} nameTok
+   */
+  _checkLoopVariableBiLho(biName, exp, nameTok) {
+    if (!(exp instanceof Identifier)) {
+      throw this._errorAt(
+        `Expression used as the left hand operand of ?${biName} must be a simple loop variable name.`,
+        exp);
+    }
+    const loopVarName = exp.name;
+    for (let i = this._iterCtx.length - 1; i >= 0; i--) {
+      const ctx = this._iterCtx[i];
+      if (loopVarName === ctx.loopVarName || loopVarName === ctx.loopVar2Name) return;
+    }
+    throw this._errorAt(
+      `The left hand operand of ?${biName} must be a loop variable, but there's no loop `
+      + `variable in scope with this name: ${loopVarName}`,
+      exp);
   }
 
   /** @param {import('./token.js').Token} t @returns {string} human token description */
@@ -1746,6 +1772,11 @@ export class Parser {
             `Unknown built-in: "${name.image}". Help (latest version): `
             + "https://freemarker.apache.org/docs/ref_builtins.html; you're using FreeMarker 2.3.36.\n"
             + 'The alphabetical list of built-ins:\n  ' + BI_LIST_TEXT, name);
+        }
+        if (LOOP_VAR_BUILT_INS.has(name.image)) {
+          // <- FTL.jj: loop-variable built-ins are parse-checked against the
+          // enclosing iterator's loop variables.
+          this._checkLoopVariableBiLho(name.image, exp, name);
         }
         exp = this._span(new BuiltIn(exp, name.image, args), exp, name);
       } else if (t.type === TT.EXCLAM) {
