@@ -92,8 +92,8 @@ export class BuiltinVariable extends Expression {
     }
     if (this.name === 'template_name' || this.name === 'current_template_name'
       || this.name === 'main_template_name') {
-      return env.template && env.template.name !== null
-        ? new StringModel(env.template.name) : null;
+      const t = this.name === 'current_template_name' ? env.template : (env._mainTemplate ?? env.template);
+      return t && t.name !== null ? new StringModel(t.name) : null;
     }
     if (this.name === 'vars' || this.name === 'globals') return new VarsModel(env);
     if (this.name === 'namespace' || this.name === 'main') return new NamespaceModel(env);

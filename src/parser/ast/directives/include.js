@@ -78,7 +78,15 @@ export class IncludeDirective extends TemplateElement {
       throw e;
     }
     // <- Environment.include(): same data model and namespace; children visit inline.
-    yield* env.visit(included.rootElement); // <- Environment.include(): visit as single element
+    // The included template becomes the "current" one (.current_template_name,
+    // relative #include resolution) for the duration of the visit.
+    const savedTemplate = env.template;
+    env.template = included;
+    try {
+      yield* env.visit(included.rootElement); // <- visit as single element
+    } finally {
+      env.template = savedTemplate;
+    }
     return null;
   }
 

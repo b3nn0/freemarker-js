@@ -1,11 +1,12 @@
 // ?interpret <- freemarker.core.Interpret (2.3.36): parses the target string as
 // FTL at render time and yields a "transform" model callable via <@d/>.
-// Deviation: sequence left-hand operands (element concatenation upstream) are
-// not supported; only strings are accepted.
+// A sequence left-hand operand is [source, templateName] <- InterpretBI
 
 import { registerBuiltIn } from './registry.js';
 import { StringModel } from '../model/models.js';
+import { TemplateSequenceModel } from '../model/templateModel.js';
 import { NonStringException, NonStringOrTemplateOutputException, ParseException, TemplateException } from '../errors.js';
+import { awaitOp } from '../async.js';
 
 /** A parsed ?interpret body <- Interpret.TemplateProcessorModel. */
 export class InterpretModel {
@@ -34,9 +35,12 @@ export class InterpretModel {
       }
       env._nsScope.set(m.name, m.macroModel);
     }
+    const savedTemplate = env.template;
+    env.template = this.template;
     try {
       yield* env.visit(this.template.rootElement);
     } finally {
+      env.template = savedTemplate;
       for (const [k, v] of saved) {
         if (v === null) env._nsScope.delete(k);
         else env._nsScope.set(k, v);
@@ -54,7 +58,34 @@ registerBuiltIn('interpret', {
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
   * impl(target, args, env) {
-    if (!(target instanceof StringModel)) {
+    let src;
+    let explicitName = null;
+    if (target instanceof StringModel) {
+      src = target.getAsString();
+    } else if (target instanceof TemplateSequenceModel) {
+      const n = yield* awaitOp('size', target.size());
+      if (n < 1 || n > 2) {
+        throw new NonStringOrTemplateOutputException(
+          'For "?interpret" left-hand operand: Expected a sequence with 1 or 2 items '
+          + `(source[, name]), but the sequence has ${n} items.`);
+      }
+      const first = yield* awaitOp('getByIndex', target.getByIndex(0));
+      if (!(first instanceof StringModel)) {
+        throw new NonStringOrTemplateOutputException(
+          'For "?interpret" left-hand operand: Expected the first sequence item to be '
+          + `a string, but it's a ${env.typeLabel(first)}.`);
+      }
+      src = first.getAsString();
+      if (n === 2) {
+        const second = yield* awaitOp('getByIndex', target.getByIndex(1));
+        if (!(second instanceof StringModel)) {
+          throw new NonStringOrTemplateOutputException(
+            'For "?interpret" left-hand operand: Expected the second sequence item to '
+            + `be a string, but it's a ${env.typeLabel(second)}.`);
+        }
+        explicitName = second.getAsString();
+      }
+    } else {
       throw new NonStringOrTemplateOutputException(
         'For "?interpret" left-hand operand: Expected a sequence or string, '
         + `but this has evaluated to a ${env.typeLabel(target)}.`);
@@ -68,7 +99,7 @@ registerBuiltIn('interpret', {
       }
       cbName = m.getAsString();
     }
-    return new InterpretModel(parseInterpretation(env, target.getAsString()), cbName);
+    return new InterpretModel(parseInterpretation(env, src, explicitName), cbName);
   },
 });
 
@@ -77,9 +108,14 @@ registerBuiltIn('interpret', {
  * @param {string} src
  * @returns {import('../template.js').Template}
  */
-function parseInterpretation(env, src) {
+function parseInterpretation(env, src, explicitName) {
+  // <- InterpretBI: the sub-template name chains onto the parent template name
+  // ("parent->anonymous_interpreted"), so .current_template_name is traceable.
+  const parentName = env.template && env.template.name != null ? env.template.name : null;
+  const name = (parentName !== null ? parentName + '->' : '')
+    + (explicitName !== null ? explicitName : 'anonymous_interpreted');
   try {
-    return env.buildTemplate('anonymous_interpreted', src);
+    return env.buildTemplate(name, src);
   } catch (e) {
     if (e instanceof ParseException) {
       throw new TemplateException(

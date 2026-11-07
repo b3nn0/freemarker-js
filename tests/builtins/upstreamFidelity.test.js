@@ -1100,3 +1100,41 @@ describe('Upstream ConcatenatedSequenceTest (ported subset)', () => {
   // TemplateCollectionModel/Iterator segments and asserts TemplateModelIterator
   // contracts - JVM model-layer internals outside the port's scope.)
 });
+
+// Upstream InterpretAndEvalTemplateNameTest (ported): .current_template_name /
+// .main_template_name (direct and via ?eval) across #include and ?interpret,
+// plus relative template-name resolution inside interpreted parts. Expectations
+// are the live JVM 2.3.36 outputs (the upstream .java test's expected string
+// carries stray extra braces that the JVM itself doesn't emit).
+describe('Upstream InterpretAndEvalTemplateNameTest (ported)', () => {
+  const NAMES_VARIANTS = [
+    'c=${.current_template_name}, m=${.main_template_name}',
+    'c=${".current_template_name"?eval}, m=${".main_template_name"?eval}',
+  ];
+  for (const g of NAMES_VARIANTS) {
+    const templates = {
+      'main.ftl': `${g} {<#include 'sub/t.ftl'>}`,
+      'sub/t.ftl': `${g} i{<@r'${g} {<#include "a.ftl">'?interpret />} `
+        + `i{<@[r'${g} {<#include "a.ftl">','named_interpreted']?interpret />}}`,
+      'sub/a.ftl': `In sub/a.ftl, ${g}`,
+      'a.ftl': 'In a.ftl',
+    };
+    const build = (name) => {
+      const cfg = new Configuration();
+      cfg.setIncludeResolver((n) => (templates[n] ?? null));
+      return new Template(name, templates[name], cfg);
+    };
+    it(`variant: ${g.slice(0, 40)}... -> main.ftl`, async () => {
+      snapshot(await build('main.ftl').processToString({}),
+        `c=main.ftl, m=main.ftl {c=sub/t.ftl, m=main.ftl `
+        + `i{c=sub/t.ftl->anonymous_interpreted, m=main.ftl {In sub/a.ftl, c=sub/a.ftl, m=main.ftl} `
+        + `i{c=sub/t.ftl->named_interpreted, m=main.ftl {In sub/a.ftl, c=sub/a.ftl, m=main.ftl}}}`);
+    });
+    it(`variant: ${g.slice(0, 40)}... -> sub/t.ftl`, async () => {
+      snapshot(await build('sub/t.ftl').processToString({}),
+        `c=sub/t.ftl, m=sub/t.ftl `
+        + `i{c=sub/t.ftl->anonymous_interpreted, m=sub/t.ftl {In sub/a.ftl, c=sub/a.ftl, m=sub/t.ftl} `
+        + `i{c=sub/t.ftl->named_interpreted, m=sub/t.ftl {In sub/a.ftl, c=sub/a.ftl, m=sub/t.ftl}}`);
+    });
+  }
+});

@@ -65,6 +65,9 @@ export class Environment {
   constructor(rootElement, template, options = {}) {
     this.rootElement = rootElement;
     this.template = template;
+    // <- .template_name / .main_template_name always report the root template,
+    // even after #include / ?interpret switch the current template.
+    this._mainTemplate = template;
     this.configuration = template.configuration;
     this.output = options.out;
     this.dataModel = options.dataModel == null
@@ -239,6 +242,7 @@ export class Environment {
    * @returns {Generator<unknown, Template, unknown>} the parsed template
    */
   * loadIncludedSource(name) {
+    name = this._resolveTemplateName(name);
     return yield* this._resolveTemplateSource(name);
   }
 
@@ -253,6 +257,7 @@ export class Environment {
 
   * loadIncludedTemplate(name) {
     const cfg = this.configuration;
+    name = this._resolveTemplateName(name);
     let t = cfg._templateCache.get(name);
     if (t === undefined) {
       const src = yield* this._resolveTemplateSource(name);
@@ -260,6 +265,31 @@ export class Environment {
       cfg._templateCache.set(name, t);
     }
     return t;
+  }
+
+  /**
+   * Resolves a relative template name against the current template's directory
+   * <- TemplateNameResolver (file-style names; a leading '/' makes it absolute;
+   * inside a "?interpret" template the parent chain head is the base).
+   * @param {string} rawName
+   * @returns {string}
+   */
+  _resolveTemplateName(rawName) {
+    let name = rawName;
+    if (name.startsWith('/')) name = name.slice(1);
+    const rawBase = this.template && this.template.name != null ? this.template.name : null;
+    if (rawBase === null) return name;
+    const chain = rawBase.indexOf('->');
+    const base = chain >= 0 ? rawBase.slice(0, chain) : rawBase;
+    if (!base.includes('/')) return name;
+    const dirSegs = base.split('/').slice(0, -1);
+    const outSegs = [...dirSegs];
+    for (const seg of name.split('/')) {
+      if (seg === '.' || seg === '') continue;
+      if (seg === '..') { outSegs.pop(); continue; }
+      outSegs.push(seg);
+    }
+    return outSegs.join('/');
   }
 
   // ---- model plumbing ----
