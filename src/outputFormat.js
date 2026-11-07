@@ -43,7 +43,7 @@ export class UndefinedOutputFormat extends OutputFormat {
 
   /** Constructs the singleton. */
   constructor() {
-    super('Undefined');
+    super('undefined'); // <- getName() is lowercase in 2.3.36
   }
 }
 

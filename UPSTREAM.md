@@ -200,8 +200,9 @@ Fifth fidelity round (JVM-pinned, same differential corpus, now 144 cases):
   IndentAndWrapBuiltInTest, TruncateBuiltInTest /
   DefaultTruncateBuiltinAlgorithmTest, LinesBuiltInTest, MinMaxBITest
   (wording adjusted to the port; behavior JVM-pinned).
-- Not ported (documented surface gaps): the `.output_format` special variable
-  (`.data_model`, `.template_name`, `.vars`, `.args` are ported, JVM-pinned);
+- Not ported (documented surface gaps): none among the dot special variables
+  (`.data_model`, `.template_name`, `.vars`, `.args`, `.output_format` are all
+  ported, JVM-pinned);
   FTL has no scientific-notation number literals upstream either (`1e20` is a
   parse error on both sides).
 

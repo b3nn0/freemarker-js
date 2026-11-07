@@ -38,7 +38,7 @@ describe('runtime: output formats and auto-escaping', () => {
 
   it('#autoesc is rejected when the current format can\'t escape', () => {
     throwsMatch(() => new Template('m', '<#autoesc>${v}</#autoesc>', new Configuration()),
-      ParseException, ['The current output format can\'t do escaping: Undefined']);
+      ParseException, ['The current output format can\'t do escaping: undefined']);
   });
 
   it('#autoesc enables escaping inside an already-markup format', async () => {

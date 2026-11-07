@@ -58,6 +58,10 @@ export class BuiltinVariable extends Expression {
         ? new StringModel(env.template.name) : null;
     }
     if (this.name === 'vars') return new VarsModel(env);
+    if (this.name === 'output_format') {
+      const of = env.outputFormat ?? env.configuration.getOutputFormat();
+      return new StringModel(of ? of.name : 'Undefined');
+    }
     if (this.name === 'args') {
       for (let i = env._scopes.length - 1; i >= 0; i--) {
         const s = env._scopes[i];

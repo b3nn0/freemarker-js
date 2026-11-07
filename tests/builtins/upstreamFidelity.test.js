@@ -511,3 +511,13 @@ describe('Upstream !/?? last-step-only semantics (JVM-pinned)', () => {
     throwsMatch(() => out('${h[]}', {}), ParseException, ['Expected an expression between']);
   });
 });
+
+describe('Upstream .output_format special variable (JVM-pinned)', () => {
+  it('prints the current format name (lowercase "undefined" default)', async () => {
+    snapshot(await out('${.output_format}', {}), 'undefined');
+    snapshot(await out('${.output_format?is_string?c}|${.output_format?length}', {}), 'true|9');
+    const cfg = new Configuration();
+    cfg.setOutputFormat('HTML');
+    snapshot(await new Template('t', '${.output_format}', cfg).processToString({}), 'HTML');
+  });
+});
