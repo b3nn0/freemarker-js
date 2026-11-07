@@ -14,7 +14,7 @@ import { TextBlock } from './ast/textBlock.js';
 import { Interpolation } from './ast/interpolation.js';
 import { TerseComment } from './ast/terseComment.js';
 import { CommentDirective } from './ast/commentDirective.js';
-import { NumberLiteral, StringLiteral, BooleanLiteral, ListLiteral, HashLiteral } from './ast/expressions/literals.js';
+import { NumberLiteral, StringLiteral, BooleanLiteral, NullLiteral, ListLiteral, HashLiteral } from './ast/expressions/literals.js';
 import { InterpolatedStringExpression } from './ast/expressions/interpolatedString.js';
 import { Identifier, Dot, DynamicKeyName } from './ast/expressions/variables.js';
 import { MethodCall } from './ast/expressions/calls.js';
@@ -79,6 +79,7 @@ const DOT_KEY_TOKENS = new Set([
 /** token types that may begin an expression. @type {Set<import('./tokenType.js').TokenType>} */
 const EXPRESSION_START = new Set([
   TT.INTEGER, TT.DECIMAL, TT.HEX_INTEGER, TT.STRING_LITERAL, TT.RAW_STRING, TT.TRUE, TT.FALSE,
+  TT.NULL,
   TT.ID, TT.OPEN_BRACKET, TT.OPENING_CURLY_BRACKET, TT.OPEN_PAREN, TT.DOT, TT.PLUS, TT.MINUS, TT.EXCLAM,
 ]);
 // Built-ins that bind their arguments at parse time and accept a lambda argument
@@ -2137,6 +2138,9 @@ export class Parser {
       case TT.FALSE:
         this._next();
         return this._span(new BooleanLiteral(false), t, t);
+      case TT.NULL:
+        this._next();
+        return this._span(new NullLiteral(), t, t);
       case TT.OPEN_BRACKET: {
         this._next();
         const items = [];

@@ -1,7 +1,7 @@
 // <- Macro / MacroModel (#macro, #function). <- freemarker.core.Macro
 
 import { TemplateElement } from '../templateElement.js';
-import { HashModel } from '../../../model/models.js';
+import { HashModel, SequenceModel } from '../../../model/models.js';
 import { TemplateModel } from '../../../model/templateModel.js';
 import { InvalidReferenceException, ReturnInstructionException } from '../../../errors.js';
 
@@ -78,12 +78,38 @@ export class MacroModel extends TemplateModel {
     const declared = new Map(def.params.map((p) => [p.name, p]));
     const used = new Set();
     const extras = [];
+    const kind = def.isFunction ? 'Function' : 'Macro';
+    // <- parameter-count check runs before the unknown-name check (JVM-pinned
+    // order; Drv75/76). The catch-all relaxes both.
+    if (def.catchAllName === null) {
+      const given = positionalArgs.length + namedArgs.size;
+      if (given > def.params.length) {
+        throw new InvalidReferenceException(
+          `${kind} "${def.name}" only accepts ${def.params.length} parameters, but got ${given}.`);
+      }
+      for (const [k, v] of namedArgs) {
+        if (v !== null && !declared.has(k)) {
+          throw new InvalidReferenceException(
+            `${kind} "${def.name}" has no parameter with name "${k}". `
+            + `Valid parameter names are: ${def.params.map((p) => p.name).join(', ')}`);
+        }
+      }
+    } else if (!def.isFunction && def.argsNeeded
+      && positionalArgs.length > def.params.length) {
+      throw new InvalidReferenceException(
+        'The macro can only by called with named arguments, because it uses both '
+        + '.args and a non-empty catch-all parameter.');
+    }
+    // <- a null call argument counts as "not given" (the default fills in).
     for (let i = 0; i < positionalArgs.length; i++) {
+      if (positionalArgs[i] === null) continue;
       const p = def.params[i];
       if (p === undefined) {
-        throw new InvalidReferenceException(
-          `Macro/function "${def.name}" was called with ${positionalArgs.length} positional `
-          + `arguments, but it only accepts ${def.params.length} positional arguments.`);
+        // overflow; the count/name checks above already rejected the illegal
+        // shapes - what remains goes to the catch-all ".args" (functions) or is
+        // silently ignored (macros without ".args").
+        if (def.isFunction) extras.push([null, positionalArgs[i]]);
+        continue;
       }
       if (used.has(p.name)) {
         throw new InvalidReferenceException(
@@ -94,6 +120,7 @@ export class MacroModel extends TemplateModel {
     }
     let catchAllMap = null;
     for (const [k, v] of namedArgs) {
+      if (v === null) continue;
       if (declared.has(k)) {
         if (used.has(k)) {
           throw new InvalidReferenceException(
@@ -108,11 +135,6 @@ export class MacroModel extends TemplateModel {
         }
         catchAllMap.set(k, v);
         if (def.argsNeeded) extras.push([k, v]);
-      } else if (def.argsNeeded) {
-        extras.push([k, v]); // unnamed-for-the-signature, but `.args` captures them
-      } else {
-        throw new InvalidReferenceException(
-          `Macro/function "${def.name}" doesn't accept the argument "${k}".`);
       }
     }
 
@@ -123,25 +145,55 @@ export class MacroModel extends TemplateModel {
     env._scopes.push(scope);
     env._macroCallStack.push({ callerScopes, bodyChildren, bodyParamNames });
     try {
-      // <- Macro.java:274-288: default values are evaluated once the earlier
-      // parameters are already set in the macro scope.
-      for (const p of def.params) {
-        if (!used.has(p.name)) {
-          if (p.defaultExp !== null) scope.set(p.name, yield* p.defaultExp.evaluate(env));
-          else {
-            throw new InvalidReferenceException(
-              `The macro/function "${def.name}" is missing the required argument "${p.name}".`);
+      // <- Macro.java MultiPassDefaultsInvoker: defaults may reference each
+      // other; they are re-tried in repeated passes until no progress is made
+      // (a stall throws the first failure, e.g. for cyclic defaults).
+      let firstFail = null;
+      let progress = true;
+      while (progress) {
+        progress = false;
+        for (const p of def.params) {
+          if (used.has(p.name) || p.defaultExp === null) continue;
+          try {
+            scope.set(p.name, yield* p.defaultExp.evaluate(env));
+            used.add(p.name);
+            progress = true;
+          } catch (e) {
+            scope.delete(p.name);
+            if (firstFail === null) firstFail = e;
           }
         }
       }
-      if (def.argsNeeded) {
-        const m = new Map();
-        for (const p of def.params) {
-          const v = scope.get(p.name);
-          if (v !== undefined) m.set(p.name, v);
+      for (const p of def.params) {
+        if (!used.has(p.name)) {
+          if (p.defaultExp === null) {
+            throw new InvalidReferenceException(
+              `The macro/function "${def.name}" is missing the required argument "${p.name}".`);
+          }
+          throw firstFail ?? new InvalidReferenceException(
+            `The macro/function "${def.name}" is missing the required argument "${p.name}".`);
         }
-        for (const [k, v] of extras) m.set(k, v);
-        scope.set('__args__', new HashModel(m));
+      }
+      if (def.argsNeeded) {
+        if (def.isFunction) {
+          // <- .args in a function is a plain sequence of the values, in the
+          // declared-parameter order, with the overflow/extras appended.
+          const vals = [];
+          for (const p of def.params) {
+            const v = scope.get(p.name);
+            if (v !== undefined) vals.push(v);
+          }
+          for (const [, v] of extras) vals.push(v);
+          scope.set('__args__', new SequenceModel(vals));
+        } else {
+          const m = new Map();
+          for (const p of def.params) {
+            const v = scope.get(p.name);
+            if (v !== undefined) m.set(p.name, v);
+          }
+          for (const [k, v] of extras) if (k !== null) m.set(k, v);
+          scope.set('__args__', new HashModel(m));
+        }
       }
       for (const c of def.children) yield* env.visit(c);
     } catch (e) {

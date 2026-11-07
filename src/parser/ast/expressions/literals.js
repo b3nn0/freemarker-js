@@ -72,6 +72,23 @@ export class BooleanLiteral extends Expression {
   }
 }
 
+/** null literal <- FTL.jj "null" (evaluates to the null model). */
+export class NullLiteral extends Expression {
+  /**
+   * @returns {string} the upstream-style canonical template source of this node
+   */
+  getCanonicalForm() {
+    return 'null';
+  }
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {null}
+   */
+  * evaluate(env) {
+    return null;
+  }
+}
+
 /** List literal <- ListLiteral. */
 export class ListLiteral extends Expression {
   /** @param {Expression[]} items */

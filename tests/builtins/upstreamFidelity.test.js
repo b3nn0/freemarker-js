@@ -1200,3 +1200,61 @@ describe('Upstream InterpretSettingInheritanceTest (ported)', () => {
       `<@'"s<#if true>a</#if>"?interpret'?eval />`);
   });
 });
+
+// Upstream ArgsSpecialVariableTest (ported): .args in macros is a hash in
+// declared-parameter order (extras only with a catch-all), in functions a
+// sequence of values; null call arguments count as "not given"; defaults are
+// resolved in multiple passes.
+describe('Upstream ArgsSpecialVariableTest (ported)', () => {
+  it('.args in macros (named and positional calls)', async () => {
+    const md = '<#macro m a b><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro>';
+    snapshot(await out(md + '<@m a=11 b=22 />', {}), 'a=11, b=22');
+    snapshot(await out(md + '<@m 11 22 />', {}), 'a=11, b=22');
+    snapshot(await out('<#macro m>${.args?size}</#macro><@m />', {}), '0');
+    snapshot(await out('<#macro m others...>${.args?size}</#macro><@m />', {}), '0');
+  });
+  it('.args with defaults', async () => {
+    const md = '<#macro m a b c=3><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro>';
+    const exp = 'a=11, b=22, c=33; a=11, b=22, c=3';
+    snapshot(await out(md + '<@m a=11 b=22 c=33 />; <@m a=11 b=22 />', {}), exp);
+    snapshot(await out(md + '<@m 11 22 33 />; <@m 11 22 />', {}), exp);
+  });
+  it('.args with multi-pass defaults', async () => {
+    const md = '<#macro m a=c b=c c=b><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro>';
+    const exp = 'a=33, b=33, c=33; a=22, b=22, c=22; a=11, b=33, c=33; a=11, b=22, c=22';
+    snapshot(await out(md + '<@m c=33 />; <@m b=22 />; <@m a=11 c=33 />; <@m a=11 b=22 />', {}), exp);
+    snapshot(await out(md + '<@m null, null, 33 />; <@m null, 22, null />; '
+      + '<@m 11, null, 33 />; <@m 11, 22, null />', {}), exp);
+  });
+  it('.args with catch-all', async () => {
+    const md = '<#macro m a b=2 others...><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro>';
+    snapshot(await out(md + '<@m a=11 b=22 c=33 d=44 />; <@m a=11 b=22 />; '
+      + '<@m a=11 />; <@m a=11 c=33 />', {}),
+    'a=11, b=22, c=33, d=44; a=11, b=22; a=11, b=2; a=11, b=2, c=33');
+    snapshot(await out(md + '<@m 1, 2 />', {}), 'a=1, b=2');
+    rejectsMatch(() => out(md + '<@m 1, 2, 3 />', {}),
+      TemplateException, ['.args', 'catch-all']);
+  });
+  it('.args in functions (sequence of values)', async () => {
+    const fd = '<#function f a b><#return .args?join(\', \')></#function>';
+    snapshot(await out(fd + '${f(11, 22)}', {}), '11, 22');
+    snapshot(await out('<#function f><#return .args?size></#function>${f()}', {}), '0');
+    snapshot(await out('<#function f others...><#return .args?size></#function>${f()}', {}), '0');
+    const fd2 = '<#function f a b c=3><#return .args?join(\', \')></#function>';
+    snapshot(await out(fd2 + '${f(11, 22, 33)}; ${f(11, 22)}', {}), '11, 22, 33; 11, 22, 3');
+    const fd3 = '<#function f a=c b=c c=b><#return .args?join(\', \')></#function>';
+    snapshot(await out(fd3 + '${f(null, null, 33)}; ${f(null, 22)}; '
+      + '${f(11, null, 33)}; ${f(11, 22)}', {}),
+    '33, 33, 33; 22, 22, 22; 11, 33, 33; 11, 22, 22');
+    snapshot(await out(fd3 + '${f(11, 22)}; ${f(11, 22, 33)}', {}), '11, 22, 22; 11, 22, 33');
+    const fd4 = '<#function f a b=2 others...><#return .args?join(\', \')></#function>';
+    snapshot(await out(fd4 + '${f(11, 22, 33, 44)}; ${f(11, 22)}; ${f(11)}; '
+      + '${f(11, null, 33)}', {}), '11, 22, 33, 44; 11, 22; 11, 2; 11, 2, 33');
+  });
+  it('.args in wrong context', () => {
+    throwsMatch(() => new Template('t.ftl', '${.args}', new Configuration()),
+      ParseException, ['args', 'macro', 'function']);
+    rejectsMatch(() => out("<#macro m>${'.args'?eval}</#macro><@m />", {}),
+      TemplateException, ['args', 'macro', 'function']);
+  });
+});

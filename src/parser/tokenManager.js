@@ -65,7 +65,7 @@ const ALL_DIRECTIVE_NAMES = new Set([
 // word spellings that lex to non-ID token types <- FTL.jj token literals
 /** expression-language keywords. @type {Map<string, Object>} */
 const KEYWORDS = new Map(Object.entries({
-  true: TT.TRUE, false: TT.FALSE, as: TT.AS, in: TT.IN, using: TT.USING,
+  true: TT.TRUE, false: TT.FALSE, null: TT.NULL, as: TT.AS, in: TT.IN, using: TT.USING,
   lt: TT.LESS_THAN, lte: TT.LESS_THAN_EQUALS, gt: TT.ESCAPED_GT, gte: TT.ESCAPED_GTE,
 }));
 

@@ -34,10 +34,23 @@ describe('Directive: #macro / #function / <@call>', () => {
     snapshot(await out(
       '<#macro m p, rest...>${p}:${rest.x}:${rest.y}</#macro><@m p=0 x=1 y=2/>', {}), '0:1:2');
   });
+  // <- JVM-verified (Drv75/76): ".args" holds the declared parameters (plus
+  // call-order extras only when a catch-all exists); unknown named arguments
+  // are a runtime error, not ".args" material.
   it('the .args special variable', async () => {
-    snapshot(await out('<#macro m>total=${.args.total}</#macro><@m total=7/>'), 'total=7');
-    snapshot(await out('<#macro m a>given=${.args.a} extra=${.args.e}</#macro><@m a=1 e=2/>'),
-      'given=1 extra=2');
+    snapshot(await out(
+      '<#macro m a b><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro><@m a=11 b=22 />'),
+    'a=11, b=22');
+    snapshot(await out(
+      '<#macro m a b c=3><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro><@m a=11 b=22 />'),
+    'a=11, b=22, c=3');
+    snapshot(await out(
+      '<#macro m a b others...><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro>'
+      + '<@m a=1 b=2 c=3 />'), 'a=1, b=2, c=3');
+    rejectsMatch(() => out('<#macro m>total=${.args.total}</#macro><@m total=7/>'),
+      InvalidReferenceException, ['has no parameter with name', 'total']);
+    rejectsMatch(() => out('<#macro m a>given=${.args.a}</#macro><@m a=1 e=2/>'),
+      InvalidReferenceException, ['only accepts 1 parameters, but got 2']);
   });
   it('.args outside a macro/function is a parse error', () => {
     const e = throwsMatch(() => parse('${.args}'), ParseException);
