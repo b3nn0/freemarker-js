@@ -1247,13 +1247,15 @@ export class Parser {
 
     const first = this._assignName();
     let opTok = this._next();
-    // block form: <#assign name> or <#assign name+=>
+    // block form: <#assign name> -- upstream BlockAssignment has no compound
+    // operator ("name+=>" is a parse error there)
     if (opTok.type === TT.DIRECTIVE_END) {
       return this._parseAssignBlock(startTok, scope, first, '=');
     }
-    if (OP_TOKENS.has(opTok.type) && this._peek().type === TT.DIRECTIVE_END && opTok.type !== TT.EQUALS) {
-      this._next();
-      return this._parseAssignBlock(startTok, scope, first, OP_TOKENS.get(opTok.type));
+    if (OP_TOKENS.has(opTok.type) && opTok.type !== TT.EQUALS
+      && this._peek().type === TT.DIRECTIVE_END) {
+      throw this._error('Expected an expression after the operator, but got the end of the '
+        + 'directive tag; compound assignment can\'t capture the directive body.', this._peek());
     }
 
     const assignments = [];
@@ -1302,7 +1304,7 @@ export class Parser {
       : scope === 'local' ? TT.END_LOCAL : TT.END_ASSIGN;
     const children = this._parseMixedContent(new Set([endType]));
     const endTok = this._expect(endType, 'the matching end tag');
-    return this._span(new Assignment(name, opKind === '=' ? 'block' : 'block+=', null, scope,
+    return this._span(new Assignment(name, 'block', null, scope,
       children.children), startTok, endTok);
   }
 

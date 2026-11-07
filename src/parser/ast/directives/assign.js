@@ -6,14 +6,14 @@ import {
   InvalidReferenceException, NonNumericalException, UnsupportedFeatureException,
 } from '../../../errors.js';
 import { StringWriter } from '../../../io/writer.js';
-import { StringModel } from '../../../model/models.js';
+import { StringModel, MarkupModel } from '../../../model/models.js';
 
 /** @type {{ NAMESPACE: string, GLOBAL: string, LOCAL: string }} */
 export const ASSIGN_SCOPE = { NAMESPACE: 'namespace', GLOBAL: 'global', LOCAL: 'local' };
 
 /** #assign/#global/#local <- Assignment. */
 export class Assignment extends TemplateElement {
-  // name; opKind: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '++' | '-- | 'block' | 'block+=' ;
+  // name; opKind: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '++' | '-- | 'block' ;
   // exp (null for ++/-- and block); scope: ASSIGN_SCOPE value
   /**
    * @param {string} name
@@ -26,7 +26,7 @@ export class Assignment extends TemplateElement {
     super();
     this.name = name;
     this.opKind = opKind;
-    if (opKind === 'block' || opKind === 'block+=') this._whitespaceScanLeaf = true; // <- BlockAssignment
+    if (opKind === 'block') this._whitespaceScanLeaf = true; // <- BlockAssignment
     this.exp = exp;
     this.scope = scope;
     this.blockChildren = blockChildren;
@@ -42,19 +42,13 @@ export class Assignment extends TemplateElement {
       case '=':
         value = yield* this.exp.evaluate(env);
         break;
-      case 'block':
-      case 'block+=': {
+      case 'block': {
         const captured = yield* this._capture(env);
-        if (this.opKind === 'block+=') {
-          const old = yield* env.getVariable(this.name);
-          if (old === null || old === undefined) {
-            throw new InvalidReferenceException(
-              `Can't do "#assign ${this.name}+=": the variable has no old value.`);
-          }
-          value = new StringModel((yield* env.coerceToString(old)) + captured);
-        } else {
-          value = new StringModel(captured);
-        }
+        // <- Environment.captureOutput + BlockAssignment: under a markup output
+        // format the captured text becomes a markup output model (printed as-is,
+        // not re-escaped); under Undefined/PlainText it stays a plain string.
+        const of = env.outputFormat ?? env.configuration.getOutputFormat();
+        value = of && of.isMarkup ? new MarkupModel(null, of, captured) : new StringModel(captured);
         break;
       }
       case '++':
@@ -129,7 +123,7 @@ export class Assignment extends TemplateElement {
   getCanonicalForm() {
     const tag = this._tag();
     if (this.blockChildren) {
-      const op = this.opKind === 'block+=' ? '+=' : '';
+      const op = '';
       return `<#${tag} ${backslashEscapeIdentifier(this.name)}${op}>`
         + this.blockChildren.map((c) => c.getCanonicalForm()).join('')
         + `</#${tag}>`;

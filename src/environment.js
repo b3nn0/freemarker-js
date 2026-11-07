@@ -9,7 +9,7 @@ import {
 import { formatNumber } from './format/numberFormat.js';
 import { formatDate } from './format/dateFormat.js';
 import { Decimal } from './format/decimal.js';
-import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
+import { StringModel, NumberModel, BooleanModel, DateModel, MarkupModel } from './model/models.js';
 import { TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
 import { unwrap } from './model/unwrap.js';
@@ -29,6 +29,7 @@ const COMPARATOR_NAMES = { eq: 'equals', neq: 'not-equals', lt: 'less-than', gt:
 /** FTL type description in comparison errors <- _DelayedFTLTypeDescription + _DelayedAOrAn. */
 function comparisonDescription(m) {
   if (m instanceof NumberModel) return 'a number';
+  if (m instanceof MarkupModel) return 'a markup_output';
   if (m instanceof StringModel) return 'a string';
   if (m instanceof DateModel) return 'a date_or_time_or_datetime';
   if (m instanceof BooleanModel) return 'a boolean';
@@ -447,6 +448,7 @@ export class Environment {
    */
   typeLabel(model) {
     if (model === null || model === undefined) return 'null or missing';
+    if (model instanceof MarkupModel) return 'a markup_output';
     if (model instanceof StringModel) return 'string';
     if (model instanceof NumberModel) return 'number';
     if (model instanceof BooleanModel) return 'boolean';

@@ -4,7 +4,7 @@
 
 import { registerBuiltIn } from './registry.js';
 import { BuiltinArgMethod, stringMethodArg } from './common.js';
-import { StringModel, NumberModel, SequenceModel, BooleanModel } from '../model/models.js';
+import { StringModel, NumberModel, SequenceModel, BooleanModel, MarkupModel } from '../model/models.js';
 import { NonNumericalException, TemplateException, InvalidFormatStringException, NonStringException } from '../errors.js';
 import { awaitOp } from '../async.js';
 
@@ -56,7 +56,25 @@ function capitalize(s) {
  * @param {string} key
  * @returns {string} the target coerced to a string
  */
+// <- BuiltInForString.getTargetAsString: markup output models are NOT scalar
+// models upstream, so every string built-in rejects them.
+/**
+ * @param {import('../model/templateModel.js').TemplateModel} target
+ * @param {import('../environment.js').Environment} env
+ * @param {string} key
+ * @returns {void}
+ */
+export function guardMarkupTarget(target, env, key) {
+  if (target instanceof MarkupModel) {
+    throw new NonStringException(
+      `For "?${key}" left-hand operand: Expected a string or something automatically `
+      + `convertible to string (number, date or boolean), but this has evaluated to `
+      + `${env.typeLabel(target)}.`);
+  }
+}
+
 function* targetString(target, env, key) {
+  guardMarkupTarget(target, env, key);
   return yield* env.coerceToString(target, ` for the "?${key}" built-in`);
 }
 

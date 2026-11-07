@@ -33,7 +33,12 @@ export function parseNumberPattern(pattern) {
       // digit chars fall through to the int phase WITHOUT being consumed:
       // "0.00" needs minIntDigits=1 (DecimalFormat("0.00").format(0) = "0.00")
       if (c === '0' || c === '#') phase = "int";
-      else {
+      else if (c === ',') {
+        // <- DecimalFormat: a leading "," is the grouping marker, not prefix text
+        spec.grouping = true;
+        phase = "int";
+        i++;
+      } else {
         if (c === '.') throw invalidPattern(pattern);
         spec.prefix += c;
         i++;

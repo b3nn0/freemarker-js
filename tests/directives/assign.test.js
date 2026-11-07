@@ -45,10 +45,10 @@ describe('Directive: #assign / #global / #local', () => {
     snapshot(await out('<#assign s>Hello ${name}</#assign>[${s}]', { name: 'W' }), '[Hello W]');
     snapshot(await out('<#assign s><#if true>yes<#else>no</#if></#assign>${s}'), 'yes');
   });
-  it('block assignment with += concatenates', async () => {
-    snapshot(await out('<#assign s = "a"><#assign s+=>b</#assign>${s}'), 'ab');
-    const e = await rejectsMatch(out('<#assign s+=>b</#assign>'), InvalidReferenceException);
-    ok(e.message.includes('no old value'));
+  it('compound block assignment is a parse error <- FTL.jj BlockAssignment', async () => {
+    throwsMatch(() => parse('<#assign s = "a"><#assign s+=>b</#assign>${s}'), ParseException,
+      ['Expected an expression']);
+    throwsMatch(() => parse('<#assign s+=>b</#assign>'), ParseException, ['Expected an expression']);
   });
   it('#global writes into the data model', async () => {
     const m = { x: 1 };
@@ -89,7 +89,6 @@ describe('Directive: #assign / #global / #local', () => {
     snapshot(parse('<#global g=1>').getCanonicalForm(), '<#global g = 1>');
     snapshot(parse('<#assign s>x${y}</#assign>').getCanonicalForm(),
       '<#assign s>x${y}</#assign>');
-    snapshot(parse('<#assign s+=>b</#assign>').getCanonicalForm(), '<#assign s+=>b</#assign>');
   });
   it('error location carries the failing element', async () => {
     const e = await rejectsMatch(out('<#assign n = notThere + 1>'), UnassignedVariableException);

@@ -16,6 +16,7 @@ import {
   InvalidReferenceException, NonExtendedHashException, NonNumericalException, TemplateException,
 } from '../errors.js';
 import { awaitOp, callOp } from '../async.js';
+import { guardMarkupTarget } from './strings.js';
 
 /** @type {import('../model/models.js').BooleanModel} */
 const BoolTrue = BooleanModel.TRUE;
@@ -117,6 +118,7 @@ registerBuiltIn('default', {
  */
 function* toNull(target, env, key, blankTest) {
   if (target === null || target === undefined) return null;
+  guardMarkupTarget(target, env, key);
   const s = yield* env.coerceToString(target, ` for the "?${key}" built-in`);
   return blankTest(s) ? null : target;
 }
@@ -159,6 +161,7 @@ registerBuiltIn('trim_to_null', {
      */
   * impl(target, args, env) {
     if (target === null || target === undefined) return null;
+    guardMarkupTarget(target, env, 'trim_to_null');
     // <- String.trim(): only code points <= U+0020 are trimmed (NOT full Unicode)
     const s = (yield* env.coerceToString(target, ' for the "?trim_to_null" built-in'))
       .replace(/^[\0-\u0020]+|[\0-\u0020]+$/g, '');
