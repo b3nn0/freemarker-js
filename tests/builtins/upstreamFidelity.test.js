@@ -2080,3 +2080,31 @@ describe('Upstream CoercionToTextualTest (ported)', () => {
     snapshot(await run("${'&' + m}"), '&amp;<p>M</p>');
   });
 });
+
+describe('Upstream WhitespaceStrippingTest (ported)', () => {
+  const both = async (src, stripped, nonStripped) => {
+    const s = new Configuration('2.3.21');
+    const n = new Configuration('2.3.21');
+    n.setWhitespaceStripping(false);
+    snapshot(await new Template('t', src, s).processToString({}), stripped);
+    snapshot(await new Template('t', src, n).processToString({}), nonStripped);
+  };
+  it('testBasics', async () => {
+    await both('<#assign x = 1>\n<#assign y = 2>\n${x}\n${y}', '1\n2', '\n\n1\n2');
+    await both(' <#assign x = 1> \n <#assign y = 2> \n${x}\n${y}', '1\n2', '  \n  \n1\n2');
+  });
+  it('testFTLHeader', async () => {
+    await both('<#ftl>x', 'x', 'x');
+    await both('  <#ftl>  x', '  x', '  x');
+    await both('\n<#ftl>\nx', 'x', 'x');
+    await both('\n<#ftl>\t \nx', 'x', 'x');
+    await both('  \n \n  <#ftl> \n \n  x', ' \n  x', ' \n  x');
+  });
+  it('testComment', async () => {
+    await both(' a <#-- --> b ', ' a  b ', ' a  b ');
+    await both(' a \n<#-- -->\n b ', ' a \n b ', ' a \n\n b ');
+    // these are odd but match upstream 2.3.0 compatibility behavior
+    await both(' a \n <#-- --> \n b ', ' a \n  b ', ' a \n  \n b ');
+    await both(' a \n\t<#-- --> \n b ', ' a \n\t b ', ' a \n\t \n b ');
+  });
+});
