@@ -451,6 +451,20 @@ describe('Upstream ?matches (JVM-pinned)', () => {
   });
 });
 
+describe('Upstream hex number literals (JVM-pinned)', () => {
+  it('0x literals evaluate exactly like BigDecimalEngine.hexadecimalToNumber', async () => {
+    snapshot(await out('${0xFF}|${0Xff?c}', {}), '255|255');
+    snapshot(await out('${0xFFFFFFFF?c}', {}), '4294967295');
+    snapshot(await out('${0xFFFFFFFFFFFFFFFFFF?c}', {}), '4722366482869645213695');
+    snapshot(await out('${0x08?c}', {}), '8');
+    snapshot(await out('${(0xFF + 1)?c}', {}), '256');
+  });
+
+  it('0x without digits is a parse error', async () => {
+    throwsMatch(() => out('${0x?c}', {}), ParseException, ['line 1, column 4']);
+  });
+});
+
 describe('Upstream ?interpret (JVM-pinned)', () => {
   it('assign + <@d/> renders the parsed string in current scope', async () => {
     snapshot(await out('<#assign x="W"><#assign d="Hi ${x}"?interpret>[<@d/>]', {}), '[Hi W]');

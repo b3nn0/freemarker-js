@@ -1914,7 +1914,8 @@ export class Parser {
         return this._span(new NumberLiteral(Number.parseFloat(t.image), Decimal.fromLiteral(t.image)), t, t);
       case TT.HEX_INTEGER:
         this._next();
-        return this._span(new NumberLiteral(Number.parseInt(t.image.slice(2), 16)), t, t);
+        return this._span(
+          new NumberLiteral(Number.parseInt(t.image.slice(2), 16), Decimal.fromHex(t.image)), t, t);
       case TT.STRING_LITERAL: {
         this._next();
         let value;

@@ -200,7 +200,7 @@ Fifth fidelity round (JVM-pinned, same differential corpus, now 144 cases):
   IndentAndWrapBuiltInTest, TruncateBuiltInTest /
   DefaultTruncateBuiltinAlgorithmTest, LinesBuiltInTest, MinMaxBITest
   (wording adjusted to the port; behavior JVM-pinned).
-- Not ported (documented surface gaps): numeric hex literals (`0xFF`),
+- Not ported (documented surface gaps):
   special
   variables `.template_name` / `.data_model` (and the `#import`/`#recover`
   nuances they interact with) are not implemented; FTL has no

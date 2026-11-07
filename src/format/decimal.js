@@ -25,6 +25,12 @@ export class Decimal {
    * BigDecimal.valueOf(double)-style: shortest decimal repr of a JS number.
    * @param {number} n @returns {Decimal}
    */
+  /** 0x-prefixed hex literal image -> exact value. */
+  static fromHex(image) {
+    const u = BigInt(image);
+    return new Decimal(u < 0n ? -u : u, 0);
+  }
+
   static fromNumber(n) {
     if (!Number.isFinite(n)) throw new TypeError('non-finite number');
     return Decimal.parse(String(n));
