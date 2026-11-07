@@ -43,6 +43,15 @@ const out = await t.processToString({ user: { name: fetchUserName() } });
 // fetchUserName(): Promise<string>
 ```
 
+**Security note - auto-escaping is OFF by default**, exactly like upstream 2.3
+(the `Undefined` output format): `${...}` interpolations are not escaped, so
+untrusted model values can inject markup. For HTML output set an output format;
+the configured format then enables auto-escaping automatically:
+
+```js
+cfg.setOutputFormat('HTML'); // #ftl output_format=... works per template too
+```
+
 Runnable examples: `node examples/demo.mjs` and `examples/browser.html`.
 Run the test suite: `node tests/cli.mjs`.
 
