@@ -337,7 +337,7 @@ function coreDedentCommon(s) {
         let matchingLen = 0;
         while (matchingLen < maxLen && cur[matchingLen] === ind[matchingLen]) matchingLen++;
         longest = cur.slice(0, matchingLen);
-        if (longest === '') return longest;
+        if (longest === '') break; // can't shrink further
       }
     }
     if (contentEndPos < len) {

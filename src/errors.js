@@ -16,7 +16,12 @@ export class ParseException extends FreeMarkerException {
    * @param {{ templateName?: string|null, beginLine?: number, beginColumn?: number, endLine?: number, endColumn?: number }} [loc]
    */
   constructor(message, { templateName = null, beginLine = -1, beginColumn = -1, endLine = -1, endColumn = -1 } = {}) {
-    super(message);
+    // <- upstream prefixes the parse-error message with template/position
+    const prefixed = beginLine >= 0
+      ? `Syntax error in template ${JSON.stringify(String(templateName))} `
+        + `in line ${beginLine}, column ${beginColumn}:\n${message}`
+      : message;
+    super(prefixed);
     this.templateName = templateName;
     this.beginLine = beginLine;
     this.beginColumn = beginColumn;
@@ -32,7 +37,12 @@ export class TemplateException extends FreeMarkerException {
    * @param {{ templateName?: string|null, beginLine?: number, beginColumn?: number, errorStackTrace?: string|null }} [loc]
    */
   constructor(message, { templateName = null, beginLine = -1, beginColumn = -1, errorStackTrace = null } = {}) {
-    super(message);
+    // <- upstream prefixes the parse-error message with template/position
+    const prefixed = beginLine >= 0
+      ? `Syntax error in template ${JSON.stringify(String(templateName))} `
+        + `in line ${beginLine}, column ${beginColumn}:\n${message}`
+      : message;
+    super(prefixed);
     this.templateName = templateName;
     this.beginLine = beginLine;
     this.beginColumn = beginColumn;

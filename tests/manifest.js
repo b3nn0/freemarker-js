@@ -24,5 +24,6 @@ export const TEST_FILES = [
   './directives/macro.test.js',
   './builtins/sequences.test.js',
   './builtins/strings.test.js',
+  './builtins/upstreamFidelity.test.js',
   './builtins/types.test.js',
 ];
