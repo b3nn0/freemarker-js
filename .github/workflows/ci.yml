@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Test suite (zero dependencies, no install step)
+        run: npm test
+      - name: JSDoc typecheck (npx typescript)
+        run: npm run typecheck
+      - name: Audit - no regex/eval in src/
+        run: |
+          if grep -rnE "RegExp|\.test\(|\.match\(|\.replace\(/|\.search\(|\.split\(/|eval\(|new Function" src/; then
+            echo "regex/eval audit failed"; exit 1
+          fi
+      - name: Audit - repo is pure ASCII
+        run: |
+          if LC_ALL=C grep -rPn "[^\x00-\x7F]" $(git ls-files); then
+            echo "non-ASCII bytes found"; exit 1
+          fi
+        env:
+          LC_ALL: C
