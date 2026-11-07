@@ -312,6 +312,7 @@ export class Parser {
    * @returns {void}
    */
   _applyFTLHeaderParam(keyTok, exp, settings) {
+    this.tm.checkNamingConvention(keyTok);
     const k = keyTok.image;
     const ks = k.toLowerCase();
     // <- FTL.jj: equalsIgnoreCase(snake_case) || equals(camelCase)
@@ -344,9 +345,14 @@ export class Parser {
       }
       this.autoEscaping = this._recalculateAutoEscaping();
       settings.outputFormat = this.outputFormat.name;
-    } else if (matches('ns_prefixes', 'nsPrefixes') || ks === 'attributes') {
-      throw new UnsupportedFeatureException(
-        `The "#ftl ${keyTok.image}" parameter is not supported by this port yet.`);
+    } else if (matches('ns_prefixes', 'nsPrefixes')) {
+      // <- FTL.jj: hash of prefix -> namespace URI mappings
+      settings.nsPrefixes = this._evalHeaderMap(exp);
+      this._nsPrefixes = settings.nsPrefixes;
+    } else if (ks === 'attributes') {
+      // <- FTL.jj: custom template attributes (hash of name -> value)
+      settings.attributes = this._evalHeaderMap(exp);
+      this._ftlAttributes = settings.attributes;
     } else {
       const suggested = FTL_HEADER_PARAM_SUGGESTIONS.get(ks) ?? null;
       throw this._error(
@@ -357,11 +363,28 @@ export class Parser {
   }
 
   /**
+   * <- FTL.jj ns_prefixes / attributes header params: a hash of constant entries.
+   * @param {import('./ast/expressions/expression.js').Expression} exp
+   * @returns {Map<string, string|number|boolean>}
+   */
+  _evalHeaderMap(exp) {
+    if (!(exp instanceof HashLiteral)) {
+      throw this._errorAt('Expecting a hash with constant (literal) entries.', exp);
+    }
+    const m = new Map();
+    for (let i = 0; i < exp.keys.length; i++) {
+      const k = this._evalHeaderConstant(exp.keys[i]);
+      const v = this._evalHeaderConstant(exp.values[i]);
+      m.set(String(k), v);
+    }
+    return m;
+  }
+
+  /**
    * @param {import('./ast/expressions/expression.js').Expression} exp
    * @returns {string|number|boolean} the literal value
    */
-  _evalHeaderConstant(exp) {
-    if (exp instanceof StringLiteral || exp instanceof NumberLiteral || exp instanceof BooleanLiteral) {
+  _evalHeaderConstant(exp) {    if (exp instanceof StringLiteral || exp instanceof NumberLiteral || exp instanceof BooleanLiteral) {
       return exp.value;
     }
     throw this._errorAt(
@@ -1019,6 +1042,7 @@ export class Parser {
       throw this._error(`Expected a setting name after "#setting", but got ${this._desc(kt)}.`, kt);
     }
     this._next();
+    this.tm.checkNamingConvention(kt);
     const eq = this._peek();
     if (eq.type !== TT.EQUALS) {
       throw this._error(`Expected "=" after the "#setting" setting name "${kt.image}".`, eq);

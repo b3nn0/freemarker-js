@@ -111,9 +111,19 @@ describe('FTL header directive', () => {
       ['Could not evaluate expression (on parse-time): bar']);
   });
 
+  it('camelCase header parameters record the same settings <- CamelCaseTest', () => {
+    const t = new Template('t.ftl',
+      '<#ftl encoding="UTF-8" stripWhitespace=false stripText=false strictSyntax=false autoEsc=false outputFormat="HTML">');
+    eq(t.ftlHeader.settings.stripWhitespace, false);
+    eq(t.ftlHeader.settings.outputFormat, 'HTML');
+    // mixing conventions in one header is a parse error <- FTL.jj
+    throwsMatch(() => new Template('t.ftl', '<#ftl stripWhitespace=true strip_text=true>x'),
+      ParseException, ['Naming convention mismatch']);
+  });
+
   it('settings are recorded on the template', () => {
     const t = new Template('t.ftl',
-      '<#ftl encoding="UTF-8" strip_whitespace=false stripText=false strict_syntax=false auto_esc=false output_format="HTML">');
+      '<#ftl encoding="UTF-8" strip_whitespace=false strip_text=false strict_syntax=false auto_esc=false output_format="HTML">');
     eq(t.ftlHeader.settings, {
       encoding: 'UTF-8',
       stripWhitespace: false,

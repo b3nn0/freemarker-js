@@ -5,7 +5,7 @@
 // against the JVM via differential probes. Wording of error messages follows
 // the port's style; line/column blaming is asserted separately elsewhere.
 
-import { describe, it, snapshot, throwsMatch, rejectsMatch } from '../harness.js';
+import { describe, it, snapshot, throwsMatch, rejectsMatch, ok } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
@@ -536,5 +536,95 @@ describe('Upstream boolean_format legacy semantics (JVM-pinned)', () => {
     snapshot(await out('<#setting boolean_format="c">${true}', {}), 'true');
     snapshot(await out('${true?string}|${true?c}|${true?string("Y","N")}', {}), 'true|true|Y');
     snapshot(await out('<#setting boolean_format="y,n">${true?string}', {}), 'y');
+  });
+});
+
+// <- Upstream StringBuiltInTest (blank/trim/empty-to-null; HTML output format,
+// number_format ",##0.###"). Wording of type errors follows the port's style.
+describe('Upstream StringBuiltInTest (ported)', () => {
+  const cfg = () => {
+    const c = new Configuration();
+    c.setOutputFormat('HTML');
+    c.setNumberFormat(',##0.###');
+    return c;
+  };
+  const o = (src) => new Template('t.ftl', src, cfg()).processToString({});
+
+  it('blank_to_null', async () => {
+    snapshot(await o("${nonExisting?blank_to_null!'-'}"), '-');
+    snapshot(await o("${nonExisting!?blank_to_null!'-'}"), '-');
+    snapshot(await o("${''?blank_to_null!'-'}"), '-');
+    snapshot(await o("${' '?blank_to_null!'-'}"), '-');
+    snapshot(await o("${'  a  '?blank_to_null!'-'}"), '  a  ');
+    snapshot(await o("${'a '?blank_to_null!'-'}"), 'a ');
+    snapshot(await o("${' a'?blank_to_null!'-'}"), ' a');
+    snapshot(await o("${'a'?blank_to_null!'-'}"), 'a');
+    snapshot(await o("${'a b'?blank_to_null!'-'}"), 'a b');
+    snapshot(await o("${(nonExisting + '.')?blank_to_null!'-'}"), '-');
+    snapshot(await o("${1234?blank_to_null!'-'}"), '1,234');
+    // all UNICODE whitespace counts as blank here (unlike ?trim):
+    snapshot(await o("${' \u2003  '?blank_to_null!'-'}"), '-');
+    snapshot(await o("${' \u00A0  '?blank_to_null!'-'}"), '-');
+    // camel case alias:
+    snapshot(await o("${nonExisting?blankToNull!'-'}"), '-');
+  });
+
+  it('blank_to_null type errors', async () => {
+    const e1 = await rejectsMatch(o("${[]?blank_to_null!'-'}"), TemplateException);
+    ok(e1.message.includes('Expected a string'), e1.message);
+    ok(e1.message.includes('sequence'), e1.message);
+    const e2 = await rejectsMatch(o("<#assign html></#assign>${html?blank_to_null!'-'}"), TemplateException);
+    ok(e2.message.includes('Expected a string'), e2.message);
+    ok(e2.message.includes('markup_output'), e2.message);
+  });
+
+  it('trim_to_null', async () => {
+    snapshot(await o("${nonExisting?trim_to_null!'-'}"), '-');
+    snapshot(await o("${nonExisting!?trim_to_null!'-'}"), '-');
+    snapshot(await o("${''?trim_to_null!'-'}"), '-');
+    snapshot(await o("${' '?trim_to_null!'-'}"), '-');
+    snapshot(await o("${'    '?trim_to_null!'-'}"), '-');
+    snapshot(await o("${'  a  '?trim_to_null!'-'}"), 'a');
+    snapshot(await o("${'a '?trim_to_null!'-'}"), 'a');
+    snapshot(await o("${' a'?trim_to_null!'-'}"), 'a');
+    snapshot(await o("${'a'?trim_to_null!'-'}"), 'a');
+    snapshot(await o("${'a b'?trim_to_null!'-'}"), 'a b');
+    snapshot(await o("${(nonExisting + '.')?trim_to_null!'-'}"), '-');
+    snapshot(await o("${1234?trim_to_null!'-'}"), '1,234');
+    // consistent with ?trim / String.trim(): only code points <= 32 are whitespace:
+    snapshot(await o("${'  \u2003  '?trim_to_null!'-'}"), '\u2003');
+    // camel case alias:
+    snapshot(await o("${nonExisting?trimToNull!'-'}"), '-');
+  });
+
+  it('trim_to_null type errors', async () => {
+    const e1 = await rejectsMatch(o("${[]?trim_to_null!'-'}"), TemplateException);
+    ok(e1.message.includes('Expected a string'), e1.message);
+    const e2 = await rejectsMatch(o("<#assign html></#assign>${html?trim_to_null!'-'}"), TemplateException);
+    ok(e2.message.includes('markup_output'), e2.message);
+  });
+
+  it('empty_to_null', async () => {
+    snapshot(await o("${nonExisting?empty_to_null!'-'}"), '-');
+    snapshot(await o("${nonExisting!?empty_to_null!'-'}"), '-');
+    snapshot(await o("${''?empty_to_null!'-'}"), '-');
+    snapshot(await o("${' '?empty_to_null!'-'}"), ' ');
+    snapshot(await o("${'    '?empty_to_null!'-'}"), '    ');
+    snapshot(await o("${'  a  '?empty_to_null!'-'}"), '  a  ');
+    snapshot(await o("${'a '?empty_to_null!'-'}"), 'a ');
+    snapshot(await o("${' a'?empty_to_null!'-'}"), ' a');
+    snapshot(await o("${'a'?empty_to_null!'-'}"), 'a');
+    snapshot(await o("${'a b'?empty_to_null!'-'}"), 'a b');
+    snapshot(await o("${(nonExisting + '.')?empty_to_null!'-'}"), '-');
+    snapshot(await o("${1234?empty_to_null!'-'}"), '1,234');
+    // camel case alias:
+    snapshot(await o("${nonExisting?emptyToNull!'-'}"), '-');
+  });
+
+  it('empty_to_null type errors', async () => {
+    const e1 = await rejectsMatch(o("${[]?empty_to_null!'-'}"), TemplateException);
+    ok(e1.message.includes('Expected a string'), e1.message);
+    const e2 = await rejectsMatch(o("<#assign html></#assign>${html?empty_to_null!'-'}"), TemplateException);
+    ok(e2.message.includes('markup_output'), e2.message);
   });
 });
