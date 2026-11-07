@@ -82,7 +82,7 @@ const EXPRESSION_START = new Set([
 // (name -> required lambda parameter count) <- BuiltInWithParseTimeParameters
 // isLocalLambdaParameterSupported (filterBI, mapBI).
 /** builtin -> param count. @type {Map<string, number>} */
-const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1]]);
+const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1], ['take_while', 1], ['drop_while', 1]]);
 // <- BuiltInWithParseTimeParameters with unevaluated (lazy) parameters: these consume
 // "(args)" at parse time. All other built-ins return first; "(args)" is a MethodCall.
 /** builtins with parse-time (unevaluated) args. @type {Set<string>} */

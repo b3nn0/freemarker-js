@@ -6,9 +6,9 @@ import { BuiltinArgMethod, sequenceItems, nonSequenceError } from './common.js';
 import {
   SequenceModel, StringModel, NumberModel, BooleanModel, DateModel, HashModel,
 } from '../model/models.js';
-import { TemplateMethodModel } from '../model/templateModel.js';
+import { TemplateMethodModel, TemplateHashModel, TemplateSequenceModel } from '../model/templateModel.js';
 import { LocalLambdaExpression } from '../parser/ast/expressions/lambda.js';
-import { InvalidReferenceException, TemplateException } from '../errors.js';
+import { InvalidReferenceException, TemplateException, NonMethodException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
 import { awaitOp, callOp } from '../async.js';
 
@@ -237,6 +237,51 @@ registerBuiltIn('filter', {
   },
 });
 
+// ?take_while / ?drop_while <- BuiltInsForSequences take_whileBI / drop_whileBI
+// (same FilterLikeBI argument handling as ?filter; stop at first false/true).
+for (const name of ['take_while', 'drop_while']) {
+  registerBuiltIn(name, {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/models.js').SequenceModel}
+   */
+    * impl(target, argExprs, env) {
+      const items = yield* sequenceItems(target);
+      if (items === null) throw nonSequenceError(name, target, env);
+      const transform = yield* makeTransformer(argExprs[0], env, name);
+      const out = [];
+      let dropping = false;
+      for (const el of items) {
+        const ok = yield* transform(el);
+        if (ok === null || ok === undefined) {
+          throw new TemplateException(
+            `The ${name} expression has returned no value (has returned null), `
+            + 'rather than a boolean.');
+        }
+        if (!(ok instanceof BooleanModel)) {
+          throw new TemplateException(
+            `The ${name} expression had to return a boolean value, but it returned a `
+            + `${env.typeLabel(ok)} instead.`);
+        }
+        const match = ok === BooleanModel.TRUE;
+        if (name === 'take_while') {
+          if (!match) break;
+          out.push(el);
+        } else {
+          if (!dropping) {
+            if (match) continue;
+            dropping = true;
+          }
+          out.push(el);
+        }
+      }
+      return new SequenceModel(out);
+    },
+  });
+}
+
 // ?map: <- mapBI.fetchAndMapNextElement
 registerBuiltIn('map', {
   acceptsMissing: true,
@@ -366,3 +411,133 @@ registerBuiltIn('reverse', {
     return new SequenceModel([...items].reverse());
   },
 });
+
+
+// ?with_args / ?with_args_last <- BuiltInsForCallables.with_argsBI /
+// with_args_lastBI (2.3.36 form): the built-in returns a BIMethod; the first
+// "(...)" call binds exactly one argument (a sequence or extended hash), the
+// following call invokes the wrapped target with the bound arguments appended
+// to (with_args) or prepended before (with_args_last) the call arguments.
+class WithArgsMethod extends TemplateMethodModel {
+  /**
+   * @param {TemplateMethodModel|Object} target - method model or invoke-capable
+   * @param {string} name - with_args | with_args_last
+   */
+  constructor(target, name) {
+    super();
+    this.target = target;
+    this.name = name;
+    this.isFunctionModel = target.isFunctionModel === true ? true : undefined;
+    this.isMacroLike = target.isMacroLike === true ? true : undefined;
+    this.boundPos = null;
+    this.boundNamed = null;
+    this.bound = false;
+  }
+  _countError(cnt) {
+    return new TemplateException(
+      `?${this.name}(...) expects 1 argument but has received ${cnt}.`);
+  }
+  _typeError(value) {
+    return new TemplateException(
+      `?${this.name}(...) expects an extended hash or sequence as argument #1, `
+      + `but received a ${typeof value === 'number' ? 'number' : typeof value}.`);
+  }
+  _combine(bound, call) {
+    return this.name === 'with_args' ? [...bound, ...call] : [...call, ...bound];
+  }
+  /**
+   * @param {import('../environment.js').Environment} env
+   * @param {unknown[]} raw - unwrapped call arguments (<- MethodCall)
+   * @returns {Generator<unknown, Object, unknown>}
+   */
+  * exec(env, raw = []) {
+    if (!this.bound) {
+      if (raw.length !== 1) throw this._countError(raw.length === 0 ? 'none' : raw.length);
+      const a = raw[0];
+      if (Array.isArray(a)) {
+        this.boundPos = a;
+      } else if (a instanceof Map || (a !== null && typeof a === 'object')) {
+        if (this.target.isMacroLike !== true) {
+          throw new TemplateException(`When applied on a ${this.target.isFunctionModel === true
+            ? 'function' : 'method'}, ?${this.name} can't have a hash argument. `
+            + 'Use a sequence argument.');
+        }
+        this.boundNamed = new Map(a instanceof Map ? a : Object.entries(a));
+        for (const [k, v] of this.boundNamed) this.boundNamed.set(k, env.wrap(v));
+      } else {
+        throw this._typeError(a);
+      }
+      this.bound = true;
+      return this;
+    }
+    if (this.boundPos !== null) {
+      return yield* callOp(`${this.name} call`, this.target, 'exec', env,
+        this._combine(this.boundPos, raw));
+    }
+    const named = new Map(this.boundNamed);
+    return yield* callOp(`${this.name} call`, this.target, 'invoke', env,
+      { positionalArgs: raw.map((v) => env.wrap(v)), namedArgs: named });
+  }
+  /**
+   * Model-level call path (isFunctionModel targets).
+   * @param {import('../environment.js').Environment} env
+   * @param {Object} call - { positionalArgs, namedArgs }
+   * @returns {Generator<unknown, Object, unknown>}
+   */
+  * invoke(env, call) {
+    const pos = call.positionalArgs || [];
+    if (!this.bound) {
+      if (pos.length !== 1) throw this._countError(pos.length === 0 ? 'none' : pos.length);
+      const a = pos[0];
+      if (a instanceof TemplateSequenceModel) {
+        const bound = [];
+        const size = yield* callOp('size', a, 'size');
+        for (let i = 0; i < size; i++) bound.push(yield* callOp('index', a, 'getByIndex', i));
+        this.boundPos = bound;
+      } else if (a instanceof TemplateHashModel) {
+        if (this.target.isMacroLike !== true) {
+          throw new TemplateException(`When applied on a ${this.target.isFunctionModel === true
+            ? 'function' : 'method'}, ?${this.name} can't have a hash argument. `
+            + 'Use a sequence argument.');
+        }
+        const named = new Map();
+        for (const ks of a.keys()) {
+          named.set(String(ks), yield* callOp('hash get', a, 'get', String(ks)));
+        }
+        this.boundNamed = named;
+      } else {
+        return this._typeErrorModel(env, a);
+      }
+      this.bound = true;
+      return this;
+    }
+    const named = new Map(this.boundNamed === null ? [] : this.boundNamed);
+    if (call.namedArgs) for (const [k, v] of call.namedArgs) named.set(k, v);
+    return yield* callOp(`${this.name} call`, this.target, 'invoke', env,
+      { ...call, positionalArgs: this._combine(this.boundPos || [], pos), namedArgs: named });
+  }
+  _typeErrorModel(env, a) {
+    throw new TemplateException(
+      `?${this.name}(...) expects an extended hash or sequence as argument #1, `
+      + `but received a ${env.typeLabel(a)}.`);
+  }
+}
+
+for (const name of ['with_args', 'with_args_last']) {
+  registerBuiltIn(name, {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {WithArgsMethod} the BIMethod stand-in
+   */
+    * impl(target, argExprs, env) {
+      if (!(target instanceof TemplateMethodModel) && typeof target.invoke !== 'function') {
+        throw new NonMethodException(
+          `For "?${name}" left-hand operand: Expected a macro, function, directive, or `
+          + `method, but this has evaluated to ${env.typeLabel(target)}`);
+      }
+      return new WithArgsMethod(target, name);
+    },
+  });
+}

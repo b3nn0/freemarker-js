@@ -3,6 +3,7 @@ import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
   ParseException, TemplateException, UnsupportedFeatureException,
+  NonSequenceOrCollectionException, NonMethodException,
 } from '../../src/errors.js';
 
 function out(src, model) {
@@ -102,5 +103,43 @@ describe('Lambda expressions and ?filter/?map/?sort/?sort_by', () => {
     parse('${x?string("y", "n")}'); // parses fine since M11
     await rejectsMatch(out('${x?string("y", "n")}', { x: 1 }), TemplateException,
       ['expects 0 or 1 argument', 'received 2 arguments']);
+  });
+
+  it('?take_while / ?drop_while <- BuiltInsForSequences (JVM-pinned)', async () => {
+    snapshot(await out('${[1, 2, 3, 1, 2]?take_while(x -> x lt 3)?join(",")}', {}), '1,2');
+    snapshot(await out('${[1, 2, 3, 1, 2]?drop_while(x -> x lt 3)?join(",")}', {}), '3,1,2');
+    await rejectsMatch(out('${"a"?take_while(x -> true)}', {}),
+      NonSequenceOrCollectionException, ['sequence', 'string']);
+    await rejectsMatch(out('${[1]?take_while(3)}', {}), TemplateException,
+      ['lambda expression or a function/method']);
+  });
+
+  it('?with_args / ?with_args_last <- BuiltInsForCallables (JVM-pinned)', async () => {
+    const fn = (...a) => a.join('|');
+    snapshot(await out('${fn?with_args([1, 2])()}', { fn }), '1|2');
+    snapshot(await out('${fn?with_args([1])(2)}', { fn }), '1|2');
+    snapshot(await out('${fn?with_args_last([2])(1)}', { fn }), '1|2');
+    await rejectsMatch(out('${fn?with_args(1)}', { fn }), TemplateException,
+      ['extended hash or sequence as argument #1', 'number']);
+    await rejectsMatch(out('${fn?with_args()()}', { fn }), TemplateException,
+      ['expects 1 argument but has received none']);
+    await rejectsMatch(out('${fn?with_args(1, 2)()}', { fn }), TemplateException,
+      ['expects 1 argument but has received 2']);
+    await rejectsMatch(out('${fn?with_args({"a": 1})()}', { fn }), TemplateException,
+      ["can't have a hash argument. Use a sequence argument"]);
+    await rejectsMatch(out('${1?with_args([1])}', {}), NonMethodException,
+      ['Expected a macro, function, directive, or method']);
+  });
+
+  it('?with_args over an FTL #function (JVM-pinned: hash argument rejected)', async () => {
+    const f = '<#function f(a, b)><#return "[" + a + "|" + b + "]"/></#function>';
+    snapshot(await out(f + '${f?with_args([1, 2])()}', {}), '[1|2]');
+    await rejectsMatch(out(f + '${f?with_args({"a": 1, "b": 2})()}', {}), TemplateException,
+      ['When applied on a function, ?with_args can\'t have a hash argument']);
+    snapshot(await out(f + '${f?with_args_last([2])(1)}', {}), '[1|2]');
+  });
+
+  it('?with_args over a #macro accepts the named hash', async () => {
+    snapshot(await out('<#macro m a>[${a}]</#macro><#assign w = m?with_args({"a": 1})><@w/>', {}), '[1]');
   });
 });

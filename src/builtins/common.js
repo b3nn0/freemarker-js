@@ -3,7 +3,9 @@
 
 import { TemplateMethodModel } from '../model/templateModel.js';
 import { awaitOp, callOp, isGenerator } from '../async.js';
-import { NonStringException, TemplateException } from '../errors.js';
+import {
+  NonStringException, TemplateException, NonSequenceOrCollectionException,
+} from '../errors.js';
 
 /**
  * <- _MessageUtil.newArgCntError.
@@ -101,7 +103,7 @@ export function* sequenceItems(target) {
  * @returns {TemplateException}
  */
 export function nonSequenceError(key, target, env) {
-  return new TemplateException(
+  return new NonSequenceOrCollectionException(
     `The "?${key}" built-in can only be used on sequences (lists), `
     + `but the target is a ${env.typeLabel(target)}.`);
 }
