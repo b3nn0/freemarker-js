@@ -248,11 +248,37 @@ for (const name of ['take_while', 'drop_while']) {
    * @returns {import('../model/models.js').SequenceModel}
    */
     * impl(target, argExprs, env) {
-      const items = yield* sequenceItems(target);
-      if (items === null) throw nonSequenceError(name, target, env);
+      if (!(target instanceof TemplateSequenceModel)) throw nonSequenceError(name, target, env);
       const transform = yield* makeTransformer(argExprs[0], env, name);
       const out = [];
       let dropping = false;
+      // <- upstream iterates by index; take_while stops early, so unbounded
+      // ranges work there (up to Integer.MAX_VALUE from ?size). For take_while
+      // the scan below already produced the result.
+      const size = yield* awaitOp('size', target.size());
+      const items = [];
+      for (let i = 0; i < size; i++) {
+        const el = yield* awaitOp('getByIndex', target.getByIndex(i));
+        if (el === null || el === undefined) break;
+        if (name === 'take_while') {
+          const ok0 = yield* transform(el);
+          if (ok0 === null || ok0 === undefined) {
+            throw new TemplateException(
+              `The ${name} expression has returned no value (has returned null), `
+              + 'rather than a boolean.');
+          }
+          if (!(ok0 instanceof BooleanModel)) {
+            throw new TemplateException(
+              `The ${name} expression had to return a boolean value, but it returned a `
+              + `${env.typeLabel(ok0)} instead.`);
+          }
+          if (ok0 !== BooleanModel.TRUE) break;
+          out.push(el);
+        } else {
+          items.push(el);
+        }
+      }
+      if (name === 'take_while') return new SequenceModel(out);
       for (const el of items) {
         const ok = yield* transform(el);
         if (ok === null || ok === undefined) {
@@ -363,12 +389,16 @@ registerBuiltIn('seq_index_of', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
-    if (items === null) throw nonSequenceError('seq_index_of', target, env);
+    if (!(target instanceof TemplateSequenceModel)) throw nonSequenceError('seq_index_of', target, env);
     return new BuiltinArgMethod('seq_index_of', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
-      for (let i = 0; i < items.length; i++) {
-        if (yield* lenientEquals(e, items[i], needle, i)) return new NumberModel(i);
+      // <- upstream iterates by index (lazily), which keeps unbounded ranges
+      // working: it stops at Integer.MAX_VALUE or when the item is found.
+      const size = yield* awaitOp('size', target.size());
+      for (let i = 0; i < size; i++) {
+        const item = yield* awaitOp('getByIndex', target.getByIndex(i));
+        if (item === null || item === undefined) break;
+        if (yield* lenientEquals(e, item, needle, i)) return new NumberModel(i);
       }
       return new NumberModel(-1); // <- upstream: -1 when absent (2.3.36)
     });
@@ -540,4 +570,22 @@ for (const name of ['with_args', 'with_args_last']) {
       return new WithArgsMethod(target, name);
     },
   });
-}
+}// <- BuiltInsForSequences.sequenceBI: a sequence stays as-is (identity, so
+// unbounded ranges keep working); collections have no port-side model.
+registerBuiltIn('sequence', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
+  * impl(target, args, env) {
+    if (target instanceof TemplateSequenceModel) return target;
+    const tl = env.typeLabel(target);
+    throw new InvalidReferenceException(
+      'For "?sequence" left-hand operand: Expected a sequence or collection, '
+      + `but this has evaluated to ${/^[aeiou]/.test(tl) ? 'an' : 'a'} ${tl}.`);
+  },
+});
+
+

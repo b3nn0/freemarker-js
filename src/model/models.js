@@ -261,12 +261,9 @@ export class RangeModel extends TemplateSequenceModel {
     if (this.sizeValue !== null && i >= this.sizeValue) return null;
     return new NumberModel(v);
   }
-  /** @returns {number} throws for unbounded ranges until streaming support (M11+) */
+  /** @returns {number} unbounded ranges report Integer.MAX_VALUE <- RangeBuiltIn */
   size() {
-    if (this.sizeValue === null) {
-      throw new UnsupportedFeatureException('Unbounded range size is not supported yet.');
-    }
-    return this.sizeValue;
+    return this.sizeValue === null ? 2147483647 : this.sizeValue;
   }
 }
 

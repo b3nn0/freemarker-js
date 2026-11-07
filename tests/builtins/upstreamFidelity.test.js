@@ -680,3 +680,23 @@ describe('Upstream CamelCaseTest (ported subset)', () => {
       new Configuration()), ParseException, ['Unknown directive']);
   });
 });
+
+// <- Upstream SequenceBuiltInTest (ported subset; the collection-adapter cases
+// need Java collections and are JVM-only). JVM-verified via probe Drv65.
+describe('Upstream SequenceBuiltInTest (ported subset)', () => {
+  it('?sequence on sequences, incl. unbounded ranges', async () => {
+    snapshot(await out('${[11, 12]?sequence[1]}', {}), '12');
+    snapshot(await out('${(11..)?sequence[1]}', {}), '12');
+    snapshot(await out('${(11..)?size}', {}), '2,147,483,647');
+    snapshot(await out('${(11..)?seq_index_of(12)?c}', {}), '1');
+    snapshot(await out('${(11..)?take_while(x -> x < 13)?join(",")}', {}), '11,12');
+    snapshot(await out('<#list (11..) as x>${x}<#break></#list>', {}), '11');
+  });
+
+  it('?sequence rejects non-sequences', async () => {
+    const e = await rejectsMatch(out('${"a"?sequence}', {}), TemplateException);
+    ok(e.message.includes('Expected a sequence or collection'), e.message);
+    const e2 = await rejectsMatch(out('${1?sequence}', {}), TemplateException);
+    ok(e2.message.includes('a number'), e2.message);
+  });
+});
