@@ -500,6 +500,11 @@ export class TokenManager {
       this._read();
       return this._token(TT.STATIC_TEXT_FALSE_ALARM, startPos, startLine, startColumn);
     }
+    if (this._peek(nameAt + 1) === '{') {
+      // <- FTL.jj: "#{" is hash interpolation, never a tag ("<#{1}>" prints "<1>")
+      this._read();
+      return this._token(TT.STATIC_TEXT_FALSE_ALARM, startPos, startLine, startColumn);
+    }
     return this._lexFtlTag(startPos, startLine, startColumn, opener, slash);
   }
 

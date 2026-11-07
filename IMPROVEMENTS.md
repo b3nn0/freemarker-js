@@ -33,8 +33,10 @@ is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
   parse-time unknown-built-in and ?then-arity checks, canonical-dump shapes).
   Remaining corpus diffs are wording-only (both sides report the failing expression
   with line/column) or documented deviations in B3/B5.
-- [ ] **B2. `#{x;m2 M4}`**: format split by whitespace into two ID tokens is rejected;
-  upstream may tolerate it. Verify FTL.jj `hashInterpolationFormat` and relax if so.
+- [x] **B2. `#{x;m2 M4}`**: DONE - verified against the JVM: upstream also rejects
+  it ("Encountered \"M4\", but was expecting pattern"). The port matches, and
+  `[#{1}]`/`<#{1}>` now lex as static text + hash interpolation instead of a
+  malformed tag (FTL.jj: `[#`/`<#` followed by `{` is never a tag start).
 - [ ] **B3. Locale/timezone subset** (documented deviations, but list of gaps):
   fixed en_US number symbols; no `Locale`-dependent formats; `time_zone` /
   `sql_date_and_time_time_zone` settings inert; browser-local rendering;
