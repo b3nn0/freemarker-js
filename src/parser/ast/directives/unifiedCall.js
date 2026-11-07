@@ -3,6 +3,8 @@
 
 import { TemplateElement } from '../templateElement.js';
 import { InvalidReferenceException, UnsupportedFeatureException } from '../../../errors.js';
+import { Identifier } from '../expressions/variables.js';
+import { CompressedBlock } from './compress.js';
 import { callOp } from '../../../async.js';
 
 /** <@call ...> <- UnifiedCall. */
@@ -31,6 +33,20 @@ export class UnifiedCall extends TemplateElement {
    * @returns {null}
    */
   * execute(env) {
+    // <- UnifiedCall falls back to the core directive element for built-in user
+    // directive names (e.g. <@compress> = #compress), data-model shadowing winning.
+    if (this.target instanceof Identifier && this.target.name === 'compress'
+      && (this.positionalArgs === null || this.positionalArgs.length === 0)
+      && (this.namedArgs === null || this.namedArgs.size === 0)
+      && (this.bodyParamNames === null || this.bodyParamNames.length === 0)) {
+      const shadow = yield* env.getVariable('compress');
+      if (shadow === null || shadow === undefined) {
+        const block = new CompressedBlock(this.bodyChildren);
+        block.setLocation(this.templateName, this.beginLine, this.beginColumn, this.endLine, this.endColumn);
+        yield* block.execute(env);
+        return null;
+      }
+    }
     const model = yield* this.target.evaluate(env);
     if (model === null || model === undefined) {
       throw new InvalidReferenceException(

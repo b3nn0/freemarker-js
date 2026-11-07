@@ -706,6 +706,14 @@ export class TokenManager {
 
   /** @param {number} startPos @param {number} startLine @param {number} startColumn @param {string} opener @param {boolean} isEnd @param {string} name @returns {never} */
   _unknownDirective(startPos, startLine, startColumn, opener, isEnd, name) {
+    // <- handleTagSyntaxAndSwitch consistency, applied to unknown names too: a tag
+    // opened with the non-active bracket style was never a tag; it is static text.
+    if (this.autodetectTagSyntax && !this.tagSyntaxEstablished) {
+      this.squBracTagSyntax = opener === '[';
+    }
+    if ((opener === '[' && !this.squBracTagSyntax) || (opener === '<' && this.squBracTagSyntax)) {
+      return this._token(TT.STATIC_TEXT_NON_WS, startPos, startLine, startColumn);
+    }
     const tok = this._token(TT.UNKNOWN_DIRECTIVE, startPos, startLine, startColumn);
     if (ALL_DIRECTIVE_NAMES.has(name)) {
       throw this._error(

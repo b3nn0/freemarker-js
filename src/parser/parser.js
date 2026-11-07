@@ -1564,7 +1564,8 @@ export class Parser {
       const at = endTok.image.indexOf('@');
       const gt = endTok.image.lastIndexOf('>');
       const endName = endTok.image.slice(at + 1, gt).trim();
-      if (endName !== simpleName) {
+      if (endName !== '' && endName !== simpleName) {
+        // <- FTL.jj UnifiedCall: the end tag name may be omitted (bare </@>)
         throw this._error(
           `Expected end tag for <@${simpleName}> here, but found ${this._desc(endTok)}.`, endTok);
       }

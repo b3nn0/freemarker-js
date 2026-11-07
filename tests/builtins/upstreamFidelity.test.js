@@ -802,3 +802,70 @@ describe('Upstream StringLiteralInterpolationTest (ported)', () => {
       '&amp; &amp; &');
   });
 });
+
+describe('Upstream TagSyntaxVariationsTest (ported subset)', () => {
+  const A = Configuration.ANGLE_BRACKET_TAG_SYNTAX;
+  const S = Configuration.SQUARE_BRACKET_TAG_SYNTAX;
+  const X = Configuration.AUTO_DETECT_TAG_SYNTAX;
+  function tagOut(src, tagSyntax) {
+    const cfg = new Configuration();
+    cfg.setTagSyntax(tagSyntax);
+    return new Template('t.ftl', src, cfg).processToString({});
+  }
+  it('fixed syntax: tags of the other bracket style are plain text', async () => {
+    snapshot(await tagOut('<#if true>i</#if>[#wrong]<#if true>i</#if>', A), 'i[#wrong]i');
+    snapshot(await tagOut('<#if true>i</#if>[/#wrong]<#if true>i</#if>', A), 'i[/#wrong]i');
+    snapshot(await tagOut('<#ftl>[#wrong]<#if true>i</#if>', A), '[#wrong]i');
+    snapshot(await tagOut('[@compress] z [/@]', A), '[@compress] z [/@]');
+    snapshot(await tagOut('[#if true]i[/#if]<#wrong>[#if true]i[/#if]', S), 'i<#wrong>i');
+    snapshot(await tagOut('[#if true]i[/#if]</#wrong>[#if true]i[/#if]', S), 'i</#wrong>i');
+    snapshot(await tagOut('[#ftl]<#wrong>[#if true]i[/#if]', S), '<#wrong>i');
+    snapshot(await tagOut('<@compress> z </@>', S), '<@compress> z </@>');
+  });
+  it('fixed syntax: unknown tag of the active style is a parse error', async () => {
+    const mk = (syn) => { const c = new Configuration(); c.setTagSyntax(syn); return c; };
+    throwsMatch(() => new Template('t.ftl', '<#wrong>', mk(A)), ParseException, ['Unknown directive']);
+    throwsMatch(() => new Template('t.ftl', '<#wrong><#if true>i</#if>', mk(A)),
+      ParseException, ['Unknown directive']);
+    throwsMatch(() => new Template('t.ftl', '</#wrong><#if true>i</#if>', mk(A)),
+      ParseException, ['Unknown directive']);
+    throwsMatch(() => new Template('t.ftl', '<#if true>i</#if><#wrong>', mk(A)),
+      ParseException, ['Unknown directive']);
+    throwsMatch(() => new Template('t.ftl', '<#ftl><#wrong>', mk(A)), ParseException,
+      ['Unknown directive']);
+    throwsMatch(() => new Template('t.ftl', '[#wrong][#if true]i[/#if]', mk(S)),
+      ParseException, ['Unknown directive']);
+    // active-style unknown after a mismatched-opener call was demoted to text:
+    throwsMatch(() => new Template('t.ftl', '<@compress> z </@>[#wrong]<#if true>i</#if>',
+      mk(S)), ParseException, ['Unknown directive']);
+  });
+  it('auto-detect: unknown tag of either style before establishment errors', async () => {
+    const mk = () => { const c = new Configuration(); c.setTagSyntax(X); return c; };
+    throwsMatch(() => new Template('t.ftl', '<#wrong><#if true>i</#if>', mk()),
+      ParseException, ['Unknown directive']);
+    throwsMatch(() => new Template('t.ftl', '[#wrong]<#if true>i</#if>', mk()),
+      ParseException, ['Unknown directive']);
+  });
+  it('auto-detect: first recognized tag establishes the style', async () => {
+    snapshot(await tagOut('<#if true>i</#if>[#wrong]<#if true>i</#if>', X), 'i[#wrong]i');
+    snapshot(await tagOut('<#ftl>[#wrong]<#if true>i</#if>', X), '[#wrong]i');
+    snapshot(await tagOut('[#if true]i[/#if]<#wrong>[#if true]i[/#if]', X), 'i<#wrong>i');
+    snapshot(await tagOut('<@compress> z </@>[#wrong]<#if true>i</#if>', X), 'z[#wrong]i');
+    snapshot(await tagOut('[@compress] z [/@]<#wrong>[#if true]i[/#if]', X), 'z<#wrong>i');
+    snapshot(await tagOut('<@compress> z </@>[/#wrong]<#if true>i</#if>', X), 'z[/#wrong]i');
+  });
+  it('<@compress> / [@compress] is the built-in compress directive', async () => {
+    snapshot(await out('<#if true>i</#if><@compress> z </@>'), 'iz');
+    snapshot(await out('x<@compress> a b </@compress>y'), 'xa by');
+    snapshot(await out('<#assign x = 1>a<@compress> z </@>'), 'az');
+    snapshot(await tagOut('[#if true]i[/#if][@compress] z [/@]', S), 'iz');
+    // user definition shadows the core name; the body is then an ordinary macro body:
+    snapshot(await out('<#macro compress>H</#macro><@compress>x</@>'), 'H');
+    // non-directive shadow fails at runtime with a type error:
+    rejectsMatch(() => out('<#assign compress = 1><@compress>x</@>'),
+      InvalidReferenceException, ['can\'t be called']);
+    // end tag name may be omitted for named calls:
+    snapshot(await out('<#macro m>x</#macro><@m>a</@>'), 'x');
+    snapshot(await out('<#macro m>x</#macro><@m>a</@m>'), 'x');
+  });
+});
