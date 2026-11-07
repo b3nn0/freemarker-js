@@ -227,7 +227,15 @@ export class Parser {
     const loopVarName = exp.name;
     for (let i = this._iterCtx.length - 1; i >= 0; i--) {
       const ctx = this._iterCtx[i];
-      if (loopVarName === ctx.loopVarName || loopVarName === ctx.loopVar2Name) return;
+      if (loopVarName === ctx.loopVarName || loopVarName === ctx.loopVar2Name) {
+        if (ctx.kind === 'user-directive') {
+          throw this._errorAt(
+            `The left hand operand of ?${biName} can't be the loop variable of an user `
+            + `defined directive: ${loopVarName}`,
+            exp);
+        }
+        return;
+      }
     }
     throw this._errorAt(
       `The left hand operand of ?${biName} must be a loop variable, but there's no loop `
@@ -1091,7 +1099,7 @@ export class Parser {
       }
     }
     this._expect(TT.DIRECTIVE_END, '">"');
-    const ctx = { kind: 'list', loopVarName: lv, loopVar2Name: lv2 };
+    const ctx = { kind: 'list', loopVarName: lv, loopVar2Name: lv2, sawItems: false };
     this._iterCtx.push(ctx);
     if (lv !== null) {
       this.breakableDepth++;
@@ -1107,7 +1115,7 @@ export class Parser {
         this.continuableDepth--;
       }
     }
-    if (lv === null && ctx.kind !== 'items') {
+    if (lv === null && !ctx.sawItems) {
       throw this._error(
         '#list must have either "as loopVar" parameter or nested #items that belongs to it.', startTok);
     }
@@ -1151,6 +1159,7 @@ export class Parser {
     if (ctx.kind === 'items') {
       throw this._error("Can't nest #items into each other when they belong to the same #list.", startTok);
     }
+    ctx.sawItems = true;
     if (ctx.loopVarName !== null) {
       throw this._error('The parent #list of the #items must not have "as loopVar" parameter.', startTok);
     }
@@ -1176,6 +1185,7 @@ export class Parser {
     } finally {
       this.breakableDepth--;
       this.continuableDepth--;
+      ctx.kind = 'list';
       ctx.loopVarName = null;
       ctx.loopVar2Name = null;
     }
@@ -1569,6 +1579,20 @@ export class Parser {
         break;
       }
     }
+    // <- FTL.jj UnifiedMacroTransform: a body parameter that shadows a loop
+    // variable is noted as a user-directive context (popped after the body).
+    let pushedShadowCtxCount = 0;
+    if (bodyParamNames !== null) {
+      for (const bp of bodyParamNames) {
+        for (let i = this._iterCtx.length - 1; i >= 0; i--) {
+          if (this._iterCtx[i].loopVarName === bp) {
+            this._iterCtx.push({ kind: 'user-directive', loopVarName: bp, loopVar2Name: null });
+            pushedShadowCtxCount++;
+            break;
+          }
+        }
+      }
+    }
     const closer = this._peek();
     if (closer.type === TT.EMPTY_DIRECTIVE_END) {
       this._next();
@@ -1576,7 +1600,12 @@ export class Parser {
         startTok, closer);
     }
     this._expect(TT.DIRECTIVE_END, '">"');
-    const children = this._parseMixedContent(new Set([TT.UNIFIED_CALL_END]));
+    let children;
+    try {
+      children = this._parseMixedContent(new Set([TT.UNIFIED_CALL_END]));
+    } finally {
+      for (let i = 0; i < pushedShadowCtxCount; i++) this._iterCtx.pop();
+    }
     const endTok = this._expect(TT.UNIFIED_CALL_END, 'the end tag for the <@...> call');
     {
       const at = endTok.image.indexOf('@');

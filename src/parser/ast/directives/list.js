@@ -45,15 +45,28 @@ export class IteratorBlock extends TemplateElement {
     const tag = this.forEach ? '#forEach' : '#list';
     let length;
     let keys = null;
-    if (src instanceof TemplateSequenceModel) {
+    const label = env.typeLabel(src);
+    const aOrAn = 'aeiou'.includes(label.charAt(0)) ? 'an' : 'a';
+    if (src instanceof TemplateSequenceModel && !this.hashListing) {
       length = yield* awaitOp('size', src.size());
     } else if (this.hashListing && src instanceof TemplateHashModelEx) {
       keys = yield* awaitOp('keys', src.keys());
       length = keys.length;
+    } else if (this.hashListing) {
+      // <- IteratorBlock: two loop variables only for hashes
+      throw new NonSequenceOrCollectionException(
+        `The value you try to list is ${aOrAn} ${label}, thus you must specify only one loop `
+        + 'variable after the "as" (there\'s no separate key and value).');
+    } else if (src instanceof TemplateHashModelEx) {
+      // <- IteratorBlock: a hash needs two loop variables
+      throw new NonSequenceOrCollectionException(
+        `The value you try to list is ${aOrAn} ${label}, thus you must specify two loop `
+        + 'variables after the "as"; one for the key, and another for the value, like '
+        + '<#... as k, v>).');
     } else {
       throw new NonSequenceOrCollectionException(
         `Can't iterate with ${tag}: ${this.sourceExp.getCanonicalForm()} is a `
-        + `${env.typeLabel(src)}${this.hashListing ? '' : ' (only sequences are iterable)'}.`);
+        + `${label}${this.hashListing ? '' : ' (only sequences are iterable)'}.`);
     }
 
     if (length === 0) {

@@ -10,7 +10,7 @@ import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
   ParseException, TemplateException, InvalidReferenceException, NonStringOrTemplateOutputException,
-  NonNumericalException,
+  NonNumericalException, NonSequenceOrCollectionException,
 } from '../../src/errors.js';
 import { SETTING_NAMES, CAMEL_SETTING_NAMES } from '../../src/parser/ast/directives/setting.js';
 
@@ -971,5 +971,88 @@ describe('Upstream TabSizeTest (ported)', () => {
     ok((await errCol("${'${*}'}", 8)).includes('column 6'), 'SLI no tab');
     ok((await errCol("${'${\t*}'}", 8)).includes('column 9'), 'SLI tab 8');
     ok((await errCol("${'${\t*}'}", 16)).includes('column 17'), 'SLI tab 16');
+  });
+});
+
+describe('Upstream ListErrorsTest (ported subset)', () => {
+  it('testValid', async () => {
+    snapshot(await out('<#list 1..2 as x><#list 3..4>${x}:<#items as x>${x}</#items></#list>;</#list>'),
+      '1:34;2:34;');
+    snapshot(await out('<#list [] as x>${x}<#else><#list 1..2 as x>${x}<#sep>, </#list></#list>'),
+      '1, 2');
+    snapshot(await out('<#macro m>[<#nested 3>]</#macro>'
+      + '<#list 1..2 as x>'
+      + '${x}@${x?index}'
+      + '<@m ; x>'
+      + '${x},'
+      + '<#list 4..4 as x>${x}@${x?index}</#list>'
+      + '</@>'
+      + '${x}@${x?index}; '
+      + '</#list>'),
+    '1@0[3,4@0]1@0; 2@1[3,4@0]2@1; ');
+  });
+  it('stringInterpolationBugFixTest', async () => {
+    snapshot(await out("<#list 1..3 as x>${'${x?index}'}</#list>"), '012');
+  });
+  it('testInvalidItemsParseTime', async () => {
+    const listCtx = { xs: [1, 2] };
+    for (const [src, subs] of [
+      ['<#items as x>${x}</#items>', ['#items', 'must be inside', '#list']],
+      ['<#list xs><#macro m><#items as x></#items></#macro></#list>', ['#items', 'must be inside', '#list']],
+      ['<#list xs><#forEach x in xs><#items as x></#items></#forEach></#list>', ['#forEach', 'doesn\'t support', '#items']],
+      ['<#list xs as x><#items as x>${x}</#items></#list>', ['#list', 'must not have', '#items', 'as loopVar']],
+      ['<#list xs><#list xs as x><#items as x>${x}</#items></#list></#list>', ['#list', 'must not have', '#items', 'as loopVar']],
+      ['<#list xs></#list>', ['#list', 'must have', '#items', 'as loopVar']],
+      ['<#forEach x in xs><#items as x></#items></#forEach>', ['#forEach', 'doesn\'t support', '#items']],
+    ]) {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException, subs);
+      void listCtx;
+    }
+  });
+  it('testInvalidSepParseTime', async () => {
+    for (const src of ['<#sep>, </#sep>', '<#sep>, ', '<#list xs as x><#else><#sep>, </#list>',
+      '<#list xs as x><#macro m><#sep>, </#macro></#list>']) {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException,
+        ['#sep', 'must be inside', '#list']);
+    }
+  });
+  it('testInvalidItemsRuntime', async () => {
+    rejectsMatch(() => out('<#list 1..1><#items as x></#items><#items as x></#items></#list>'),
+      TemplateException, ['#items', 'already entered earlier']);
+    throwsMatch(() => new Template('t.ftl',
+      '<#list 1..1><#items as x><#items as y>${x}/${y}</#items></#items></#list>',
+      new Configuration()), ParseException, ['#items', 'Can\'t nest #items into each other']);
+  });
+  it('testInvalidLoopVarBuiltinLHO', async () => {
+    for (const src of [
+      '<#list foos>${foo?index}</#list>',
+      '<#list foos as foo></#list>${foo?index}',
+      '<#list foos as foo><#macro m>${foo?index}</#macro></#list>',
+      '<#list foos as foo><#function f>${foo?index}</#function></#list>',
+      '<#list xs as x>${foo?index}</#list>',
+    ]) {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException,
+        ['?index', 'foo', 'no loop variable']);
+    }
+    for (const src of [
+      '<#list foos as foo><@m; foo>${foo?index}</@></#list>',
+      '<#list foos as foo><@m; foo><@m; foo>${foo?index}</@></@></#list>',
+      '<#list foos as foo><@m; foo>'
+      + '<#list foos as foo><@m; foo>${foo?index}</@></#list>'
+      + '</@></#list>',
+    ]) {
+      throwsMatch(() => new Template('t.ftl', src, new Configuration()), ParseException,
+        ['?index', 'foo', 'user defined directive']);
+    }
+  });
+  it('testKeyValueSameName', () => {
+    throwsMatch(() => new Template('t.ftl', '<#list {} as foo, foo></#list>', new Configuration()),
+      ParseException, ['key', 'value', 'both', 'foo']);
+  });
+  it('testCollectionVersusHash', async () => {
+    rejectsMatch(() => out('<#list {} as i></#list>'),
+      NonSequenceOrCollectionException, ['as k, v']);
+    rejectsMatch(() => out('<#list [] as k, v></#list>'),
+      NonSequenceOrCollectionException, ['only one loop variable']);
   });
 });
