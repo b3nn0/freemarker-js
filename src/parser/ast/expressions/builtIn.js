@@ -3,7 +3,7 @@
 import { Expression } from './expression.js';
 import { getBuiltIn } from '../../../builtins/registry.js';
 import '../../../builtins/index.js'; // registers the milestone's built-ins (side effect)
-import { HashModel, StringModel } from '../../../model/models.js';
+import { HashModel, StringModel, BooleanModel, DateModel } from '../../../model/models.js';
 import { TemplateHashModelEx } from '../../../model/templateModel.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 
@@ -33,7 +33,29 @@ class VarsModel extends TemplateHashModelEx {
   }
 }
 
-// <- freemarker.core.BuiltinVariable: the leading-dot special variables. Only .args lands in M9.
+// <- BuiltinVariable: live view of the current template's namespace hash
+class NamespaceModel extends TemplateHashModelEx {
+  /** @param {import('../../../environment.js').Environment} env */
+  constructor(env) {
+    super();
+    this.env = env;
+  }
+
+  * get(key) {
+    const v = this.env._nsScope.get(key);
+    return v === undefined ? null : v;
+  }
+
+  keys() {
+    return [...this.env._nsScope.keys()];
+  }
+
+  size() {
+    return this.keys().length;
+  }
+}
+
+// <- freemarker.core.BuiltinVariable: the leading-dot special variables.
 /** ?loop_var style builtin variable <- BuiltinVariable. */
 export class BuiltinVariable extends Expression {
   /** @param {string} name */
@@ -53,11 +75,6 @@ export class BuiltinVariable extends Expression {
    */
   * evaluate(env) {
     if (this.name === 'data_model') return env.dataModel;
-    if (this.name === 'template_name') {
-      return env.template && env.template.name !== null
-        ? new StringModel(env.template.name) : null;
-    }
-    if (this.name === 'vars') return new VarsModel(env);
     if (this.name === 'output_format') {
       const of = env.outputFormat ?? env.configuration.getOutputFormat();
       return new StringModel(of ? of.name : 'Undefined');
@@ -72,6 +89,65 @@ export class BuiltinVariable extends Expression {
       }
       throw new InvalidReferenceException(
         'The "args" special variable is only available inside a macro or function.');
+    }
+    if (this.name === 'template_name' || this.name === 'current_template_name'
+      || this.name === 'main_template_name') {
+      return env.template && env.template.name !== null
+        ? new StringModel(env.template.name) : null;
+    }
+    if (this.name === 'vars' || this.name === 'globals') return new VarsModel(env);
+    if (this.name === 'namespace' || this.name === 'main') return new NamespaceModel(env);
+    if (this.name === 'locals') return null;
+    if (this.name === 'auto_esc') {
+      return new BooleanModel(!!(env.template && env.template.autoEscaping));
+    }
+    if (this.name === 'time_zone') {
+      const tz = env._settings.timeZone
+        ?? (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : null)
+        ?? 'UTC';
+      return new StringModel(tz);
+    }
+    if (this.name === 'output_encoding' || this.name === 'url_escaping_charset') {
+      const key = this.name === 'output_encoding' ? 'outputEncoding' : 'urlEscapingCharset';
+      const v = env._settings[key];
+      return v == null ? null : new StringModel(String(v));
+    }
+    if (this.name === 'locale' || this.name === 'lang') {
+      const loc = env._settings.locale
+        ?? (env.configuration.getLocale() != null ? String(env.configuration.getLocale()) : 'en_US');
+      return new StringModel(this.name === 'locale' ? loc : loc.split(/[_-]/)[0]);
+    }
+    if (this.name === 'version') return new StringModel('2.3.36');
+    if (this.name === 'incompatible_improvements') return new StringModel('2.3.36');
+    if (this.name === 'now') return new DateModel(new Date(), DateModel.DATE_TIME);
+    if (this.name === 'error') {
+      if (!env._recoverError) {
+        throw new TemplateException('.error is not available outside of a #recover block.');
+      }
+      return new StringModel(env._recoverError.message);
+    }
+    if (this.name === 'caller_template_name') {
+      let inMacro = false;
+      for (let i = env._scopes.length - 1; i >= 0; i--) {
+        if (env._scopes[i].isMacroScope) { inMacro = true; break; }
+      }
+      if (!inMacro) {
+        throw new InvalidReferenceException(
+          "Can't get .caller_template_name here, as there's no macro or function "
+          + "(that's implemented in the template) call in context.");
+      }
+      // deviation: reports the template being processed; the port doesn't track
+      // per-call-site template names for cross-namespace macro calls
+      return env.template && env.template.name !== null
+        ? new StringModel(env.template.name) : null;
+    }
+    if (this.name === 'node' || this.name === 'current_node') {
+      throw new TemplateException(
+        `Special variable ".${this.name}" isn't supported in this port (XML support is excluded).`);
+    }
+    if (this.name === 'pass' || this.name === 'get_optional_template' || this.name === 'locale_object') {
+      throw new TemplateException(
+        `Special variable ".${this.name}" isn't supported in this port.`);
     }
     throw new TemplateException(`Unsupported special variable .${this.name}`);
   }

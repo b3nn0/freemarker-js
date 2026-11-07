@@ -28,7 +28,14 @@ export class AttemptBlock extends TemplateElement {
         throw e;
       }
       if (!(e instanceof TemplateException)) throw e;
-      for (const c of this.recoveryChildren) yield* env.visit(c);
+      // <- Environment.visitAttemptRecover: .error is visible inside the recover body
+      const prev = env._recoverError;
+      env._recoverError = e;
+      try {
+        for (const c of this.recoveryChildren) yield* env.visit(c);
+      } finally {
+        env._recoverError = prev;
+      }
     }
     return null;
   }

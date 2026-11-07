@@ -90,7 +90,23 @@ const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1], ['take_while', 1
 const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string', 'interpret']);
 
 // <- FTL.jj BuiltinVariable: dot special variables landing in the port.
-const DOT_VAR_NAMES = new Set(['args', 'data_model', 'output_format', 'template_name', 'vars']);
+// <- BuiltinVariable.SPEC_VAR_NAMES (snake_case view; camelCase twins are
+// accepted via _snakeName, matching the naming-convention handling in FTL.jj).
+const DOT_VAR_NAMES = new Set([
+  'args', 'auto_esc', 'caller_template_name', 'current_template_name', 'data_model', 'error',
+  'get_optional_template', 'globals', 'incompatible_improvements', 'lang', 'locale',
+  'locale_object', 'locals', 'main', 'main_template_name', 'namespace', 'node', 'current_node', 'now',
+  'output_encoding', 'output_format', 'pass', 'template_name', 'time_zone',
+  'url_escaping_charset', 'vars', 'version',
+]);
+
+// <- naming convention: camelCase twins of snake_case names (upperCase -> upper_case)
+function _snakeName(name) {
+  if (!name.includes('_') && /[A-Z]/.test(name)) {
+    return name.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+  }
+  return name;
+}
 
 // <- BuiltInForLoopVariable subclasses in BuiltInsForLoopVariables.java
 const LOOP_VAR_BUILT_INS = new Set(['index', 'counter', 'has_next', 'is_last', 'is_first',
@@ -136,7 +152,7 @@ export class Parser {
   }
 
   // <- FTL.jj recalculateAutoEscapingField()
-  /** <- FTL.jj recalculateAutoEscapingField. @returns {void} */
+  /** <- FTL.jj recalculateAutoEscapingField. @returns {boolean} */
   _recalculateAutoEscaping() {
     if (this.outputFormat.isMarkup) {
       switch (this.autoEscapingPolicy) {
@@ -1742,9 +1758,11 @@ export class Parser {
           throw this._error(`Expected a built-in name after "?", but got ${this._desc(name)}.`, name);
         }
         this._next();
+        this.tm.checkNamingConvention(name);
+        const biName = _snakeName(name.image);
         let args = null;
         const hasParen = this._peek().type === TT.OPEN_PAREN;
-        if (LAMBDA_ARG_BUILTINS.has(name.image)) {
+        if (LAMBDA_ARG_BUILTINS.has(biName)) {
           if (!hasParen) {
             throw this._error(`The "?${name.image}" built-in must be called with an argument `
               + `in parentheses, as in ?${name.image}(x -> ...).`, name);
@@ -1757,7 +1775,7 @@ export class Parser {
           }
           this._next();
           args = [arg];
-        } else if (hasParen && LAZY_ARG_BUILTINS.has(name.image)) {
+        } else if (hasParen && LAZY_ARG_BUILTINS.has(biName)) {
           // <- BuiltInWithParseTimeParameters: the args must arrive unevaluated
           this._next(); // "("
           args = this._peek().type === TT.CLOSE_PAREN ? [] : this._parsePositionalArgs();
@@ -1769,23 +1787,23 @@ export class Parser {
         }
         // Otherwise the "(" is left for the primary loop to parse as a MethodCall
         // <- upstream: plain built-ins return immediately and the "(...)" is a call.
-        if (name.image === 'then' && args !== null && args.length !== 2) {
+        if (biName === 'then' && args !== null && args.length !== 2) {
           // <- upstream: BuiltIn catches then-arity at parse time
           throw this._error('?then(...) requires exactly 2 parameters', name);
         }
-        if (!UPSTREAM_BUILT_INS.has(name.image)) {
+        if (!UPSTREAM_BUILT_INS.has(biName)) {
           // <- upstream resolves built-in names at parse time
           throw this._error(
             `Unknown built-in: "${name.image}". Help (latest version): `
             + "https://freemarker.apache.org/docs/ref_builtins.html; you're using FreeMarker 2.3.36.\n"
             + 'The alphabetical list of built-ins:\n  ' + BI_LIST_TEXT, name);
         }
-        if (LOOP_VAR_BUILT_INS.has(name.image)) {
+        if (LOOP_VAR_BUILT_INS.has(biName)) {
           // <- FTL.jj: loop-variable built-ins are parse-checked against the
           // enclosing iterator's loop variables.
-          this._checkLoopVariableBiLho(name.image, exp, name);
+          this._checkLoopVariableBiLho(biName, exp, name);
         }
-        exp = this._span(new BuiltIn(exp, name.image, args), exp, name);
+        exp = this._span(new BuiltIn(exp, biName, args), exp, name);
       } else if (t.type === TT.EXCLAM) {
         this._next();
         const rhs = EXPRESSION_START.has(this._peek().type) ? this._parseExpression() : null;
@@ -1903,17 +1921,21 @@ export class Parser {
         }
         this._next();
         this._next();
-        if (nt.image === 'args') {
+        this.tm.checkNamingConvention(nt);
+        const dvName = _snakeName(nt.image);
+        if (dvName === 'args') {
           if (!this.inMacro && !this.inFunction) {
             throw this._error('The "args" special variable must be inside a macro or function '
               + 'in the template source code.', nt);
           }
           this._argsFlag = true;
-        } else if (!DOT_VAR_NAMES.has(nt.image)) {
-          throw new UnsupportedFeatureException(
-            `Special variable ".${nt.image}" is not supported in this milestone yet.`);
+        } else if (!DOT_VAR_NAMES.has(dvName)) {
+          throw this._error(
+            `Special variable ".${nt.image}" is not a recognized special variable name. `
+            + 'The alphabetical list of special variables:\n  '
+            + [...DOT_VAR_NAMES].sort().join(', '), nt);
         }
-        return this._span(new BuiltinVariable(nt.image), t, nt);
+        return this._span(new BuiltinVariable(dvName), t, nt);
       }
       case TT.INTEGER:
         this._next();

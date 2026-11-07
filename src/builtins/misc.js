@@ -10,7 +10,7 @@ import {
   StringModel, NumberModel, BooleanModel, DateModel, HashModel, SequenceModel,
 } from '../model/models.js';
 import {
-  TemplateSequenceModel, TemplateHashModelEx, TemplateMethodModel,
+  TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel,
 } from '../model/templateModel.js';
 import {
   InvalidReferenceException, NonExtendedHashException, NonNumericalException, TemplateException,
@@ -132,7 +132,7 @@ registerBuiltIn('blank_to_null', {
   * impl(target, args, env) {
     // <- isBlank: whitespace (or NBSP) only; the empty string is blank too
     return yield* toNull(target, env, 'blank_to_null',
-      (s) => s.length === 0 || [...s].every((c) => c.charCodeAt(0) <= 0x20 || c === '\u00a0'));
+      (s) => s.length === 0 || [...s].every((c) => /\s/.test(c) || c === '\u00a0'));
   },
 });
 
@@ -159,7 +159,9 @@ registerBuiltIn('trim_to_null', {
      */
   * impl(target, args, env) {
     if (target === null || target === undefined) return null;
-    const s = (yield* env.coerceToString(target, ' for the "?trim_to_null" built-in')).trim();
+    // <- String.trim(): only code points <= U+0020 are trimmed (NOT full Unicode)
+    const s = (yield* env.coerceToString(target, ' for the "?trim_to_null" built-in'))
+      .replace(/^[\0-\u0020]+|[\0-\u0020]+$/g, '');
     return s.length === 0 ? null : new StringModel(s);
   },
 });
@@ -415,7 +417,7 @@ registerBuiltIn('is_date', {
 });
 registerBuiltIn('is_hash', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof HashModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return target instanceof TemplateHashModel ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_hash_ex', {
   acceptsMissing: true,
