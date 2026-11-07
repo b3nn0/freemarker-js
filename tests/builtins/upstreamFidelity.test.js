@@ -2363,3 +2363,59 @@ describe('Upstream GetOptionalTemplateTest (ported subset)', () => {
       TemplateException, ['no parameters']);
   });
 });
+
+// Upstream TemplateTransformModelTest (ported subset; TransformControl and
+// exception-handler-observation cases are Java-internals and excluded).
+import { TemplateTransformModel } from '../../src/model/templateModel.js';
+
+class UpperInPare extends TemplateTransformModel {
+  getWriter(out) {
+    out.write('(');
+    return { write(s) { out.write(String(s).toUpperCase()); }, close() { out.write(')'); } };
+  }
+}
+class NullSink extends TemplateTransformModel {
+  getWriter() { return null; }
+}
+
+describe('Upstream TemplateTransformModelTest (ported subset)', () => {
+  const run = (src, root) => new Template('t', src, new Configuration()).processToString(root);
+  it('nested content flows through the transform sink', async () => {
+    snapshot(await run('a<@t>b</@t>c', { t: new UpperInPare() }), 'a(B)c');
+    snapshot(await run('<#transform t>x</#transform>', { t: new UpperInPare() }), '(X)');
+    snapshot(await run('<#list 1..2 as _>a<@t>b<#continue>c</@t>d</#list>.',
+      { t: new UpperInPare() }), 'a(B)a(B).');
+  });
+  it('null sink forbids nested content but allows an empty body', async () => {
+    snapshot(await run('a<@t/>c', { t: new NullSink() }), 'ac');
+    await rejectsMatch(run('a<@t>x</@t>c', { t: new NullSink() }),
+      TemplateException, ['does not allow nested content']);
+  });
+  it('getWriter failures propagate without closing', async () => {
+    const bad = new (class extends TemplateTransformModel {
+      getWriter() { throw new Error('bad transform'); }
+    })();
+    await rejectsMatch(run('<@t>b</@t>', { t: bad }), TemplateException, ['bad transform']);
+    const closer = new (class extends TemplateTransformModel {
+      getWriter(out) {
+        out.write('(');
+        return { write(s) { out.write(String(s)); }, close() { out.write(')'); } };
+      }
+    })();
+    const w = { chunks: [], write(s) { this.chunks.push(String(s)); }, close() {} };
+    try {
+      new Template('t', '1<@closer>2${noSuchVar}x</@closer>3', new Configuration())
+        .process({ closer }, { out: w });
+      snapshot('no error', 'error');
+    } catch (e) {
+      ok(e instanceof InvalidReferenceException, 'invalid reference expected');
+      snapshot(w.chunks.join(''), '1(2'); // writer NOT closed on error (JVM rule)
+    }
+    snapshot(await run('<#list 1..1 as _>1<@t>2<#break>x</@t></#list>3',
+      { t: closer }), '1(2)3'); // closed when a #break passes through
+  });
+  it('non-transform callees fail as transforms', async () => {
+    await rejectsMatch(run('<#transform 1>b</#transform>', {}),
+      TemplateException, ['Expected a transform', 'number']);
+  });
+});

@@ -38,6 +38,25 @@ export class TemplateDateModel extends TemplateModel {
   }
 }
 
+/**
+ * A transform <- freemarker.template.TemplateTransformModel: the nested content
+ * is written into the sink returned by getWriter() instead of the main output.
+ */
+export class TemplateTransformModel extends TemplateModel {
+  constructor() {
+    super();
+    this.isTransform = true;
+  }
+  /**
+   * @param {object} out - the enclosing output sink (write(chunk), close())
+   * @param {Map<string, AnyModel>} args - named parameters of the call
+   * @returns {object|null} sink for the nested content; null skips the body
+   */
+  getWriter(out, args) {
+    throw new Error('getWriter() not implemented');
+  }
+}
+
 /** Index-accessible sequence of models. */
 export class TemplateSequenceModel extends TemplateModel {
   /**

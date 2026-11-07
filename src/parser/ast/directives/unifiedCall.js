@@ -5,6 +5,7 @@ import { TemplateElement } from '../templateElement.js';
 import { InvalidReferenceException, UnsupportedFeatureException } from '../../../errors.js';
 import { Identifier } from '../expressions/variables.js';
 import { CompressedBlock } from './compress.js';
+import { runTransform } from './transform.js';
 import { callOp } from '../../../async.js';
 
 /** <@call ...> <- UnifiedCall. */
@@ -70,6 +71,12 @@ export class UnifiedCall extends TemplateElement {
     const named = new Map();
     if (this.namedArgs !== null) {
       for (const [k, exp] of this.namedArgs) named.set(k, yield* exp.evaluate(env));
+    }
+    if (model.isTransform === true && typeof model.getWriter === 'function') {
+      // <- UnifiedCall fallback: the callee is a transform, not a macro
+      yield* runTransform(env, model, this.target.getCanonicalForm(), named,
+        this.bodyChildren === null ? [] : this.bodyChildren);
+      return null;
     }
     yield* callOp(`macro call "<@${this.target.getCanonicalForm()}>"`, model, 'invoke', env, {
       positionalArgs: positional,

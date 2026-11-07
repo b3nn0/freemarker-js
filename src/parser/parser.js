@@ -39,6 +39,7 @@ import { ReturnInstruction } from './ast/directives/control.js';
 import { FTLHeader } from './ast/directives/ftlHeader.js';
 import { TrimInstruction } from './ast/directives/trim.js';
 import { CompressedBlock } from './ast/directives/compress.js';
+import { TransformElement } from './ast/directives/transform.js';
 import { IncludeDirective } from './ast/directives/include.js';
 import { ImportDirective } from './ast/directives/importDir.js';
 import { StopInstruction, FlushInstruction } from './ast/directives/stop.js';
@@ -611,6 +612,10 @@ export class Parser {
           this._next();
           group.addChild(this._parseCompress(t));
           continue;
+        case TT.TRANSFORM:
+          this._next();
+          group.addChild(this._parseTransform(t));
+          continue;
         case TT.FALLBACK:
           this._next();
           if (!this.inMacro) throw this._error('Cannot fall back outside a macro.', t);
@@ -802,6 +807,39 @@ export class Parser {
     const block = new CompressedBlock(children.children);
     this._span(block, startTok, end);
     return block;
+  }
+
+  /**
+   * <- FTL.jj Transform(): #transform with a target expression, whitespace-only
+   * named parameters and an optional body.
+   * @param {import('./token.js').Token} startTok
+   * @returns {import('./ast/directives/transform.js').TransformElement}
+   */
+  _parseTransform(startTok) {
+    const targetExp = this._parseExpression();
+    let named = null;
+    if (this._peek().type === TT.ID && this._peek(1).type === TT.EQUALS) {
+      named = new Map();
+      for (;;) {
+        const id = this._expect(TT.ID, 'an argument name');
+        this._expect(TT.EQUALS, '"="');
+        named.set(id.image, this._parseExpression());
+        if (this._peek().type === TT.ID && this._peek(1).type === TT.EQUALS) continue;
+        break;
+      }
+    }
+    if (this._peek().type === TT.EMPTY_DIRECTIVE_END) {
+      const end = this._next();
+      return this._span(new TransformElement(targetExp, named, []), startTok, end);
+    }
+    this._expect(TT.DIRECTIVE_END, '">"');
+    const body = this._parseMixedContent(new Set([TT.END_TRANSFORM]));
+    const end = this._peek();
+    if (end.type !== TT.END_TRANSFORM) {
+      throw this._error('Missing end tag: "</#transform>" expected.', end);
+    }
+    this._next();
+    return this._span(new TransformElement(targetExp, named, body.children), startTok, end);
   }
 
   // ---- output format / auto-escape blocks <- FTL.jj AutoEscapeBlock(),
