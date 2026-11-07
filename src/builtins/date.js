@@ -7,7 +7,7 @@ import { argCntError, BuiltinArgMethod } from './common.js';
 import { StringModel, DateModel, HashModel, BooleanModel } from '../model/models.js';
 import {
   UnsupportedFeatureException, NonDateException, NonStringException,
-  NonNumericalException, InvalidFormatStringException,
+  NonNumericalException, TemplateException, InvalidFormatStringException,
 } from '../errors.js';
 import { formatIsoDate, DATE_TYPES } from '../format/dateFormat.js';
 import { callOp } from '../async.js';
@@ -151,7 +151,7 @@ asType('datetime', DATE_TYPES.DATE_TIME);
 //  - iso / iso_nz / iso_ms / iso_ms_nz / iso_m / iso_m_nz / iso_h / iso_h_nz:
 //    a METHOD taking exactly one time-zone argument (bare ?iso is the method).
 //  - iso_utc* / iso_local* (with _h/_m/_ms/_nz/_fz variants): plain strings.
-// Named time zones aren't ported (offset-style strings only; see UPSTREAM.md).
+// IANA named zones are resolved DST-aware via Intl (see parseZoneOffsetMinutes).
 const ISO_METHOD_NAMES = ['iso', 'iso_nz', 'iso_ms', 'iso_ms_nz', 'iso_m', 'iso_m_nz', 'iso_h', 'iso_h_nz'];
 const ISO_STRING_NAMES = [
   'iso_utc', 'iso_utc_fz', 'iso_utc_nz', 'iso_utc_ms', 'iso_utc_ms_nz',
@@ -189,7 +189,7 @@ function registerIsoMethod(name) {
     * impl(target, args, env) {
       const kind = isoKind(target, env, name);
       return new BuiltinArgMethod(name, 1, 1, function* (e, a) {
-        const tzMin = parseZoneOffsetMinutes(a[0], name);
+        const tzMin = parseZoneOffsetMinutes(a[0], target.getAsDate(), name);
         return new StringModel(formatIsoDate(target.getAsDate(), name, kind, tzMin));
       });
     },
@@ -216,11 +216,14 @@ function registerIsoString(name) {
 }
 
 /**
- * @param {string} s - zone string; only "UTC"/"GMT"/"Z" and offset forms are ported
- * @param {string} name - built-in name for the message
+ * Resolve a ?iso(...) time-zone argument to fixed minutes east of UTC.
+ * Offset-style values ("UTC", "GMT", "GMT+2", "UTC-05:00") are parsed directly;
+ * IANA names ("Europe/Berlin") are resolved DST-aware for the given instant
+ * via Intl (upstream uses java.util.TimeZone; "Z" is rejected like upstream).
+ * @param {string} s @param {Date} date @param {string} name
  * @returns {number} minutes east of UTC
  */
-function parseZoneOffsetMinutes(s, name) {
+function parseZoneOffsetMinutes(s, date, name) {
   if (typeof s !== 'string') {
     throw new NonStringException(
       `?${name}(...) argument #1: Expected a string time zone name, `
@@ -230,10 +233,12 @@ function parseZoneOffsetMinutes(s, name) {
     || (s.trim() === 'UTC' || s.trim() === 'GMT' ? ['x', '+', '0', '0'] : null)
     || (s.trim() === '' ? ['x', '+', '0', '0'] : null);
   if (m === null) {
-    throw new NonNumericalException(
+    const asNamed = ianaZoneOffsetMinutes(s, date);
+    if (asNamed !== null) return asNamed;
+    // <- upstream class: _TemplateModelException (generic)
+    throw new TemplateException(
       `The time zone string specified for ?${name}(...) `
-      + `is not recognized as a valid time zone name: "${s}" `
-      + '(named time zones aren\'t ported; use offset-style strings like "GMT+2").');
+      + `is not recognized as a valid time zone name: "${s}"`);
   }
   const sign = m[1] === '-' ? -1 : 1;
   const hh = parseInt(m[2], 10);
@@ -242,6 +247,33 @@ function parseZoneOffsetMinutes(s, name) {
     throw new InvalidFormatStringException(`Invalid time zone offset "${s}".`);
   }
   return sign * (hh * 60 + mm);
+}
+
+/**
+ * DST-aware offset of an IANA zone id at the given instant, or null if the
+ * string isn't a zone id Intl recognizes. "Z" is rejected upstream-style.
+ * @param {string} s @param {Date} date @returns {number|null}
+ */
+function ianaZoneOffsetMinutes(s, date) {
+  const id = s.trim();
+  if (id === 'Z' || id === '') return null; // upstream rejects "Z" as a zone name
+  let fmt;
+  try {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: id, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZoneName: 'longOffset',
+    });
+  } catch (_e) {
+    return null;
+  }
+  const part = fmt.formatToParts(date).find((p) => p.type === 'timeZoneName');
+  const v = part ? part.value : 'GMT'; // "GMT+02:00" / "GMT-05:00" / "GMT"
+  const m = /^GMT(?:([+-])(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(v);
+  if (!m) return 0;
+  const sign = m[1] === '-' ? -1 : 1;
+  return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10));
 }
 
 for (const n of ISO_METHOD_NAMES) registerIsoMethod(n);

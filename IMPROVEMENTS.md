@@ -43,9 +43,8 @@ is checked out and built with a JDK; `/tmp/opencode` Drv drivers render a
   `c` format digits differ from BigDecimal for division values (upstream divides
   with scale 12: `(1/3)?c` = `0.333333333333`; the port prints the IEEE double);
   sorting now uses `Intl.Collator` (close to java.text.Collator for common locales,
-  not byte-identical); iso time-zone arguments accept offset-style ids only
-  (`GMT+2`, `UTC-05:00`, `UTC`, `GMT`; named zones like `Europe/Berlin` rejected,
-  `Z` rejected).
+  not byte-identical); iso time-zone arguments now accept IANA zone ids
+  (Intl-resolved, DST-aware) besides offset forms; `Z` is rejected upstream-style.
 - [x] **B4. ISO format modifiers partial.** DONE: the full 2.3.36 iso family is
   ported with the upstream method-vs-string split (`?iso*` without `_utc/_local`
   are methods taking one time-zone argument; `?iso_utc*` / `?iso_local*` are plain

@@ -127,7 +127,8 @@ must match or be recorded here as deviations.
   argument; `?iso_utc*`/`?iso_local*` (with `_h/_m/_ms/_nz/_fz` variants) are
   plain strings - calling them yields NonMethodException (this replaces the
   partial M16/M17 notes). Offset-style zone ids only (`GMT+2`, `UTC`, `GMT`,
-  `UTC-05:00`); `Z` and named zones are rejected. DATE-typed values never show
+  `UTC-05:00`) and IANA zone ids resolved DST-aware through Intl
+  (`Europe/Berlin`); `Z` is rejected like upstream. DATE-typed values never show
   an offset (upstream AbstractISOBI); `_fz` forces the offset for datetime/time.
 - `?c`/`?cn`: C/Java literal rendering (`src/format/cFormat.js`): strings are
   quoted/escaped like StringUtil.javaStringEnc, numbers use the

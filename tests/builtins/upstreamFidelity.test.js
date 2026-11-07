@@ -344,3 +344,23 @@ describe('Upstream ConcatenatedSequenceTest / + operator (ported subset)', () =>
       '[2,4] [2,3]');
   });
 });
+
+describe('Upstream iso() time-zone arguments (JVM-pinned)', () => {
+  it('accepts offset-style and IANA zone ids, DST-aware', async () => {
+    const d = new Date(1600000000000); // 2020-09-13T12:26:40Z
+    snapshot(await out('${d?datetime?iso("UTC")}', { d }), '2020-09-13T12:26:40Z');
+    snapshot(await out('${d?datetime?iso("GMT+2")}', { d }), '2020-09-13T14:26:40+02:00');
+    snapshot(await out('${d?datetime?iso("Europe/Berlin")}', { d }), '2020-09-13T14:26:40+02:00');
+    snapshot(await out('${d?datetime?iso_h("Europe/Berlin")}', { d }), '2020-09-13T14+02:00');
+    snapshot(await out('${d?datetime?iso("America/New_York")}', { d }), '2020-09-13T08:26:40-04:00');
+    snapshot(await out('${d?datetime?iso_m("Australia/Eucla")}', { d }), '2020-09-13T21:11+08:45');
+  });
+
+  it('rejects "Z" and unknown zone names', async () => {
+    const d = new Date(1600000000000);
+    await rejectsMatch(out('${d?datetime?iso("Z")}', { d }),
+      TemplateException, ['is not recognized as a valid time zone name: "Z"']);
+    await rejectsMatch(out('${d?datetime?iso("bogus/zone")}', { d }),
+      TemplateException, ['is not recognized as a valid time zone name: "bogus/zone"']);
+  });
+});
