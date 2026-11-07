@@ -2,6 +2,7 @@
 
 import { TemplateElement } from '../templateElement.js';
 import { HashModel } from '../../../model/models.js';
+import { TemplateModel } from '../../../model/templateModel.js';
 import { InvalidReferenceException, ReturnInstructionException } from '../../../errors.js';
 
 /** #macro / #function <- Macro. */
@@ -58,9 +59,10 @@ export class Macro extends TemplateElement {
 }
 
 /** A #macro as a callable value <- MacroModel. */
-export class MacroModel {
+export class MacroModel extends TemplateModel {
   /** @param {Macro} macroDef */
   constructor(macroDef) {
+    super();
     this.macroDef = macroDef;
     this.isMacroLike = !macroDef.isFunction;
     this.isFunctionModel = macroDef.isFunction;

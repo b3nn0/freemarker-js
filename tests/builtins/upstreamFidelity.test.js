@@ -869,3 +869,31 @@ describe('Upstream TagSyntaxVariationsTest (ported subset)', () => {
     snapshot(await out('<#macro m>x</#macro><@m>a</@m>'), 'x');
   });
 });
+
+describe('Upstream EndTagSyntaxTest (ported)', () => {
+  const PRE = '<#macro m a=1>${a}[<#nested />]</#macro><#assign ns={"m":m}>';
+  const outEnd = (src) => out(PRE + src);
+  it('testSimple', async () => {
+    snapshot(await outEnd('<@m>nested</@>'), '1[nested]');
+    snapshot(await outEnd('<@m a=2>nested</@>'), '2[nested]');
+    snapshot(await outEnd('<@ns.m>nested</@ns.m>'), '1[nested]');
+    snapshot(await outEnd('<@ns.m a=2>nested</@ns.m>'), '2[nested]');
+    snapshot(await outEnd('<@m>nested</@m>'), '1[nested]');
+    snapshot(await outEnd('<@m a=2>nested</@m>'), '2[nested]');
+    // namespaced callees need the full dotted path in the end tag:
+    throwsMatch(() => new Template('t.ftl', PRE + '<@ns.m a=2>nested</@m>', new Configuration()),
+      ParseException, ['</@ns.m>']);
+    throwsMatch(() => new Template('t.ftl', PRE + '<@m a=2>nested</@n>', new Configuration()),
+      ParseException, ['</@m>']);
+  });
+  it('testWithArgs', async () => {
+    snapshot(await outEnd('<@m?withArgs({})>nested</@m>'), '1[nested]');
+    snapshot(await outEnd('<@m?withArgs({}) a=2>nested</@m>'), '2[nested]');
+    snapshot(await outEnd('<@ns.m?withArgs({})>nested</@ns.m>'), '1[nested]');
+    snapshot(await outEnd('<@ns.m?withArgs({}) a=2>nested</@ns.m>'), '2[nested]');
+    throwsMatch(() => new Template('t.ftl', PRE + '<@ns.m?withArgs({})>nested</@m>',
+      new Configuration()), ParseException, ['</@ns.m>']);
+    throwsMatch(() => new Template('t.ftl', PRE + '<@m?withArgs({})>nested</@n>',
+      new Configuration()), ParseException, ['</@m>']);
+  });
+});

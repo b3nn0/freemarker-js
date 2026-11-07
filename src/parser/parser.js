@@ -1519,7 +1519,25 @@ export class Parser {
   /** @param {import('./token.js').Token} startTok @returns {UnifiedCall} */
   _parseUnifiedCall(startTok) {
     const target = this._parseExpression();
-    const simpleName = target instanceof Identifier ? target.name : null;
+    // <- FTL.jj UnifiedMacroTransform: startTagNameExp - the callee expression with a
+    // single ?withArgs(...) wrapper stripped, when it is an Identifier or an
+    // identifier-only Dot chain; it drives the required </@name>.
+    let tagNameExp = target;
+    if (tagNameExp instanceof MethodCall && tagNameExp.target instanceof BuiltIn
+      && tagNameExp.target.key === 'with_args') {
+      tagNameExp = tagNameExp.target.target;
+    }
+    let simpleName = null;
+    if (tagNameExp instanceof Identifier) {
+      simpleName = tagNameExp.name;
+    } else if (tagNameExp instanceof Dot) {
+      let d = tagNameExp; let identOnly = true;
+      while (d instanceof Dot) {
+        if (typeof d.key !== 'string') { identOnly = false; break; }
+        d = d.target;
+      }
+      if (identOnly && d instanceof Identifier) simpleName = tagNameExp.getCanonicalForm();
+    }
     let positional = null;
     let named = null;
     const t = this._peek();
@@ -1560,14 +1578,16 @@ export class Parser {
     this._expect(TT.DIRECTIVE_END, '">"');
     const children = this._parseMixedContent(new Set([TT.UNIFIED_CALL_END]));
     const endTok = this._expect(TT.UNIFIED_CALL_END, 'the end tag for the <@...> call');
-    if (simpleName !== null) {
+    {
       const at = endTok.image.indexOf('@');
       const gt = endTok.image.lastIndexOf('>');
       const endName = endTok.image.slice(at + 1, gt).trim();
       if (endName !== '' && endName !== simpleName) {
-        // <- FTL.jj UnifiedCall: the end tag name may be omitted (bare </@>)
-        throw this._error(
-          `Expected end tag for <@${simpleName}> here, but found ${this._desc(endTok)}.`, endTok);
+        // <- FTL.jj UnifiedCall: the end tag name may be omitted (bare </@>), but when
+        // present it must match the callee name (full dotted path).
+        throw this._error(simpleName === null
+          ? `Expecting </@> here, but found ${this._desc(endTok)}.`
+          : `Expecting </@> or </@${simpleName}> here, but found ${this._desc(endTok)}.`, endTok);
       }
     }
     return this._span(new UnifiedCall(target, positional, named, bodyParamNames, children.children),

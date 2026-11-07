@@ -109,7 +109,7 @@ describe('Directive: #macro / #function / <@call>', () => {
       '<#macro rec n>[<#if n gt 0><@rec n=n-1></@rec></#if>]</#macro><@rec 2/>'), '[[[]]]');
   });
   it('mismatched end tag of a call is a parse error', () => {
-    throwsMatch(() => parse('<@m>x</@n>'), ParseException, ['Expected end tag for <@m>']);
+    throwsMatch(() => parse('<@m>x</@n>'), ParseException, ['Expecting </@> or </@m>']);
     throwsMatch(() => parse('<#macro m>x</#function>'), ParseException, ['Unexpected end tag']);
   });
   it('#fallback must parse inside a macro but is unsupported at runtime', async () => {
