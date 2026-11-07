@@ -936,3 +936,40 @@ describe('Upstream SettingDirectiveTest (ported)', () => {
       + 'timeFormat,timeZone,time_format,time_zone,urlEscapingCharset,url_escaping_charset');
   });
 });
+
+describe('Upstream TabSizeTest (ported)', () => {
+  async function errCol(src, tabSize) {
+    const cfg = new Configuration();
+    cfg.setTabSize(tabSize);
+    let msg = '';
+    try { await new Template('t.ftl', src, cfg).processToString({}); }
+    catch (e) { msg = e.message || ''; }
+    ok(msg !== '', 'expected an error for ' + JSON.stringify(src));
+    return msg;
+  }
+  it('testBasics', async () => {
+    for (const [col, src] of [[3, '${*}'], [8 + 3, '\t${*}'], [16 + 3, '\t\t${*}'],
+      [16 + 3, '  \t  \t${*}']]) {
+      ok((await errCol(src, 8)).includes(`column ${col}`),
+        `tab 8: column ${col} missing in ${JSON.stringify(src)}`);
+    }
+    for (const [col, src] of [[3, '${*}'], [1 + 3, '\t${*}'], [2 + 3, '\t\t${*}'],
+      [6 + 3, '  \t  \t${*}']]) {
+      ok((await errCol(src, 1)).includes(`column ${col}`),
+        `tab 1: column ${col} missing in ${JSON.stringify(src)}`);
+    }
+  });
+  it('testEvalBI', async () => {
+    ok((await errCol("${r'\t~'?eval}", 8)).includes('column 9'), 'evalBI tab 8');
+    ok((await errCol("${r'\t~'?eval}", 4)).includes('column 5'), 'evalBI tab 4');
+  });
+  it('testInterpretBI', async () => {
+    ok((await errCol("<@'\t$\\{*}'?interpret />", 8)).includes('column 11'), 'interpretBI tab 8');
+    ok((await errCol("<@'\t$\\{*}'?interpret />", 4)).includes('column 7'), 'interpretBI tab 4');
+  });
+  it('testStringLiteralInterpolation', async () => {
+    ok((await errCol("${'${*}'}", 8)).includes('column 6'), 'SLI no tab');
+    ok((await errCol("${'${\t*}'}", 8)).includes('column 9'), 'SLI tab 8');
+    ok((await errCol("${'${\t*}'}", 16)).includes('column 17'), 'SLI tab 16');
+  });
+});

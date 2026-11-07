@@ -177,8 +177,11 @@ registerBuiltIn('eval', {
       exp = parseExpression(src, env.configuration);
     } catch (e) {
       if (e instanceof TemplateException) throw e;
+      // <- keep the sub-parse position (tab-expanded column) in the cause text:
+      const where = e.beginColumn > 0
+        ? ` at line ${e.beginLine}, column ${e.beginColumn}` : '';
       throw new TemplateException(
-        `Could not parse the expression: ${src}\nUnderlying cause: ${e.message}`);
+        `Could not parse the expression: ${src}\nUnderlying cause: ${e.message}${where}`);
     }
     return yield* exp.evaluate(env);
   },
