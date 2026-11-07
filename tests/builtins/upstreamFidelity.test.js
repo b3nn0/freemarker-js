@@ -1565,3 +1565,81 @@ describe('Upstream AbsoluteTemplateNameBITest (ported)', () => {
     }
   });
 });
+
+// Upstream InterpolationSyntaxTest (ported; 2.3.36 behavior only -- the
+// "legacyTagSyntaxGlitchStillWorks" method recreates the pre-2.3.28 glitch via
+// incompatible-improvements, which the port doesn't branch on; the glitch
+// errors ARE ported). JVM-pinned byte-identical via p28 probe.
+describe('Upstream InterpolationSyntaxTest (ported)', () => {
+  const run = (src, syn, ts) => {
+    const c = new Configuration();
+    if (syn !== undefined) c.setInterpolationSyntax(syn);
+    if (ts !== undefined) c.setTagSyntax(ts);
+    return new Template('t', src, c).processToString({});
+  };
+  const D = Configuration.DOLLAR_INTERPOLATION_SYNTAX;
+  const S = Configuration.SQUARE_BRACKET_INTERPOLATION_SYNTAX;
+  it('legacy interpolation syntax (default)', async () => {
+    snapshot(await run('${1} #{1} [=1]'), '1 1 [=1]');
+  });
+  it('dollar interpolation syntax', async () => {
+    snapshot(await run('${1} #{1} [=1]', D), '1 #{1} [=1]');
+    snapshot(await run("${{'x': 1}['x']} #{{'x': 1}['x']} [={'x': 1}['x']]", D),
+      "1 #{{'x': 1}['x']} [={'x': 1}['x']]");
+    snapshot(await run("${'a${1}#{2}b[=3]'}", D), 'a1#{2}b[=3]');
+    snapshot(await run("<@r'${1} #{1} [=1]'?interpret />", D), '1 #{1} [=1]');
+    snapshot(await run("${'\"${1} #{1} [=1]\"'?eval}", D), '1 #{1} [=1]');
+  });
+  it('square-bracket interpolation syntax', async () => {
+    snapshot(await run('${1} #{1} [=1]', S), '${1} #{1} 1');
+    snapshot(await run("${{'x': 1}['x']} #{{'x': 1}['x']} [={'x': 1}['x']]", S),
+      "${{'x': 1}['x']} #{{'x': 1}['x']} 1");
+    snapshot(await run('[=1]][=2]]', S), '1]2]');
+    snapshot(await run('[= 1 ][= <#-- c --> 2 <#-- c --> ]', S), '12');
+    snapshot(await run('[ =1]', S), '[ =1]');
+    throwsMatch(() => new Template('t.ftl', '<#if [true][0]]></#if>',
+      (() => { const c = new Configuration(); c.setInterpolationSyntax(S); return c; })()),
+    ParseException, ['"]"', 'nothing open']);
+    snapshot(await run('[#if [true][0]]>[/#if]', S, Configuration.SQUARE_BRACKET_TAG_SYNTAX), '>');
+    snapshot(await run('[=1][=2]${3}', S, Configuration.SQUARE_BRACKET_TAG_SYNTAX), '12${3}');
+    snapshot(await run('[#ftl][#if [true][0]]>[/#if]', S, Configuration.ANGLE_BRACKET_TAG_SYNTAX), '>');
+    snapshot(await run('[#ftl][=1][=2]${3}', S, Configuration.ANGLE_BRACKET_TAG_SYNTAX), '12${3}');
+    snapshot(await run("[='a[=1]b']", S), 'a1b');
+    snapshot(await run("[='a${1}#{2}b']", S), 'a${1}#{2}b');
+    snapshot(await run("[='a${1}#{2}b[=3]']", S), 'a${1}#{2}b3');
+    snapshot(await run("<@r'${1} #{1} [=1]'?interpret />", S), '${1} #{1} 1');
+    snapshot(await run("[='\"${1} #{1} [=1]\"'?eval]", S), '${1} #{1} 1');
+    snapshot(await run("<#setting booleanFormat='y,n'>[=2>1]", S), 'y');
+    snapshot(await run("[#ftl][#setting booleanFormat='y,n'][=2>1]", S), 'y');
+    snapshot(await run("[='[\\=1]']", S), '[=1]');
+    snapshot(await run("[='[\\=1][=2]']", S), '12');
+    snapshot(await run("[=r'[=1]']", S), '[=1]');
+  });
+  it('square-bracket tag syntax still works under all interpolation syntaxes', async () => {
+    for (const syn of [undefined, D, S]) {
+      snapshot(await run('[#if [true][0]]t[#else]f[/#if]', syn, Configuration.SQUARE_BRACKET_TAG_SYNTAX), 't');
+      snapshot(await run("[@r'[#if [true][0]]t[#else]f[/#if]'?interpret /]", syn,
+        Configuration.SQUARE_BRACKET_TAG_SYNTAX), 't');
+    }
+  });
+  it('legacy tag-closing glitch errors (2.3.28+ behavior)', async () => {
+    for (const bad of ['<#if [true][0]]OK</#if>', '<#if true>OK</#if]',
+      "<#assign x = 'OK'/]${x}", ' <#t/]OK\n']) {
+      for (const syn of [undefined, D, S]) {
+        throwsMatch(() => new Template('t.ftl', bad,
+          (() => { const c = new Configuration(); if (syn !== undefined) c.setInterpolationSyntax(syn); return c; })()),
+        ParseException, ['"]"']);
+      }
+    }
+  });
+  it('interpolation-aware error messages, unclosed interpolations', () => {
+    throwsMatch(() => new Template('t.ftl', '<#if ${x}></#if>', new Configuration()),
+      ParseException, ['${...}', '${myExpression}']);
+    throwsMatch(() => new Template('t.ftl', '<#if #{x}></#if>', new Configuration()),
+      ParseException, ['#{...}', '#{myExpression}']);
+    throwsMatch(() => new Template('t.ftl', '<#if [=x]></#if>', new Configuration()),
+      ParseException, ['[=...]', '[=myExpression]']);
+    throwsMatch(() => new Template('t.ftl', '${1', new Configuration()),
+      ParseException, ['Expected "}" to close the interpolation']);
+  });
+});
