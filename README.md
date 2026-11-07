@@ -65,8 +65,10 @@ Honest summary; details and rationale in `UPSTREAM.md`.
   through a plain `setIncludeResolver((name) => source)` callback instead.
 - XML/DOM node models: `#visit`, `#recurse`, `?node_*`, `?new`, `?api`, `#fallback` bodies.
 - `classic_compatible`, `?interpret`, and the `?keep_* / ?remove_* / ?ensure_*`
-  string built-ins (plus regex/flag string variants). `?substring`, `?split`,
-  `?word_list`, `?truncate/_c/_m/_w` and `?indent / ?dedent /
+  string built-ins (the last three aren't FTL keywords in 2.3.36 at all).
+  `?matches` is ported (inline `(?i)/(?s)/(?m)` supported, other inline flags
+  throw); the 2.3.34 regex "flags" argument variants are not. `?substring`,
+  `?split`, `?word_list`, `?truncate/_c/_m/_w` and `?indent / ?dedent /
   ?dedent_with_line_wraps / ?wrap` are supported.
 - Locale-aware behavior everywhere: number/date formatting is fixed to en_US symbols;
   dates render in browser-local time unless a `time_zone` setting (IANA or offset

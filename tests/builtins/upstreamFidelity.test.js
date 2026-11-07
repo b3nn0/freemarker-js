@@ -434,3 +434,19 @@ describe('Upstream ?word_list (JVM-pinned)', () => {
     snapshot(await out('${"a b"?word_list?last}', {}), 'b');
   });
 });
+
+describe('Upstream ?matches (JVM-pinned)', () => {
+  it('full-string java-style regex matching with inline i/s/m flags', async () => {
+    snapshot(await out('${("abc")?matches("a.c")?c}', {}), 'true');
+    snapshot(await out('${("abc")?matches("ab")?c}', {}), 'false');
+    snapshot(await out('${("a.c")?matches("a\\\\.c")?c}', {}), 'true');
+    snapshot(await out('${("ab")?matches("^[ab]+$")?c}', {}), 'true');
+    snapshot(await out('${("Hello")?matches("(?i)hello")?c}', {}), 'true');
+    snapshot(await out('${("abc")?matches(1)?c}', {}), 'false'); // number arg coerced
+  });
+
+  it('malformed patterns throw', async () => {
+    await rejectsMatch(out('${("abc")?matches("(")?c}', {}),
+      TemplateException, ['Malformed regular expression', 'line 1, column 1']);
+  });
+});

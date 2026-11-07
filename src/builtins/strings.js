@@ -5,7 +5,7 @@
 import { registerBuiltIn } from './registry.js';
 import { BuiltinArgMethod, stringMethodArg } from './common.js';
 import { StringModel, NumberModel, SequenceModel, BooleanModel } from '../model/models.js';
-import { NonNumericalException, TemplateException } from '../errors.js';
+import { NonNumericalException, TemplateException, InvalidFormatStringException, NonStringException } from '../errors.js';
 import { awaitOp } from '../async.js';
 
 /** @type {import('../model/models.js').BooleanModel} */
@@ -283,6 +283,64 @@ registerBuiltIn('word_list', {
     return new SequenceModel(pieces.map((p) => new StringModel(p)));
   },
 });
+
+// ?matches <- full-string regex match (no flag-argument variant ported).
+// Inline (?i)/(?s)/(?m) at the pattern start are translated to JS flags;
+// other inline flags (?x etc.) throw <- documented deviation.
+registerBuiltIn('matches', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
+  * impl(target, args, env) {
+    return yield* methodOnString(target, env, 'matches', 1, 1, (e, s, a) => {
+      // <- ?matches coerces a number pattern argument to string (JVM-pinned:
+      // ?matches(1) matches the literal "1"), unlike ?contains/?index_of.
+      let pat;
+      if (typeof a[0] === 'string') pat = a[0];
+      else if (typeof a[0] === 'number' && Number.isFinite(a[0])) pat = e._formatNumber(a[0]);
+      else {
+        throw new NonStringException(
+          `?matches(...) expects a string as argument #1, but received a `
+          + `${e.typeLabel(e.wrap(a[0]))}.`);
+      }
+      let re;
+      try {
+        const [src, flags] = anchoredJavaPattern(pat);
+        re = new RegExp(src, flags);
+      } catch (err) {
+        if (err instanceof InvalidFormatStringException) throw err;
+        throw new InvalidFormatStringException(
+          `Malformed regular expression: "${pat}" (${err.message})`);
+      }
+      return new BooleanModel(re.test(s));
+    });
+  },
+});
+
+/**
+ * Java String.matches() anchoring + inline flags -> JS RegExp source.
+ * @param {string} pat @returns {string}
+ */
+function anchoredJavaPattern(pat) {
+  let flags = '';
+  let p = pat;
+  const m = /^\(\?([a-zA-Z-]+)\)/.exec(p);
+  if (m) {
+    for (const f of m[1]) {
+      if (f === 'i' || f === 's' || f === 'm') flags += f;
+      else if (f === 'u' || f === 'U') { /* on by default in Java */ }
+      else {
+        throw new InvalidFormatStringException(
+          `The "(?${f})" inline regex flag isn't supported by this port: "${pat}"`);
+      }
+    }
+    p = p.slice(m[0].length);
+  }
+  return ['^(?:' + p + ')$', flags];
+}
 
 // 2.3.36 literal (non-regex) replace of every occurrence <- replaceBI.
 registerBuiltIn('replace', {
