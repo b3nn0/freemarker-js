@@ -1086,7 +1086,7 @@ describe('Upstream ConcatenatedSequenceTest (ported subset)', () => {
   });
   it('nested concatenation trees flatten like upstream does', async () => {
     snapshot(await out('<#assign s = (["a"] + ["b"]) + (["c"] + [])>${s?size}|<#list s as i>${i}</#list>'),
-      '4|abc');
+      '3|abc');
     snapshot(await out('<#assign s = ([] + (["a"] + ["b"])) + ([] + [])>${s?size}|<#list s as i>${i}</#list>'),
       '2|ab');
     snapshot(await out('<#assign s = ["a"] + ["b"] + ["c"] + ["d"] + ["e"]>${s?size}|${s?first}|${s?last}'),
