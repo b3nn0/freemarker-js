@@ -974,6 +974,9 @@ describe('Upstream TabSizeTest (ported)', () => {
   });
 });
 
+// (IteratorIssuesTest not ported: it exercises BeansWrapper/DefaultObjectWrapper
+// wrapping of java.util.Iterator - JVM model-layer API outside the port's scope.)
+
 describe('Upstream ListErrorsTest (ported subset)', () => {
   it('testValid', async () => {
     snapshot(await out('<#list 1..2 as x><#list 3..4>${x}:<#items as x>${x}</#items></#list>;</#list>'),
@@ -1054,5 +1057,22 @@ describe('Upstream ListErrorsTest (ported subset)', () => {
       NonSequenceOrCollectionException, ['as k, v']);
     rejectsMatch(() => out('<#list [] as k, v></#list>'),
       NonSequenceOrCollectionException, ['only one loop variable']);
+  });
+});
+
+describe('Upstream ListBreakContinueTest (ported subset)', () => {
+  const SEQ = { listed: [1, 2, 3, 4, 5] };
+  const HASH = { listed: { a: 1, b: 2, c: 3, d: 4, e: 5 } };
+  it('testNonHash', async () => {
+    snapshot(await out('<#list listed as i>B(${i}) <#if i == 3>Break!<#break></#if>A(${i})<#sep>, </#list>', SEQ),
+      'B(1) A(1), B(2) A(2), B(3) Break!');
+    snapshot(await out('<#list listed as i>B(${i}) <#if i == 3>Continue! <#continue></#if>A(${i})<#sep>, </#list>', SEQ),
+      'B(1) A(1), B(2) A(2), B(3) Continue! B(4) A(4), B(5) A(5)');
+  });
+  it('testHash', async () => {
+    snapshot(await out("<#list listed as k, v>B(${k}=${v}) <#if k == 'c'>Break!<#break></#if>A(${k}=${v})<#sep>, </#list>", HASH),
+      'B(a=1) A(a=1), B(b=2) A(b=2), B(c=3) Break!');
+    snapshot(await out("<#list listed as k, v>B(${k}=${v}) <#if k == 'c'>Continue! <#continue></#if>A(${k}=${v})<#sep>, </#list>", HASH),
+      'B(a=1) A(a=1), B(b=2) A(b=2), B(c=3) Continue! B(d=4) A(d=4), B(e=5) A(e=5)');
   });
 });
