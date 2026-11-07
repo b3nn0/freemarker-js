@@ -156,3 +156,52 @@ describe('Error-message line/column blaming (user-facing requirement)', () => {
       ['String index out of range', 'in template "t.ftl" at line 1']);
   });
 });
+
+describe('Upstream BreakAndContinuePlacementTest (ported subset)', () => {
+  it('valid break/continue placements', async () => {
+    snapshot(await out('<#assign x = 1><#switch x><#case 1>one<#break><#case 2>two</#switch>', {}), 'one');
+    snapshot(await out('<#list 1..2 as x>${x}<#break></#list>', {}), '1');
+    snapshot(await out('<#list 1..2 as x>${x}<#continue></#list>', {}), '12');
+    // a break inside #items exits only the #items loop; the list body finishes first
+    snapshot(await out('<#list 1..2>[<#items as x>${x}<#break></#items>]</#list>', {}), '[1]');
+    // a break in an items-form body (outside #items) escapes to the enclosing loop
+    snapshot(await out('<#list 1..2 as x>${x}<#list 1..3>B<#break>E<#items as y></#items></#list>E</#list>.', {}), '1B.');
+    snapshot(await out('<#list 1..2 as x>${x}<#list 3..4 as x>${x}<#break></#list>;</#list>', {}), '13;23;');
+    snapshot(await out('<#list [1..2, 3..4, [], 5..6] as xs>[<#list xs as x>${x}<#else><#break></#list>]</#list>.', {}),
+      '[12][34][.');
+    snapshot(await out('<#list [1..2, 3..4, [], 5..6] as xs>'
+      + '<#list xs>[<#items as x>${x}</#items>]<#else><#break></#list></#list>.', {}), '[12][34].');
+    snapshot(await out('<#list 1..2 as x><#switch x><#on 1>one<#break></#switch>;</#list>', {}), 'one');
+    snapshot(await out('<#list 1..2 as x><#switch x><#on 1>one<#continue></#switch>;</#list>', {}), 'one;');
+    snapshot(await out('<#forEach x in 1..2>${x}<#break></#forEach>', {}), '1');
+    snapshot(await out('<#forEach x in 1..2>${x}<#continue></#forEach>', {}), '12');
+    snapshot(await out('<#switch 1><#case 1>1<#break>unreachable</#switch>.', {}), '1.');
+    snapshot(await out('<#switch 1><#default>1<#break>unreachable</#switch>.', {}), '1.');
+  });
+
+  it('invalid placements fail at parse time with a position', () => {
+    for (const tpl of [
+      '<#break>', '<#continue>',
+      '<#switch 1><#case 1>1<#continue></#switch>',
+      '<#switch 1><#on 1>1<#continue></#switch>',
+      '<#switch 1><#on 1>1<#break></#switch>',
+      '<#switch 1><#on 1>1<#default><#break></#switch>',
+      '<#list 1..2 as x>${x}</#list><#break>',
+      '<#if false><#break></#if>',
+      '<#list xs><#break></#list>',
+      '<#list 1..2 as x>${x}<#else><#break></#list>',
+    ]) {
+      const e = throwsMatch(() => new Template('t.ftl', tpl, new Configuration()),
+        ParseException, ['directive here']);
+      if (!/#(break|continue)/.test(e.message) || !/in line 1, column \d+/.test(e.message)) {
+        throw new Error('missing position for ' + tpl + ': ' + e.message);
+      }
+    }
+  });
+
+  it('#break cannot cross a #macro boundary (upstream i23 behavior)', () => {
+    throwsMatch(() => new Template('t.ftl',
+      '<#list 1..2 as x>${x}<#macro m><#break></#macro></#list>', new Configuration()),
+      ParseException, ['#break']);
+  });
+});

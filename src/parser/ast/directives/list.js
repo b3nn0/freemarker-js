@@ -2,7 +2,7 @@
 
 import { TemplateElement } from '../templateElement.js';
 import {
-  InvalidReferenceException, NonSequenceOrCollectionException,
+  InvalidReferenceException, NonSequenceOrCollectionException, TemplateException,
   BreakInstructionException, ContinueInstructionException,
 } from '../../../errors.js';
 import { TemplateSequenceModel, TemplateHashModelEx } from '../../../model/templateModel.js';
@@ -56,8 +56,28 @@ export class IteratorBlock extends TemplateElement {
         + `${env.typeLabel(src)}${this.hashListing ? '' : ' (only sequences are iterable)'}.`);
     }
 
-    if (length === 0 && this.elseChildren) {
-      for (const c of this.elseChildren) yield* env.visit(c);
+    if (length === 0) {
+      if (this.elseChildren) for (const c of this.elseChildren) yield* env.visit(c);
+      // Upstream visits the body only when the listed value is non-empty; in
+      // items-form (no "as") the body runs ONCE for the whole listing and
+      // #items does the looping. Break/continue from that body are NOT caught
+      // here; they propagate to the enclosing loop.
+      return null;
+    }
+
+    if (this.loopVar === null) {
+      env.pushScope();
+      const ctx = {
+        first: null, second: null, index: 0, size: length,
+        src, keys, itemsMode: true, alreadyEntered: false,
+      };
+      env._iterStack.push(ctx);
+      try {
+        for (const c of this.children) yield* env.visit(c);
+      } finally {
+        env._iterStack.pop();
+        env.popScope();
+      }
       return null;
     }
 
@@ -130,17 +150,38 @@ export class Items extends TemplateElement {
    */
   * execute(env) {
     const ctx = env._iterStack.length ? env._iterStack[env._iterStack.length - 1] : null;
-    if (ctx === null) {
+    if (ctx === null || ctx.index === undefined) {
       throw new InvalidReferenceException('Unmatched #items (no enclosing #list iteration).');
     }
-    env.pushScope();
-    env.setVariable(this.loopVar, ctx.first);
-    if (this.loopVar2 !== null) env.setVariable(this.loopVar2, ctx.second);
-    try {
-      for (const c of this.children) yield* env.visit(c);
-    } finally {
-      env.popScope();
+    if (ctx.alreadyEntered) {
+      throw new TemplateException(
+        'The #items directive was already entered earlier for this listing.');
     }
+    ctx.alreadyEntered = true;
+    const n = ctx.size;
+    for (let i = 0; i < n; i++) {
+      ctx.index = i;
+      const first = ctx.keys !== null
+        ? env.wrap(ctx.keys[i])
+        : yield* callOp('sequence index', ctx.src, 'getByIndex', i);
+      const second = ctx.keys !== null
+        ? yield* callOp(`get "${ctx.keys[i]}"`, ctx.src, 'get', ctx.keys[i])
+        : null;
+      ctx.first = first;
+      ctx.second = second;
+      env.pushScope();
+      env.setVariable(this.loopVar, first);
+      if (this.loopVar2 !== null) env.setVariable(this.loopVar2, second);
+      try {
+        for (const c of this.children) yield* env.visit(c);
+      } catch (e) {
+        if (e instanceof BreakInstructionException) break;
+        else if (!(e instanceof ContinueInstructionException)) throw e;
+      } finally {
+        env.popScope();
+      }
+    }
+    ctx.index = n;
     return null;
   }
   /**
