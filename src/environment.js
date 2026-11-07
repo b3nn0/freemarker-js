@@ -493,7 +493,7 @@ export class Environment {
     if (model instanceof NumberModel) {
       return this._formatNumber(model.getAsNumber(), undefined, null, model.getAsDecimal());
     }
-    if (model instanceof BooleanModel) return this._formatBoolean(model.getAsBoolean());
+    if (model instanceof BooleanModel) return this._autoFormatBoolean(model.getAsBoolean());
     if (model instanceof DateModel) return this._formatDate(model.getAsDate(), model.dateType);
     // <- CoercionUtil: same core message as the "${...}" content coercion
     throw new NonStringOrTemplateOutputException(
@@ -521,6 +521,24 @@ export class Environment {
    */
   _formatBoolean(v, formatString = null) {
     const pair = validateBooleanFormat(formatString ?? this._settings.booleanFormat);
+    return v ? pair[0] : pair[1];
+  }
+
+  /**
+   * <- JVM: auto stringification of a boolean errors while boolean_format is the
+   * legacy "true,false" default (or unset); ?string / ?c / ?then bypass this.
+   * @param {boolean} v @returns {string}
+   */
+  _autoFormatBoolean(v) {
+    const f = this._settings.booleanFormat;
+    if (f === null || f === undefined || f === 'true,false') {
+      throw new TemplateException(
+        'Can\'t convert boolean to string automatically, because the "boolean_format" setting was '
+        + '"true,false", which is the legacy deprecated default, and we treat it as if no format '
+        + 'was set. This is the default configuration; you should provide the format explicitly '
+        + 'for each place where you print a boolean.');
+    }
+    const pair = validateBooleanFormat(f);
     return v ? pair[0] : pair[1];
   }
 

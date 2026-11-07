@@ -16,13 +16,13 @@ describe('Built-ins: existence handling', () => {
   });
 
   it('?has_content: missing/empty are false, scalars are true', async () => {
-    snapshot(await out('${nosuch?has_content}'), 'false');
-    snapshot(await out('${""?has_content}'), 'false');
-    snapshot(await out('${[]?has_content}'), 'false');
-    snapshot(await out('${{}?has_content}'), 'false');
-    snapshot(await out('${0?has_content}'), 'true');
-    snapshot(await out('${false?has_content}'), 'true');
-    snapshot(await out('${[1]?has_content}'), 'true');
+    snapshot(await out('${nosuch?has_content?c}'), 'false');
+    snapshot(await out('${""?has_content?c}'), 'false');
+    snapshot(await out('${[]?has_content?c}'), 'false');
+    snapshot(await out('${{}?has_content?c}'), 'false');
+    snapshot(await out('${0?has_content?c}'), 'true');
+    snapshot(await out('${false?has_content?c}'), 'true');
+    snapshot(await out('${[1]?has_content?c}'), 'true');
   });
 
   it('?default: target wins, else first non-null argument', async () => {
@@ -93,8 +93,8 @@ describe('Built-ins: multi-type, hashes, sequences, numbers, type checks', () =>
   it('?join / ?seq_contains / ?seq_index_of / ?reverse', async () => {
     snapshot(await out('${["a", "b"]?join("-")}'), 'a-b');
     snapshot(await out('<#assign j = ["a", "b"]?join>${j("+")}'), 'a+b');
-    snapshot(await out('${[1, "x"]?seq_contains("x")}'), 'true');
-    snapshot(await out('${[1, 2]?seq_contains(3)}'), 'false');
+    snapshot(await out('${[1, "x"]?seq_contains("x")?c}'), 'true');
+    snapshot(await out('${[1, 2]?seq_contains(3)?c}'), 'false');
     snapshot(await out('${["a", "b"]?seq_index_of("b")}'), '1');
     snapshot(await out('${["a"]?seq_index_of("z")}|'), '-1|');
     snapshot(await out('<#list [1, 2, 3]?reverse as i>${i}</#list>'), '321');
@@ -116,30 +116,32 @@ describe('Built-ins: multi-type, hashes, sequences, numbers, type checks', () =>
   });
 
   it('type-check built-ins', async () => {
-    snapshot(await out('${"a"?is_string}/${1?is_number}/${true?is_boolean}'), 'true/true/true');
-    snapshot(await out('${{}?is_hash}/${{}?is_hash_ex}/${[1]?is_sequence}'),
+    snapshot(await out('${"a"?is_string?c}/${1?is_number?c}/${true?is_boolean?c}'),
       'true/true/true');
-    snapshot(await out('${"a"?is_sequence}/${[1]?is_string}/${1?is_string}'), 'false/false/false');
-    snapshot(await out('${nosuch?is_string}'), 'false');
+    snapshot(await out('${{}?is_hash?c}/${{}?is_hash_ex?c}/${[1]?is_sequence?c}'),
+      'true/true/true');
+    snapshot(await out('${"a"?is_sequence?c}/${[1]?is_string?c}/${1?is_string?c}'),
+      'false/false/false');
+    snapshot(await out('${nosuch?is_string?c}'), 'false');
   });
 
   it('method / macro type checks', async () => {
     snapshot(await out(
-      '<#macro m>x</#macro>${m?is_directive}/${m?is_macro}/${m?is_method}'),
+      '<#macro m>x</#macro>${m?is_directive?c}/${m?is_macro?c}/${m?is_method?c}'),
     'true/true/false');
     snapshot(await out(
-      '<#function f><#return 1></#function>${f?is_method}/${f?is_macro}'),
+      '<#function f><#return 1></#function>${f?is_method?c}/${f?is_macro?c}'),
     'true/false');
-    snapshot(await out('${x?is_method}', { x: () => 1 }), 'true');
+    snapshot(await out('${x?is_method?c}', { x: () => 1 }), 'true');
   });
 
   it('?is_date and the date-kind built-ins', async () => {
-    snapshot(await out('${d?is_date}', { d: new Date('2020-01-01T00:00:00Z') }), 'true');
-    snapshot(await out('${d?is_time}', { d: new Date() }), 'false');
-    snapshot(await out('${d?is_datetime}', { d: new Date() }), 'true');
-    snapshot(await out('${d?is_date_only}', { d: new Date() }), 'false');
-    snapshot(await out('${d?is_date_like}', { d: new Date() }), 'true');
-    snapshot(await out('${d?is_date_like}', { d: 1 }), 'false');
+    snapshot(await out('${d?is_date?c}', { d: new Date('2020-01-01T00:00:00Z') }), 'true');
+    snapshot(await out('${d?is_time?c}', { d: new Date() }), 'false');
+    snapshot(await out('${d?is_datetime?c}', { d: new Date() }), 'true');
+    snapshot(await out('${d?is_date_only?c}', { d: new Date() }), 'false');
+    snapshot(await out('${d?is_date_like?c}', { d: new Date() }), 'true');
+    snapshot(await out('${d?is_date_like?c}', { d: 1 }), 'false');
   });
 
   it('zero-arg built-ins followed by (args) hit the method-call error', async () => {

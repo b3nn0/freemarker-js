@@ -61,6 +61,11 @@ registerBuiltIn('string', {
         return new StringModel(env._formatBoolean(yield* callOp('getAsBoolean', target, 'getAsBoolean'), fmt));
       }
     }
+    // <- JVM: bare ?string on a boolean uses the boolean_format pair even when it
+    // is the legacy "true,false" default (no auto-conversion error on ?string).
+    if (isBool) {
+      return new StringModel(env._formatBoolean(yield* callOp('getAsBoolean', target, 'getAsBoolean')));
+    }
     return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   },
 });

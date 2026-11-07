@@ -521,3 +521,20 @@ describe('Upstream .output_format special variable (JVM-pinned)', () => {
     snapshot(await new Template('t', '${.output_format}', cfg).processToString({}), 'HTML');
   });
 });
+
+describe('Upstream boolean_format legacy semantics (JVM-pinned)', () => {
+  it('auto-printing a boolean errors while boolean_format is the legacy default', async () => {
+    await rejectsMatch(out('${true}', {}), TemplateException,
+      ['legacy deprecated default', 'line 1, column 1']);
+    await rejectsMatch(out('<#setting boolean_format="true,false">${true}', {}), TemplateException,
+      ['legacy deprecated default']);
+    await rejectsMatch(out('${false && x}', {}), TemplateException, ['legacy deprecated default']);
+  });
+
+  it('explicit formats print; ?string/?c/?string(y,n) bypass the legacy error', async () => {
+    snapshot(await out('<#setting boolean_format="y,n">${true}/${false}', {}), 'y/n');
+    snapshot(await out('<#setting boolean_format="c">${true}', {}), 'true');
+    snapshot(await out('${true?string}|${true?c}|${true?string("Y","N")}', {}), 'true|true|Y');
+    snapshot(await out('<#setting boolean_format="y,n">${true?string}', {}), 'y');
+  });
+});

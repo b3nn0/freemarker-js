@@ -33,7 +33,7 @@ describe('Dynamic keys', () => {
     // <- upstream blames the null key expression itself (the m identifier throws)
     await rejectsMatch(out('${h[m]}', { h: { k: 'v' }, m: null }), InvalidReferenceException,
       ['==> m']);
-    snapshot(await out('${h[m]??}', { h: { k: 'v' } }), 'false');
+    snapshot(await out('${(h[m]??)?c}', { h: { k: 'v' } }), 'false');
   });
   it('errors on wrong targets', async () => {
     snapshot(await out('${n[0]}', { n: 5 }), '5'); // <- scalar-coercible: string indexing

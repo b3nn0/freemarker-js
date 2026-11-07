@@ -16,14 +16,14 @@ describe('ZeroArgumentPolicy: AUTO_INVOKE (default)', () => {
     snapshot(await out('${p.x}', model), '5');
     snapshot(await out('${p.x()}', model), '5');
     snapshot(await out('${p["s"]}', model), 'str');
-    snapshot(await out('${p.s??}', model), 'true');
+    snapshot(await out('${p.s?? ?c}', model), 'true');
     snapshot(await out('${p.x + 1}', model), '6');
   });
   it('getX/isX names are NOT special anymore (no bean carve-out)', async () => {
     const model = { p: { getV() { return 1; }, isOn() { return true; } } };
     snapshot(await out('${p.getV}', model), '1');
     snapshot(await out('${p.getV()}', model), '1');
-    snapshot(await out('${p.isOn}', model), 'true');
+    snapshot(await out('${p.isOn?c}', model), 'true');
     await rejectsMatch(out('${p.v}', model), InvalidPropertyException, ['==> p.v']);
   });
   it('1-argument functions are not auto-invoked', async () => {

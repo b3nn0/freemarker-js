@@ -15,8 +15,10 @@ describe('Interpolation: basic output', () => {
   it('prints wrapped scalars', async () => {
     snapshot(await out('${x}', { x: 5 }), '5');
     snapshot(await out('${s}', { s: 'hi' }), 'hi');
-    snapshot(await out('${b}', { b: true }), 'true');
-    snapshot(await out('${b}', { b: false }), 'false');
+    snapshot(await out('${b?c}', { b: true }), 'true');
+    snapshot(await out('${b?string("y","n")}', { b: false }), 'n');
+    // <- JVM: legacy boolean_format rejects automatic string conversion
+    await rejectsMatch(out('${b}', { b: false }), TemplateException, ['boolean_format']);
     snapshot(await out('${x}!', { x: 5 }), '5!');
   });
   it('dotted lookups', async () => {
@@ -61,10 +63,10 @@ describe('Interpolation: ! and ??', () => {
     snapshot(await out('${x!}', {}), '');
   });
   it('exists', async () => {
-    snapshot(await out('${x??}', {}), 'false');
-    snapshot(await out('${s??}', { s: 'a' }), 'true');
-    snapshot(await out('${a.z??}', { a: {} }), 'false');
-    snapshot(await out('${(x + 1)??}', {}), 'false');
+    snapshot(await out('${x?? ?c}'), 'false');
+    snapshot(await out('${s?? ?c}', { s: 'a' }), 'true');
+    snapshot(await out('${a.z?? ?c}', { a: {} }), 'false');
+    snapshot(await out('${(x + 1)?? ?c}', {}), 'false');
   });
 });
 
@@ -86,26 +88,26 @@ describe('Interpolation: operators', () => {
     snapshot(await out('${s + "!"}', { s: 'hi' }), 'hi!');
     snapshot(await out('${"n" + 2}', {}), 'n2');
     snapshot(await out('${2 + 2}'), '4');
-    snapshot(await out('${((0..2) + (3..4))??}'), 'true'); // ranges concatenate
+    snapshot(await out('${((0..2) + (3..4))?? ?c}'), 'true'); // ranges concatenate
     snapshot(await out('${(h + {n: v}).nn}', { h: {}, n: 'nn', v: 3 }), '3'); // identifier hash keys evaluate
   });
   it('comparisons', async () => {
-    snapshot(await out('${1 < 2}'), 'true');
-    snapshot(await out('${2 gte 2}'), 'true');
-    snapshot(await out('${(2 >= 2)}'), 'true'); // "gte" form needed outside parens (FTL.jj)
-    snapshot(await out('${1 == 1}'), 'true');
-    snapshot(await out('${1 != 2}'), 'true');
+    snapshot(await out('${(1 < 2)?c}'), 'true');
+    snapshot(await out('${(2 gte 2)?c}'), 'true');
+    snapshot(await out('${(2 >= 2)?c}'), 'true'); // "gte" form needed outside parens (FTL.jj)
+    snapshot(await out('${(1 == 1)?c}'), 'true');
+    snapshot(await out('${(1 != 2)?c}'), 'true');
     // <- 2.3: relational operators on strings are errors (only ==/!= allowed)
     await rejectsMatch(out('${"a" < "b"}'), TemplateException, ['Can\'t use operator "<" on string values']);
     // cross-type equality is an error too
     await rejectsMatch(out('${1 == "a"}'), TemplateException, ['Can\'t compare values of these types']);
   });
   it('boolean operators short-circuit', async () => {
-    snapshot(await out('${true && false}'), 'false');
-    snapshot(await out('${false && x}', {}), 'false');
-    snapshot(await out('${true || x}', {}), 'true');
-    snapshot(await out('${!true}'), 'false');
-    snapshot(await out('${!(1 < 2)}'), 'false');
+    snapshot(await out('${(true && false)?c}'), 'false');
+    snapshot(await out('${(false && x)?c}', {}), 'false');
+    snapshot(await out('${(true || x)?c}', {}), 'true');
+    snapshot(await out('${(!true)?c}'), 'false');
+    snapshot(await out('${(!(1 < 2))?c}'), 'false');
   });
 });
 

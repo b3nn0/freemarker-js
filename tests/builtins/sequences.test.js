@@ -62,7 +62,8 @@ describe('Lambda expressions and ?filter/?map/?sort/?sort_by', () => {
   it('?sort sorts scalars; the first key type wins', async () => {
     snapshot(await out(asList('["c", "a", "b"]?sort'), {}), '[a][b][c]');
     snapshot(await out(asList('[3, -1, 2]?sort'), {}), '[-1][2][3]');
-    snapshot(await out(asList('[true, false]?sort'), {}), '[false][true]');
+    snapshot(await out('<#setting boolean_format="c">' + asList('[true, false]?sort'), {}),
+      '[false][true]');
     snapshot(await out(asList('[]?sort'), {}), '');
     await rejectsMatch(out('${[1, "a"]?sort}'), TemplateException,
       ['?sort failed at sequence index 1', 'must be numbers']);

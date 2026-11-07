@@ -31,14 +31,14 @@ describe('Built-ins: basic strings', () => {
   });
 
   it('contains / starts_with / ends_with (as method-call built-ins)', async () => {
-    snapshot(await out('${"abc"?contains("b")}'), 'true');
-    snapshot(await out('${"abc"?contains("z")}'), 'false');
-    snapshot(await out('${"abc"?starts_with("ab")}'), 'true');
-    snapshot(await out('${"abc"?ends_with("c")}'), 'true');
+    snapshot(await out('${"abc"?contains("b")?c}'), 'true');
+    snapshot(await out('${"abc"?contains("z")?c}'), 'false');
+    snapshot(await out('${"abc"?starts_with("ab")?c}'), 'true');
+    snapshot(await out('${"abc"?ends_with("c")?c}'), 'true');
   });
 
   it('bare built-in evaluates to a callable method', async () => {
-    snapshot(await out('<#assign f = "abc"?contains>${f("b")}${f("z")}'), 'truefalse');
+    snapshot(await out('<#assign f = "abc"?contains>${f("b")?c}${f("z")?c}'), 'truefalse');
     snapshot(await out('<#assign p = "a-b"?split>${p("-")?size}', {}), '2');
   });
 
