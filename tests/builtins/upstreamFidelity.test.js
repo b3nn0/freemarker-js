@@ -12,6 +12,7 @@ import {
   ParseException, TemplateException, InvalidReferenceException, NonStringOrTemplateOutputException,
   NonNumericalException,
 } from '../../src/errors.js';
+import { SETTING_NAMES, CAMEL_SETTING_NAMES } from '../../src/parser/ast/directives/setting.js';
 
 function out(src, model) {
   return new Template('t.ftl', src, new Configuration()).processToString(model ?? {});
@@ -919,5 +920,19 @@ describe('Upstream HeaderParsingTest (ported)', () => {
     await assertHeader('\n<#ftl>\ntext', 'text');
     await assertHeader('\n \n\n<#ftl> \ntext', 'text');
     await assertHeader('\n \n\n<#ftl>\n\ntext', '\ntext');
+  });
+});
+
+describe('Upstream SettingDirectiveTest (ported)', () => {
+  it('testGetSettingNamesSorted', () => {
+    for (const names of [SETTING_NAMES, CAMEL_SETTING_NAMES]) {
+      for (let i = 1; i < names.length; i++) ok(names[i] > names[i - 1], 'not sorted');
+    }
+    // the union matches JVM PropertySetting.SETTING_NAMES exactly:
+    snapshot([...new Set([...SETTING_NAMES, ...CAMEL_SETTING_NAMES])].sort().join(','),
+      'booleanFormat,boolean_format,cFormat,c_format,classicCompatible,classic_compatible,'
+      + 'dateFormat,date_format,datetimeFormat,datetime_format,locale,numberFormat,number_format,'
+      + 'outputEncoding,output_encoding,sqlDateAndTimeTimeZone,sql_date_and_time_time_zone,'
+      + 'timeFormat,timeZone,time_format,time_zone,urlEscapingCharset,url_escaping_charset');
   });
 });
