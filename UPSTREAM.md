@@ -162,6 +162,14 @@ must match or be recorded here as deviations.
   lineIndentString, onlyForBlankLines)`; `?keep_after` miss -> "";
   `?substring` strict index checks; `?cn` = quoted C literal; unlike `?c` a
   null/missing `?cn` target renders as the literal `null` (cnBI).
+- `?indent(prefix, rightTrim=true)` indents every line and right-trims each;
+  `?dedent` (bare) removes the longest common leading-whitespace prefix, and
+  `?dedent(prefix, rightTrim=true)` removes that exact prefix; bare `?dedent`
+  is a dual string+method model (`?dedent` as a value works, `?dedent(...)`
+  calls it). `?wrap(width, firstLinePrefix="", restPrefix=firstLinePrefix)`
+  reflows whitespace-separated words, prefixes count toward the width, an
+  over-long word is emitted whole, and the result always ends with a newline
+  (`_CoreStringUtils` semantics, JVM-pinned).
 - `?lower_abc`/`?upper_abc` are NUMBER built-ins (spreadsheet column letters,
   1-based); `?boolean` converts via boolean_format + true/false (numbers are
   stringified first, upstream-style error on non-boolean strings).
@@ -175,3 +183,22 @@ must match or be recorded here as deviations.
   date/time/datetime format; upstream wraps `java.util.Date` as an UNKNOWN date
   type whose output throws (deviation, probed: `${d}` for a plain util.Date
   errors upstream but renders in the port).
+
+Fifth fidelity round (JVM-pinned, same differential corpus, now 144 cases):
+- `?indent`/`?dedent`/`?wrap` reimplemented against `_CoreStringUtils`
+  (arg-count/type errors with "argument #N" wording, `dedent` dual model,
+  wrap prefix args); MethodCall now duck-types any `exec`-able value.
+- `ParseException` messages now carry the upstream-style location prefix
+  (`Syntax error in template "name" in line L, column C:`) so every parse
+  failure is human-readable with line/column without consulting properties.
+- Upstream test-class assertions ported into
+  `tests/builtins/upstreamFidelity.test.js`: CAndCnBuiltInTest,
+  IndentAndWrapBuiltInTest, TruncateBuiltInTest /
+  DefaultTruncateBuiltinAlgorithmTest, LinesBuiltInTest, MinMaxBITest
+  (wording adjusted to the port; behavior JVM-pinned).
+- Not ported (documented surface gaps): numeric hex literals (`0xFF`),
+  `?interpret`-related `?is_directive` nuances remain as-is; special
+  variables `.template_name` / `.data_model` (and the `#import`/`#recover`
+  nuances they interact with) are not implemented; FTL has no
+  scientific-notation number literals upstream either (`1e20` is a parse
+  error on both sides).
