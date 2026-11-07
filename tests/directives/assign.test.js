@@ -2,7 +2,7 @@ import { describe, it, snapshot, throwsMatch, rejectsMatch, ok } from '../harnes
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
-  ParseException, InvalidReferenceException, NonNumericalException, UnsupportedFeatureException,
+  ParseException, InvalidReferenceException, NonNumericalException,
   UnassignedVariableException,
 } from '../../src/errors.js';
 
@@ -68,9 +68,15 @@ describe('Directive: #assign / #global / #local', () => {
     const e = throwsMatch(() => parse('<#local x = 1>'), ParseException);
     ok(e.message.includes('outside a macro or function'));
   });
-  it('namespace-target assignment is deferred to #import', async () => {
-    const e = await rejectsMatch(out('<#assign x = 1 in ns>'), UnsupportedFeatureException);
-    ok(e.message.includes('namespace'));
+  it('namespace-target assignment assigns into the imported namespace', async () => {
+    const withLib = (src) => {
+      const cfg = new Configuration();
+      cfg.setIncludeResolver(() => '');
+      return new Template('t.ftl', src, cfg).processToString({});
+    };
+    snapshot(await withLib("<#import 'lib.ftl' as lib><#assign x = 5 in lib>[${lib.x}]"), '[5]');
+    snapshot(await withLib("<#import 'lib.ftl' as lib><#assign x in lib></#assign>[${lib.x}]"), '[]');
+    await rejectsMatch(out('<#assign x = 1 in ns>'), UnassignedVariableException);
   });
   it('#assign x in non-namespace scope fails to parse', async () => {
     throwsMatch(() => parse('<#global x = 1 in ns>'), ParseException);

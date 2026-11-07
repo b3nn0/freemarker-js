@@ -1,13 +1,15 @@
 // #escape / #noescape <- FTL.jj EscapeDirective() / NoEscapeBlock() and the
 // EscapeDirectiveElement AST nodes (2.3.36). Escaping is applied at parse time
 // by wrapping matching simple-identifier interpolations with EscapeChain.
-// Shadowing the escape target with #local doesn't disable the escaping in this
-// port (deviation; see UPSTREAM.md).
+// Escaping is applied at parse time to every interpolation lexically inside
+// the body (not #noescape subtrees, nor macro/function bodies), binding the
+// interpolated value to the placeholder; matching the 2.3.36 runtime model.
 
 import { Expression } from '../expressions/expression.js';
 import { TemplateElement } from '../templateElement.js';
 import { backslashEscapeIdentifier } from '../../../utility/stringUtil.js';
 import { InvalidReferenceException } from '../../../errors.js';
+import { MarkupModel, StringModel } from '../../../model/models.js';
 
 /**
  * The escape-variable placeholder inside the "as" expression.
@@ -39,29 +41,39 @@ export class EscapeVar extends Expression {
 }
 
 /**
- * The value of a variable as escaped through the enclosing #escape expression;
- * stands in for the wrapped interpolation expression.
+ * <- DollarVariable escape chains: the interpolated value (coerced to
+ * string/markup, as the output would coerce it) is bound to the escape
+ * placeholder and passed through the "as" expression. Nested escapes chain
+ * inner-first.
  */
 export class EscapeChain extends Expression {
-  /** @param {string} name @param {Expression} expr - the "as" expression (contains EscapeVar) */
-  constructor(name, expr) {
+  /**
+   * @param {string} name - placeholder name
+   * @param {Expression} expr - the "as" expression (contains EscapeVar)
+   * @param {Expression} inner - the wrapped interpolation expression
+   */
+  constructor(name, expr, inner) {
     super();
     this.name = name;
     this.expr = expr;
+    this.inner = inner;
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node
    */
   getCanonicalForm() {
-    return backslashEscapeIdentifier(this.name);
+    return this.inner.getCanonicalForm();
   }
   /**
    * @param {import('../../../environment.js').Environment} env - rendering environment
    * @returns {import('../../../model/templateModel.js').TemplateModel|null}
    */
   * evaluate(env) {
-    const v = yield* env.getVariable(this.name);
-    env._escapeValueStack.push(v === undefined ? null : v);
+    let v = yield* this.inner.evaluate(env);
+    if (v !== null && v !== undefined && !(v instanceof MarkupModel)) {
+      v = new StringModel(yield* env.coerceToString(v, ' auto-escaped'));
+    }
+    env._escapeValueStack.push(v === null ? null : v === undefined ? null : v);
     try {
       return yield* this.expr.evaluate(env);
     } finally {

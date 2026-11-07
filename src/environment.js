@@ -364,7 +364,10 @@ export class Environment {
     if (scope === 'global') {
       if (this.dataModel === null) this.dataModel = this.wrap({});
       const src = this.dataModel.source;
-      const raw = model === null || model === undefined ? null : unwrap(model);
+      // markup models are kept as models (the format must survive the round-trip
+      // through .globals)
+      const raw = model === null || model === undefined ? null
+        : model instanceof MarkupModel ? model : unwrap(model);
       if (this.dataModel.isMap) src.set(name, raw);
       else src[name] = raw;
       return;

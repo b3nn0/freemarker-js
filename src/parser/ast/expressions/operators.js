@@ -3,7 +3,7 @@
 import { Expression } from './expression.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 import { awaitOp, callOp } from '../../../async.js';
-import { BooleanModel, RangeModel, StringModel } from '../../../model/models.js';
+import { BooleanModel, RangeModel, StringModel, MarkupModel } from '../../../model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
 import { Decimal } from '../../../format/decimal.js';
 import { NumberModel } from '../../../model/models.js';
@@ -71,6 +71,21 @@ export class AddConcatExpression extends Expression {
   * evaluate(env) {
     const l = yield* this.left.evaluate(env);
     const r = yield* this.right.evaluate(env);
+    // <- coerceModelToStringOrMarkup: when either side is markup, the other side
+    // is escaped into that markup format and the result stays markup
+    if (l instanceof MarkupModel || r instanceof MarkupModel) {
+      const fmt = (l instanceof MarkupModel ? l : r).outputFormat;
+      if (l instanceof MarkupModel && r instanceof MarkupModel
+        && l.outputFormat.name !== r.outputFormat.name) {
+        throw new TemplateException('Can\'t add these two markup outputs because they have '
+          + `different output formats: ${l.outputFormat.name} and ${r.outputFormat.name}.`);
+      }
+      const lM = l instanceof MarkupModel ? l.value
+        : fmt.escapePlainText(yield* env.coerceToString(l, ' used with the "+" operator'));
+      const rM = r instanceof MarkupModel ? r.value
+        : fmt.escapePlainText(yield* env.coerceToString(r, ' used with the "+" operator'));
+      return new MarkupModel(null, fmt, lM + rM);
+    }
     if (l instanceof TemplateSequenceModel && r instanceof TemplateSequenceModel) {
       const items = [];
       const n1 = yield* awaitOp('size', l.size());

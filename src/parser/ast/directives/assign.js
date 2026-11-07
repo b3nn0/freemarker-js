@@ -3,10 +3,10 @@
 import { TemplateElement } from '../templateElement.js';
 import { backslashEscapeIdentifier } from '../../../utility/stringUtil.js';
 import {
-  InvalidReferenceException, NonNumericalException, UnsupportedFeatureException,
+  InvalidReferenceException, NonNumericalException, TemplateException,
 } from '../../../errors.js';
 import { StringWriter } from '../../../io/writer.js';
-import { StringModel, MarkupModel } from '../../../model/models.js';
+import { StringModel, MarkupModel, HashModel } from '../../../model/models.js';
 import { AddConcatExpression } from '../expressions/operators.js';
 import { Identifier } from '../expressions/variables.js';
 
@@ -24,7 +24,7 @@ export class Assignment extends TemplateElement {
    * @param {string} scope
    * @param {TemplateElement[]|null} [blockChildren]
    */
-  constructor(name, opKind, exp, scope, blockChildren = null) {
+  constructor(name, opKind, exp, scope, blockChildren = null, nsExp = null) {
     super();
     this.name = name;
     this.opKind = opKind;
@@ -32,6 +32,8 @@ export class Assignment extends TemplateElement {
     this.exp = exp;
     this.scope = scope;
     this.blockChildren = blockChildren;
+    this.nsExp = nsExp;
+    this._runtimeNs = null; // set by AssignmentInstruction for the "in ns" pair form
   }
 
   /**
@@ -95,7 +97,14 @@ export class Assignment extends TemplateElement {
         break;
       }
     }
-    env.assignVariable(this.name, value, this.scope);
+    if (this._runtimeNs !== null) {
+      this._runtimeNs.source.set(this.name, value);
+    } else if (this.nsExp !== null) {
+      const ns = yield* resolveNamespaceTarget(env, this.nsExp);
+      ns.source.set(this.name, value);
+    } else {
+      env.assignVariable(this.name, value, this.scope);
+    }
     return null;
   }
 
@@ -140,6 +149,26 @@ export class Assignment extends TemplateElement {
   }
 }
 
+/**
+ * <- NSAssignmentTarget: the "in" expression must be a writable namespace hash
+ * (the object an #import namespace exposes).
+ * @param {import('../../../environment.js').Environment} env
+ * @param {import('../expressions/expression.js').Expression} nsExp
+ * @returns {import('../../../model/models.js').HashModel}
+ */
+export function* resolveNamespaceTarget(env, nsExp) {
+  const ns = yield* nsExp.evaluate(env);
+  if (ns === null || ns === undefined) {
+    throw new InvalidReferenceException(
+      'The namespace expression of the "#assign ... in ..." evaluated to a missing value.');
+  }
+  if (!(ns instanceof HashModel) || !ns.isMap) {
+    throw new TemplateException(
+      `The "in" expression of "#assign" must be a namespace hash, but it was a ${env.typeLabel(ns)}.`);
+  }
+  return ns;
+}
+
 /** #assign a=1, b=2 <- AssignmentInstruction. */
 export class AssignmentInstruction extends TemplateElement {
   /** @param {Assignment[]} assignments @param {import('../expressions/expression.js').Expression|null} namespaceExp */
@@ -155,8 +184,16 @@ export class AssignmentInstruction extends TemplateElement {
    */
   * execute(env) {
     if (this.namespaceExp !== null) {
-      throw new UnsupportedFeatureException(
-        'Assigning into another namespace (#assign x in ns) lands with #import (M14).');
+      const ns = yield* resolveNamespaceTarget(env, this.namespaceExp);
+      for (const a of this.assignments) {
+        a._runtimeNs = ns;
+        try {
+          yield* env.visit(a);
+        } finally {
+          a._runtimeNs = null;
+        }
+      }
+      return null;
     }
     for (const a of this.assignments) yield* env.visit(a);
     return null;

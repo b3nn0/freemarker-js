@@ -132,6 +132,7 @@ export class Parser {
     this._buf = [];
     // directive context tracking <- FTL.jj parserIteratorBlockContexts / *DirectiveNesting
     this._iterCtx = [];
+    this._escapeTargetNames = [];
     this._lastTok = null;
     this._dotChainNeedsAdjacency = false;
     this.breakableDepth = 0;
@@ -477,7 +478,7 @@ export class Parser {
         const body = this._parseInterpolationBody(t.type);
         // <- DollarVariable captures the format/auto-escape state at parse time
         group.addChild(this._span(
-          new Interpolation(this._applyEscape(body.expression), this.outputFormat,
+          new Interpolation(body.expression, this.outputFormat,
             this.autoEscaping, body.fracOpts), t, body.closer));
         continue;
       }
@@ -853,17 +854,23 @@ export class Parser {
     const savedIdName = this._escapeIdName;
     this._escapeIdName = name;
     let expr;
+    this._escapeTargetNames.push(name);
     try {
       expr = this._parseExpression();
     } finally {
       this._escapeIdName = savedIdName;
+      this._escapeTargetNames.pop();
     }
     const endTok = this._expect(TT.DIRECTIVE_END, '">"');
     this._escapeStack.push({ name, expr });
     try {
       const children = this._parseMixedContent(new Set([TT.END_ESCAPE]));
       const end = this._expect(TT.END_ESCAPE, '"</#escape>"');
-      return this._span(new EscapeDirective(name, expr, children.children), startTok, end);
+      const node = new EscapeDirective(name, expr, children.children);
+      // <- the "as" expression wraps every interpolation lexically inside the
+      // body (except #noescape subtrees and macro/function bodies)
+      this._wrapEscapeScope(node.children, name, expr);
+      return this._span(node, startTok, end);
     } finally {
       this._escapeStack.pop();
     }
@@ -887,19 +894,22 @@ export class Parser {
   }
 
   /**
-   * <- FTL.jj escape-directive wrapping of simple-identifier interpolations
-   * @param {import('./ast/expressions/expression.js').Expression} expression
-   * @returns {import('./ast/expressions/expression.js').Expression}
+   * <- EscapeDirectiveElement parse-time escape chains: wrap the expression of
+   * every Interpolation lexically in scope; #noescape and macro/function
+   * bodies are not escaped by the enclosing directive.
+   * @param {import('./ast/templateElement.js').TemplateElement[]} elements
+   * @param {string} name @param {import('./ast/expressions/expression.js').Expression} expr
    */
-  _applyEscape(expression) {
-    if (this._escapeStack.length === 0 || !(expression instanceof Identifier)) return expression;
-    for (let i = this._escapeStack.length - 1; i >= 0; i--) {
-      const e = this._escapeStack[i];
-      if (e.name !== expression.name) continue;
-      if (this._escapeSuspendIndex >= 0 && i < this._escapeSuspendIndex) return expression;
-      return new EscapeChain(expression.name, e.expr);
+  _wrapEscapeScope(elements, name, expr) {
+    for (const e of elements) {
+      if (e instanceof NoEscapeBlock || e instanceof Macro) continue;
+      if (e instanceof Interpolation) {
+        e.expression = this._span(
+          new EscapeChain(name, expr, e.expression), e.expression, e.expression);
+        continue;
+      }
+      if (Array.isArray(e.children) && e.children.length) this._wrapEscapeScope(e.children, name, expr);
     }
-    return expression;
   }
 
   /** @param {import('./token.js').Token} startTok @returns {OutputFormatBlock} */
@@ -1328,7 +1338,7 @@ export class Parser {
             parts.push(staticText);
             staticText = '';
           }
-          parts.push({ expression: this._applyEscape(body.expression), fracOpts: body.fracOpts });
+          parts.push({ expression: body.expression, fracOpts: body.fracOpts });
           continue;
         }
         throw this._error(
@@ -1379,7 +1389,20 @@ export class Parser {
     // block form: <#assign name> -- upstream BlockAssignment has no compound
     // operator ("name+=>" is a parse error there)
     if (opTok.type === TT.DIRECTIVE_END) {
-      return this._parseAssignBlock(startTok, scope, first, '=');
+      return this._parseAssignBlock(startTok, scope, first, null);
+    }
+    // <- NSAssignTarget block form: <#assign name in ns> ... </#assign>
+    if (opTok.type === TT.IN) {
+      if (scope !== 'namespace') {
+        throw this._error('Cannot assign to namespace here.', startTok);
+      }
+      const nsExp = this._parseExpression();
+      const t = this._peek();
+      if (t.type !== TT.DIRECTIVE_END) {
+        throw this._error(`Expected ">" after the namespace expression, but got ${this._desc(t)}.`, t);
+      }
+      this._next(); // consume the ">" that opens the block
+      return this._parseAssignBlock(startTok, scope, first, nsExp);
     }
     if (OP_TOKENS.has(opTok.type) && opTok.type !== TT.EQUALS
       && this._peek().type === TT.DIRECTIVE_END) {
@@ -1427,14 +1450,14 @@ export class Parser {
     return this._span(new AssignmentInstruction(assignments, nsExp), startTok, endTok);
   }
 
-  /** @param {import('./token.js').Token} startTok @param {string} scope @param {string} name @param {string} opKind @returns {Assignment} */
-  _parseAssignBlock(startTok, scope, name, opKind) {
+  /** @param {import('./token.js').Token} startTok @param {string} scope @param {string} name @param {import('./ast/expressions/expression.js').Expression|null} nsExp @returns {Assignment} */
+  _parseAssignBlock(startTok, scope, name, nsExp) {
     const endType = scope === 'global' ? TT.END_GLOBAL
       : scope === 'local' ? TT.END_LOCAL : TT.END_ASSIGN;
     const children = this._parseMixedContent(new Set([endType]));
     const endTok = this._expect(endType, 'the matching end tag');
     return this._span(new Assignment(name, 'block', null, scope,
-      children.children), startTok, endTok);
+      children.children, nsExp), startTok, endTok);
   }
 
   // ---- M9: macros / functions / calls ----
@@ -2022,6 +2045,11 @@ export class Parser {
   _parseMaybeLambdaArg(builtinName) {
     const t = this._peek();
     if (t.type === TT.ID && this._peek(1).type === TT.LAMBDA_ARROW) {
+      // <- an escape placeholder can't be reused as a lambda parameter (2.3.36)
+      if (this._escapeTargetNames.includes(t.image)) {
+        throw this._error(`Escape placeholder (${t.image}) can't be used in the parameter list `
+          + 'of a lambda expressions.', t);
+      }
       this._next();
       this._next();
       const rhs = this._parseOr();
@@ -2046,6 +2074,12 @@ export class Parser {
         }
       }
       if (this._peek(j).type === TT.CLOSE_PAREN && this._peek(j + 1).type === TT.LAMBDA_ARROW) {
+        for (const pname of params) {
+          if (this._escapeTargetNames.includes(pname)) {
+            throw this._error(`Escape placeholder (${pname}) can't be used in the parameter list `
+              + 'of a lambda expressions.', this._peek(j + 1));
+          }
+        }
         this._next(); // "("
         for (let i = 0; i < params.length; i++) {
           if (i !== 0) this._expect(TT.COMMA, '","');
