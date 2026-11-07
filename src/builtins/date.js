@@ -13,7 +13,7 @@ import { callOp } from '../async.js';
 registerBuiltIn('string', {
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
-   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {Array<Object>|null} argExprs - unevaluated argument expressions
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */

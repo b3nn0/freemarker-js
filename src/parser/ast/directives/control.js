@@ -36,7 +36,7 @@ export class ContinueInstruction extends TemplateElement {
 // <- ReturnInstruction (#return): exits a macro (no value) or returns a value from a function.
 /** #return <- ReturnInstruction. */
 export class ReturnInstruction extends TemplateElement {
-  /** @param {Expression|null} exp */
+  /** @param {import('../expressions/expression.js').Expression|null} exp */
   constructor(exp) {
     super();
     this.exp = exp;

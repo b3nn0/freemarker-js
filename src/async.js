@@ -40,7 +40,7 @@ function asyncToken(v) {
  * are delegated through.
  * @param {string} op - description of the callback for sync-mode error messages
  * @param {unknown} v - the raw result of a callback call
- * @returns {Generator<unknown, unknown, unknown>}
+ * @returns {Generator<unknown, any, any>}
  */
 export function* awaitOp(op, v) {
   if (isThenable(v)) return yield { op, promise: v };
@@ -56,7 +56,7 @@ export function* awaitOp(op, v) {
  * @param {Object} recv - the model object
  * @param {string} method - protocol method name
  * @param {...unknown} args
- * @returns {Generator<unknown, unknown, unknown>}
+ * @returns {Generator<unknown, any, any>}
  */
 export function* callOp(op, recv, method, ...args) {
   return yield* awaitOp(op, recv[method](...args));

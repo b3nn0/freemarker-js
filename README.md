@@ -53,6 +53,13 @@ C: performance, D: polish).
 
 ## Engineering audit
 
+JSDoc types are verified with `npm run typecheck` (TypeScript via `npx --no-install`,
+zero runtime/dev-install deps). Convention: for `function*` protocol generators
+(`execute`, `impl`, model `get`/`getByIndex`/`exec`), `@returns {T}` documents the
+value the generator RETURNS, not the Generator object. tsc therefore reports
+expected noise (TS2322/2488/2339/2345/2739/2740/2416) at yield boundaries; the
+script filters that class and fails only on other type errors.
+
 - **No regular expressions in the parser or tag/text detection.** The lexer and template
   scanners are hand-written character state machines (`src/parser/tokenManager.js`).
   Outside the parser, string scanning uses explicit char/table logic;

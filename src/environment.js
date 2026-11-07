@@ -21,7 +21,7 @@ import { callOp, awaitOp } from './async.js';
 /**
  * @typedef {Object} ProcessOptions
  * @property {Object} [out] - the character writer to output into
- * @property {Object|TemplateModel} [dataModel] - the root data model
+ * @property {Object|import('./model/templateModel.js').TemplateModel} [dataModel] - the root data model
  * @property {Function} [includeResolver] - reserved for #include/#import (M14)
  */
 
@@ -223,7 +223,7 @@ export class Environment {
   /**
    * Wraps a plain JS value into a TemplateModel via the configured ObjectWrapper.
    * @param {unknown} value
-   * @returns {TemplateModel|null}
+   * @returns {import('./model/templateModel.js').TemplateModel|null}
    */
   wrap(value) {
     return this.configuration.getObjectWrapper().wrap(value);
@@ -247,7 +247,7 @@ export class Environment {
   /**
    * Defines a variable in the innermost scope (creates one when needed).
    * @param {string} name
-   * @param {TemplateModel} model
+   * @param {import('./model/templateModel.js').TemplateModel} model
    * @returns {void}
    */
   setVariable(name, model) {
@@ -259,7 +259,7 @@ export class Environment {
    * Looks up a variable: innermost scope first, then the template namespace, then
    * the data model. <- Environment.getVariable
    * @param {string} name
-   * @returns {Generator<unknown, TemplateModel|null, unknown>}
+   * @returns {Generator<unknown, import('./model/templateModel.js').TemplateModel|null, unknown>}
    */
   * getVariable(name) {
     for (let i = this._scopes.length - 1; i >= 0; i--) {
@@ -273,7 +273,7 @@ export class Environment {
    * Assignment.visit scope rules: global -> data model (unwrapped); namespace -> the
    * template namespace; local -> the innermost macro scope.
    * @param {string} name
-   * @param {TemplateModel|null} model - null clears/holds the null value
+   * @param {import('./model/templateModel.js').TemplateModel|null} model - null clears/holds the null value
    * @param {'namespace'|'global'|'local'} scope
    * @returns {void}
    */
@@ -304,8 +304,8 @@ export class Environment {
   /**
    * Shared comparison <- ComparisonExpression.visit + #case/#on matching (M16 refines).
    * Generator form: the protocol getters may come from user models (async-capable).
-   * @param {TemplateModel} l
-   * @param {TemplateModel} r
+   * @param {import('./model/templateModel.js').TemplateModel} l
+   * @param {import('./model/templateModel.js').TemplateModel} r
    * @returns {Generator<unknown, number, unknown>} negative, zero or positive
    */
   * compare(l, r) {
@@ -328,8 +328,8 @@ export class Environment {
   }
 
   /**
-   * @param {TemplateModel} l
-   * @param {TemplateModel} r
+   * @param {import('./model/templateModel.js').TemplateModel} l
+   * @param {import('./model/templateModel.js').TemplateModel} r
    * @returns {Generator<unknown, boolean, unknown>}
    */
   * equals(l, r) {
@@ -338,7 +338,7 @@ export class Environment {
 
   /**
    * A human-readable FTL type name for error messages.
-   * @param {TemplateModel|null} model
+   * @param {import('./model/templateModel.js').TemplateModel|null} model
    * @returns {string}
    */
   typeLabel(model) {
@@ -355,7 +355,7 @@ export class Environment {
 
   /**
    * Coerces strictly to a boolean; throws NonBooleanException otherwise.
-   * @param {TemplateModel} model
+   * @param {import('./model/templateModel.js').TemplateModel} model
    * @param {string} [context] - suffix like ` on the left of "&&"`
    * @returns {Generator<unknown, boolean, unknown>}
    */
@@ -366,7 +366,7 @@ export class Environment {
 
   /**
    * Coerces strictly to a number; throws NonNumericalException otherwise.
-   * @param {TemplateModel} model
+   * @param {import('./model/templateModel.js').TemplateModel} model
    * @param {string} [context]
    * @returns {Generator<unknown, number, unknown>}
    */
@@ -378,7 +378,7 @@ export class Environment {
   /**
    * Coerces to a string for output/comparison; throws NonStringException for
    * sequences, hashes and methods.
-   * @param {TemplateModel} model
+   * @param {import('./model/templateModel.js').TemplateModel} model
    * @param {string} [context]
    * @returns {Generator<unknown, string, unknown>}
    */

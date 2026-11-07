@@ -8,6 +8,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node tests/cli.mjs"
+    "test": "node tests/cli.mjs",
+    "typecheck": "npx -y -p typescript@5 tsc --noEmit --allowJs --checkJs --target es2022 --module esnext --moduleResolution bundler $(git ls-files 'src/**/*.js') 2>&1 | grep 'error TS' | grep -vE 'error TS(2322|2488|2339|2345|2739|2740|2416)' | grep .; test $? -eq 1"
   }
 }

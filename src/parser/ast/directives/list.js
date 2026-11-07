@@ -12,7 +12,7 @@ import { awaitOp, callOp } from '../../../async.js';
 export class IteratorBlock extends TemplateElement {
   // sourceExp, loopVar, loopVar2, hashListing, forEach; children before #else; elseChildren|null
   /**
-   * @param {Expression} sourceExp
+   * @param {import('../expressions/expression.js').Expression} sourceExp
    * @param {string|null} loopVar
    * @param {string|null} loopVar2
    * @param {TemplateElement[]} children

@@ -20,7 +20,7 @@ const PARAM_START = new Map(Object.entries({
 }));
 
 // start-tags closed by ws* (">"|"]"); value: [type, newLexState]:
-/** </tag> (requires close tag). @type {Map<string, string>} */
+/** </tag> (requires close tag) -> [directive token, lex state to switch to]. @type {Map<string, Array<import('./tokenType.js').TokenType|number>>} */
 const CLOSE1_START = new Map(Object.entries({
   attempt: [TT.ATTEMPT, LEX.DEFAULT], recover: [TT.RECOVER, LEX.DEFAULT], sep: [TT.SEP, LEX.DEFAULT],
   compress: [TT.COMPRESS, LEX.DEFAULT], comment: [TT.COMMENT, LEX.NO_PARSE], default: [TT.DEFAUL, LEX.DEFAULT],
@@ -30,7 +30,7 @@ const CLOSE1_START = new Map(Object.entries({
 }));
 
 // start-tags closed by ws* ("/")? (">"|"]"):
-/** </tag> (optional close). @type {Map<string, string>} */
+/** ws* ("/")? (">"|"]") closes -> directive token. @type {Map<string, import('./tokenType.js').TokenType>} */
 const CLOSE2_START = new Map(Object.entries({
   else: TT.ELSE, break: TT.BREAK, continue: TT.CONTINUE, return: TT.SIMPLE_RETURN,
   stop: TT.HALT, flush: TT.FLUSH, t: TT.TRIM, lt: TT.LTRIM, rt: TT.RTRIM, nt: TT.NOTRIM,
@@ -162,12 +162,16 @@ export class TokenManager {
 
   // ---- char stream (1-based, tab expansion mirrors SimpleCharStream.setTabSize, CRLF/CR = 1 break) ----
 
-  /** @returns {Token} */
+  /** @returns {boolean} */
   _eof() {
     return this.pos >= this.source.length;
   }
 
-  /** @param {number} [o] @returns {Token} */
+  /**
+   * Peeks the char stream (NOT a token).
+   * @param {number} [o] - offset from the current position
+   * @returns {string} one char, or '' at EOF
+   */
   _peek(o = 0) {
     return this.pos + o < this.source.length ? this.source[this.pos + o] : '';
   }
@@ -212,7 +216,7 @@ export class TokenManager {
     return c;
   }
 
-  /** @param {number} n @returns {string} */
+  /** @param {number} n @returns {void} */
   _readN(n) {
     for (let i = 0; i < n; i++) this._read();
   }
@@ -255,13 +259,19 @@ export class TokenManager {
     return c === '\\' ? ESCAPED_ID_CHARS.has(this._peek(1)) || false : this._isLetter(c) || this._isDigit(c) || c === '$' || c === '@' || c === '_';
   }
 
-  /** @param {TokenType} type @param {number} startPos @param {number} startLine @param {number} startColumn @returns {Token} */
+  /** @param {import('./tokenType.js').TokenType} type @param {number} startPos @param {number} startLine @param {number} startColumn @returns {Token} */
   _token(type, startPos, startLine, startColumn) {
     return new Token(type, this.source.slice(startPos, this.pos),
       startLine, startColumn, this.lastLine, this.lastColumn);
   }
 
-  /** @param {string} message @param {number} beginLine @param {number} beginColumn @param {number} endLine @param {number} endColumn @returns {TokenMgrError} */
+  /**
+   * Nullish position args fall back to the scanner position.
+   * @param {string} message
+   * @param {number} [beginLine] @param {number} [beginColumn]
+   * @param {number} [endLine] @param {number} [endColumn]
+   * @returns {TokenMgrError}
+   */
   _error(message, beginLine, beginColumn, endLine, endColumn) {
     return new TokenMgrError(message, beginLine ?? this.line, beginColumn ?? this.column,
       endLine ?? this.lastLine, endColumn ?? this.lastColumn);
@@ -313,10 +323,10 @@ export class TokenManager {
    * Enforces the #ftl naming convention once established
    * <- FTL.jj checkNamingConvention.
    * @param {import('./token.js').Token} tok
-   * @param {number} tokenNamingConvention
+   * @param {number} [tokenNamingConvention] - omitted: auto-detected from the token image
    * @returns {void}
    */
-  checkNamingConvention(tok, tokenNamingConvention) {
+  checkNamingConvention(tok, tokenNamingConvention = undefined) {
     if (tokenNamingConvention === undefined) {
       tokenNamingConvention = TokenManager.identifierNamingConvention(tok.image);
     }
@@ -349,7 +359,7 @@ export class TokenManager {
     return Configuration.AUTO_DETECT_NAMING_CONVENTION;
   }
 
-  /** @param {string} name @param {number} idx @returns {string} */
+  /** @param {string} name @param {number} idx @returns {number} naming-convention constant */
   static _tagNamingConvention(name, idx) {
     if (idx < 0) return Configuration.AUTO_DETECT_NAMING_CONVENTION;
     const c = name[idx];
@@ -1011,13 +1021,13 @@ export class TokenManager {
       startLine, startColumn, this.line, this.column);
   }
 
-  /** two-char operator images -> token type. @type {Map<string, TokenType>} */
+  /** two-char operator images -> token type. @type {Map<string, import('./tokenType.js').TokenType>} */
   static OP2 = new Map(Object.entries({
     '+=': TT.PLUS_EQUALS, '-=': TT.MINUS_EQUALS, '*=': TT.TIMES_EQUALS,
     '/=': TT.DIV_EQUALS, '%=': TT.MOD_EQUALS, '<=': TT.LESS_THAN_EQUALS,
   }));
 
-  /** one-char operator images -> token type. @type {Map<string, TokenType>} */
+  /** one-char operator images -> token type. @type {Map<string, import('./tokenType.js').TokenType>} */
   static OP1 = new Map(Object.entries({
     '+': TT.PLUS, '-': TT.MINUS, '*': TT.TIMES, '/': TT.DIVIDE, '%': TT.PERCENT,
     '=': TT.EQUALS, '<': TT.LESS_THAN, '&': TT.AND, '|': TT.OR, '!': TT.EXCLAM,

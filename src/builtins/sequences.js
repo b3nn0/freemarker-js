@@ -12,7 +12,7 @@ import { InvalidReferenceException, TemplateException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
 import { awaitOp, callOp } from '../async.js';
 
-/** @param {Object} key - a key model @returns {string} */
+/** @param {Object} key - a key model @returns {string[]|null} [singular, plural] labels; null = unsortable type */
 function keyTypeName(key) {
   if (key instanceof StringModel) return ['string', 'strings'];
   if (key instanceof NumberModel) return ['number', 'numbers'];

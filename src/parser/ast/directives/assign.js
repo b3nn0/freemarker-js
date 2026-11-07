@@ -17,7 +17,7 @@ export class Assignment extends TemplateElement {
   /**
    * @param {string} name
    * @param {string} opKind
-   * @param {Expression|null} exp
+   * @param {import('../expressions/expression.js').Expression|null} exp
    * @param {string} scope
    * @param {TemplateElement[]|null} [blockChildren]
    */
@@ -139,7 +139,7 @@ export class Assignment extends TemplateElement {
 
 /** #assign a=1, b=2 <- AssignmentInstruction. */
 export class AssignmentInstruction extends TemplateElement {
-  /** @param {Assignment[]} assignments @param {Expression|null} namespaceExp */
+  /** @param {Assignment[]} assignments @param {import('../expressions/expression.js').Expression|null} namespaceExp */
   constructor(assignments, namespaceExp) {
     super();
     this.assignments = assignments;

@@ -10,9 +10,9 @@ export class UnifiedCall extends TemplateElement {
   // target: Expression; namedArgs: Map<string, Expression> | null; positionalArgs: Expression[] | null;
   // bodyParamNames: string[] | null (the "; p1, p2" list); bodyChildren: TemplateElement[]
   /**
-   * @param {Expression} target
-   * @param {Expression[]} positionalArgs
-   * @param {Array<{ name: string, value: Expression }>} namedArgs
+   * @param {import('../expressions/expression.js').Expression} target
+   * @param {import('../expressions/expression.js').Expression[]} positionalArgs
+   * @param {Array<{ name: string, value: import('../expressions/expression.js').Expression }>} namedArgs
    * @param {string[]} bodyParamNames
    * @param {TemplateElement[]|null} bodyChildren
    */
@@ -97,7 +97,7 @@ export class UnifiedCall extends TemplateElement {
 
 /** #nested <- Nested. */
 export class NestedInstruction extends TemplateElement {
-  /** @param {Expression[]|null} bodyParameters */
+  /** @param {import('../expressions/expression.js').Expression[]|null} bodyParameters */
   constructor(bodyParameters) {
     super();
     this.bodyParameters = bodyParameters; // Expression[] | null

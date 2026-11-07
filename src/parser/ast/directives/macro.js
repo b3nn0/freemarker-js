@@ -9,7 +9,7 @@ export class Macro extends TemplateElement {
   // params: [{ name, defaultExp|null }]; catchAllName: string|null
   /**
    * @param {string} name
-   * @param {Array<{ name: string, defaultExp: Expression|null }>} params
+   * @param {Array<{ name: string, defaultExp: import('../expressions/expression.js').Expression|null }>} params
    * @param {string|null} catchAllName
    * @param {boolean} isFunction
    * @param {TemplateElement[]} bodyChildren

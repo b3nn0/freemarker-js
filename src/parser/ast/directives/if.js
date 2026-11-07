@@ -5,7 +5,7 @@ import { TemplateElement } from '../templateElement.js';
 /** One #if/#elseif/#else branch <- ConditionalBlock. */
 export class ConditionalBlock extends TemplateElement {
   // type: if | else-if | else (condition null <- else)
-  /** @param {Expression|null} condition @param {TemplateElement[]} children @param {string} type */
+  /** @param {import('../expressions/expression.js').Expression|null} condition @param {TemplateElement[]} children @param {string} type */
   constructor(condition, children, type) {
     super();
     this.condition = condition;
