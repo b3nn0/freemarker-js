@@ -1,88 +1,83 @@
 # freemarker-js
 
-Browser-targeted, dependency-free JavaScript port of the [Apache FreeMarker](https://freemarker.apache.org)
-template engine (FTL). API-inspired by the Java implementation; baseline FreeMarker 2.3.36 semantics.
-See `UPSTREAM.md` for the decision log. This project is inspired by (and derived from the ideas of)
-Apache FreeMarker, licensed Apache-2.0.
+A dependency-free JavaScript port of the [Apache FreeMarker](https://freemarker.apache.org)
+template engine (FTL), targeting the browser (it also runs fine in Node). All credit goes to
+upstream FreeMarker and its authors: this project is a re-implementation of their ideas and
+semantics, baselined against FreeMarker 2.3.36, and inspired/derived from an Apache-2.0 licensed
+codebase. It is not affiliated with, endorsed by, or supported by the Apache Software Foundation.
+
+The upstream Java sources live in `../freemarker` in this checkout; `UPSTREAM.md` is the
+decision log of every porting choice made along the way.
+
+## No guarantees whatsoever
+
+This project was completely vibe coded. Every line of it is AI-generated, reviewed only as much
+as a passing test suite (418 tests) allowed. There is no warranty of correctness, security,
+performance, or fitness for any purpose. Do not use it in production, do not trust it with
+untrusted templates or data, do not file bug reports against FreeMarker because of it. If it
+works for you, great; if it doesn't, that was on the table from the start.
 
 ## Usage
 
-```js
-import { Configuration, Template } from './src/index.js';
+Pure ES2022 modules, zero dependencies, no build step:
 
-const cfg = new Configuration(Configuration.VERSION);
+```js
+import { Configuration, Template } from 'freemarker-js'; // or './src/index.js'
+
+const cfg = new Configuration();
 const t = new Template('greeting', 'Hello ${user.name}!', cfg);
-const out = await t.processToString({ user: { name: 'World' } });
 ```
 
-Data model values and callbacks may be async (Promises awaited on demand):
+**Sync API** - strict, upstream-style; any async step throws
+`AsyncOperationNotAllowedException` instead of suspending:
 
 ```js
-const out2 = await t.processToString({ user: { name: fetchName() } }); // fetchName(): Promise
-const syncOut = t.processToStringSync({ user: { name: 'World' } }); // throws on any async step
+const out = t.processToStringSync({ user: { name: 'World' } });
 ```
 
-No runtime/dev dependencies, no build step. Run tests: `node tests/cli.mjs` or open `tests/index.html`.
+**Async API** - the port's own addition (upstream is fully synchronous); model values,
+model methods, and include resolvers may return Promises, awaited on demand:
 
-Runnable examples: `node examples/demo.mjs` (data model, macros, auto-escaping, `#setting`,
-includes) and `examples/browser.html` (plain browser `<script type="module">`, no server needed).
+```js
+const out = await t.processToString({ user: { name: fetchUserName() } });
+// fetchUserName(): Promise<string>
+```
 
-## Support matrix
+Runnable examples: `node examples/demo.mjs` and `examples/browser.html`.
+Run the test suite: `node tests/cli.mjs`.
 
-| Feature | Status | Notes |
-|---|---|---|
-| Static text pass-through (M1) | done | |
-| `${...}`/`#{...}` interpolation, expression language (M2-M3) | done | |
-| Directives `#if #list #items #sep #switch #attempt #assign #macro #function ...` (M7-M9) | done | |
-| Lambdas, `?filter ?map ?sort ?sort_by` (M10) | done | |
-| Built-ins ~60 target (M11) | done | deferred regex/flag variants (UPSTREAM.md) |
-| Tag/interpolation syntax modes, naming conventions (M12) | done | angle + square bracket |
-| Whitespace stripping, `#t #lt #rt #nt`, `#compress`, `#noparse` (M13) | done | |
-| `#include`/`#import` via `setIncludeResolver`/`options.includeResolver`, `#stop`, `#flush` (M14) | done | sync/async resolver; name-only parse cache |
-| Output formats + escaping (M15) | done | HTML/XHTML/XML escapers; auto-esc; built-in escapers |
-| Number/date formatting subset (M16) | done | #setting; #{exp;m2M4}; named+pattern number formats; SimpleDateFormat+ISO subset; ?string |
-| Async data model / callbacks (M18) | done | Promises awaited on demand (`processToString`); strict sync via `processToStringSync` |
-| Zero-arg function-property policy (M6, simplified M19) | done | one knob: AUTO_INVOKE (default) / METHOD_ONLY |
-| TemplateLoader / filesystem / URL loading | out of scope | |
-| XML/DOM nodes, `#visit`, `#recurse`, `?node_*`, `?new`, `?api` | out of scope | parse OK, runtime `UnsupportedFeatureException` |
-| `classic_compatible`, `?interpret`, locale-aware formatting | out of scope | |
+## What's missing or different vs upstream FTL
 
-All milestones (M0-M18) are complete; the suite has 418 tests.
-See `IMPROVEMENTS.md` for the post-M17 self-review backlog (A: design, B: fidelity,
-C: performance, D: polish).
+Honest summary; details and rationale in `UPSTREAM.md`.
 
-## Engineering audit
+**Out of scope entirely:**
 
-JSDoc types are verified with `npm run typecheck` (TypeScript via `npx --no-install`,
-zero runtime/dev-install deps). Convention: for `function*` protocol generators
-(`execute`, `impl`, model `get`/`getByIndex`/`exec`), `@returns {T}` documents the
-value the generator RETURNS, not the Generator object. tsc therefore reports
-expected noise (TS2322/2488/2339/2345/2739/2740/2416) at yield boundaries; the
-script filters that class and fails only on other type errors.
+- `TemplateLoader`, filesystem/URL loading, cache configuration - `#include`/`#import` resolve
+  through a plain `setIncludeResolver((name) => source)` callback instead.
+- XML/DOM node models: `#visit`, `#recurse`, `?node_*`, `?new`, `?api`, `#fallback` bodies.
+- `classic_compatible`, `?interpret`, the `?keep_* / ?remove_* / ?ensure_* / ?word_list /
+  ?substring / ?truncate*` string built-ins and regex/flag string variants.
+- Locale-aware behavior everywhere: number/date formatting is fixed to en_US symbols and
+  browser-local time; `time_zone` and `locale` settings parse but are inert.
+- RTF/CSS/JSON output formats and nested `{outer{inner}}` format expressions.
+- Java-bean concepts without a JS analogue: getter naming (`getFoo`/`isFoo`) is not magic, and
+  the three-value zero-arg-method policy is collapsed to one knob,
+  `ZeroArgumentPolicy.AUTO_INVOKE` (default) / `METHOD_ONLY`.
 
-- **No regular expressions in the parser or tag/text detection.** The lexer and template
-  scanners are hand-written character state machines (`src/parser/tokenManager.js`).
-  Outside the parser, string scanning uses explicit char/table logic;
-  `grep -rnE "RegExp|\.match\(|\.replace\(/|\.search\(|\.split\(/|eval\(|new Function" src/`
-  exits with no matches.
-- **No `eval`/`new Function`.** `?eval` parses the string with this port's own Parser and
-  evaluates the resulting AST (`src/builtins/encoding.js`, `parseExpression`).
-- **Zero dependencies**; pure ES2022 modules, no Node-only APIs and no DOM in `src/`
-  (browser and Node runtimes both work).
-- All production declarations carry JSDoc type hints.
-- Number/date format patterns are compiled once and cached per format string
-  (FIFO cap 512; invalid patterns are never cached and keep throwing).
-- **Green-thread async core** (`src/async.js`): the whole render/eval path is a generator tree that yields
-  `{ op, promise }` tokens at model-callback boundaries (`get`/`getByIndex`/`exec`/resolver);
-  `runAsync` awaits them, `runSync` throws `AsyncOperationNotAllowedException` instead.
-  No `async` leaks into the engine: one core, two drivers.
+**Deliberate deviations:**
 
-## Performance sanity (Node 20, dev machine)
+- Two API drivers instead of one: `processToString` (async-capable) vs `processToStringSync`
+  / `process` (strict sync). The engine core is a generator tree that works for both.
+- No `incompatible_improvements` branches: only current 2.3 syntax; `#set`, `#var`, `#elif`,
+  `#{...}`-as-`#set`-alias and friends are parse errors.
+- `#set`/`#assign` in-namespace targets (`#assign x in ns`) parse, but parsing of unknown
+  built-ins is deferred to runtime; parse-error wording is simplified to human sentences.
+- Comparison is code-point based for strings (no locale collation); `1 == "1"` is true.
+- `?sort_by` is 2.3.36-style (string key paths only, no lambdas); `?map`/`?filter` require
+  parentheses; filter/map results are always eagerly materialized.
+- `?url` is UTF-8 only; `#ftl` parameters must be literals; a handful of upstream error
+  messages/stack-frame details are shortened.
+- `#flush` is a no-op (no streams in a pure string engine).
 
-- Parse: ~0.06 ms for a 12-line template with a macro and a `#list` (100 parses ~ 6 ms);
-  the parser is sync-only, so the M18 generator core costs nothing there.
-- Render: 10 000 iterations of `<#list 1..10000>` with `#if`/number-format ~ 4 ms per render
-  before M18 (commit `a422783`), ~ 9 ms async / ~ 11 ms sync after: the generator green-threads
-  core costs ~2.5x on the hot render loop (measured warm, Node 20, dev machine).
-
-These are order-of-magnitude figures, not a benchmark suite.
+If upstream and this port disagree anywhere not written down here, upstream is right and this
+port is buggy.
