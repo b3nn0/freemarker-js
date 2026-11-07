@@ -312,7 +312,8 @@ registerBuiltIn('keys', {
      */
   * impl(target, args, env) {
     if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('keys', target, env);
-    return new SequenceModel((yield* awaitOp('hash keys', target.keys())).map((k) => new StringModel(k)));
+    // raw keys are wrapped lazily (a null hash key must stay null, not stringify)
+    return new SequenceModel(yield* awaitOp('hash keys', target.keys()), env.configuration.getObjectWrapper());
   },
 });
 

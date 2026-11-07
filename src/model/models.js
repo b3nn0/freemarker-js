@@ -190,7 +190,7 @@ export class HashModel extends TemplateHashModelEx {
   }
   /** @returns {string[]} */
   keys() {
-    return this.isMap ? [...this.source.keys()].map(String) : Object.keys(this.source);
+    return this.isMap ? [...this.source.keys()] : Object.keys(this.source);
   }
   /** @returns {unknown[]} raw (unwrapped) values <- the wrapper re-wraps them on demand */
   values() {

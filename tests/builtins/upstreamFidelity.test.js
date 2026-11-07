@@ -1317,3 +1317,55 @@ describe('Upstream SpecialVariableTest (ported subset)', () => {
       ParseException, ['autoEscaping', 'You may meant: "autoEsc"']);
   });
 });
+
+// Upstream NullTransparencyTest (ported): null loop variables fall back on an
+// outer same-named variable per fallbackOnNullLoopVariable (JVM 2.3.36 default
+// true; the setting is JVM-API-only). Lambda arguments never fall back.
+// Expected outputs copied byte-identical from the live-JVM Drv79 probe.
+describe('Upstream NullTransparencyTest (ported)', () => {
+  const mkModel = (withIt) => {
+    const m = { list: ['a', null, 'b'], map: new Map([['ak', 'av'], [null, 'bv'], ['ck', null]]) };
+    if (withIt) m.it = 'fallback';
+    return m;
+  };
+  const run = (src, cfg, model) => new Template('t', src, cfg).processToString(model);
+  const srcs = [
+    "<#list list?filter(it -> it??) as it>${it!'null'}<#sep>, </#list>",
+    "<#list list?takeWhile(it -> it??) as it>${it!'null'}<#sep>, </#list>",
+    "<#list list?map(it -> it!'null') as it>${it}<#sep>, </#list>",
+    "<#list list as it>${it!'null'}<#sep>, </#list>",
+    "<#list list><#items as it>${it!'null'}<#sep>, </#items></#list>",
+    "<#list map?values as it>${it!'null'}<#sep>, </#list>",
+    "<#list map as k, it>${k!'null'}=${it!'null'}<#sep>, </#list>",
+    "<#list map><#items as k, it>${k!'null'}=${it!'null'}<#sep>, </#items></#list>",
+    "<#list map?keys as it>${it!'null'}<#sep>, </#list>",
+    "<#list map as it, v>${it!'null'}=${v!'null'}<#sep>, </#list>",
+    "<#list map><#items as it, v>${it!'null'}=${v!'null'}<#sep>, </#items></#list>",
+    "<#macro loop><#nested 1>, <#nested totallyMissing></#macro>\n"
+    + "<@loop; it>${it!'null'}</@loop>",
+  ];
+  const cases = [
+    [false, true, ['a, b', 'a', 'a, null, b', 'a, null, b', 'a, null, b', 'av, bv, null',
+      'ak=av, null=bv, ck=null', 'ak=av, null=bv, ck=null', 'ak, null, ck',
+      'ak=av, null=bv, ck=null', 'ak=av, null=bv, ck=null', '1, null']],
+    [false, false, ['a, b', 'a', 'a, null, b', 'a, null, b', 'a, null, b', 'av, bv, null',
+      'ak=av, null=bv, ck=null', 'ak=av, null=bv, ck=null', 'ak, null, ck',
+      'ak=av, null=bv, ck=null', 'ak=av, null=bv, ck=null', '1, null']],
+    [true, true, ['a, b', 'a', 'a, null, b', 'a, fallback, b', 'a, fallback, b', 'av, bv, fallback',
+      'ak=av, null=bv, ck=fallback', 'ak=av, null=bv, ck=fallback', 'ak, fallback, ck',
+      'ak=av, fallback=bv, ck=null', 'ak=av, fallback=bv, ck=null', '1, fallback']],
+    [true, false, ['a, b', 'a', 'a, null, b', 'a, null, b', 'a, null, b', 'av, bv, null',
+      'ak=av, null=bv, ck=null', 'ak=av, null=bv, ck=null', 'ak, null, ck',
+      'ak=av, null=bv, ck=null', 'ak=av, null=bv, ck=null', '1, null']],
+  ];
+  for (const [withIt, fallback, expected] of cases) {
+    it(`withIt=${withIt} fallbackOnNullLoopVariable=${fallback}`, async () => {
+      const c = new Configuration();
+      c.setFallbackOnNullLoopVariable(fallback);
+      const model = mkModel(withIt);
+      for (let i = 0; i < srcs.length; i++) {
+        snapshot(await run(srcs[i], c, model), expected[i]);
+      }
+    });
+  }
+});

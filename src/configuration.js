@@ -46,6 +46,9 @@ export class Configuration {
     // <- Configuration.java:566-567 defaults
     this._autoEscapingPolicy = Configuration.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY;
     this._outputFormat = UndefinedOutputFormat.INSTANCE;
+    // <- Configuration.java (pre-i22 default true): a null loop variable falls
+    // back on an outer same-named variable instead of shadowing it.
+    this._fallbackOnNullLoopVariable = true;
     // <- Configurable format defaults (en_US locale fixed; see UPSTREAM.md):
     this._numberFormat = 'number';
     this._booleanFormat = 'true,false';
@@ -122,6 +125,8 @@ export class Configuration {
 
   setOutputFormat(name) { this._outputFormat = getStandardOutputFormat(String(name)); }
   getOutputFormat() { return this._outputFormat; }
+  setFallbackOnNullLoopVariable(v) { this._fallbackOnNullLoopVariable = Boolean(v); }
+  getFallbackOnNullLoopVariable() { return this._fallbackOnNullLoopVariable; }
 
   // <- Configuration auto-escaping policy constants (strings instead of ints;
   // see UPSTREAM.md). "force" is not supported by this port.

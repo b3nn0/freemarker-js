@@ -2048,7 +2048,7 @@ export class Parser {
   // <- BuiltInWithParseTimeParameters.checkLocalLambdaParamCount
   /** @param {Object} node @param {string} builtinName @param {import('./token.js').Token} tok @returns {void} */
   _checkLambdaParamCount(node, builtinName, tok) {
-    const want = LAMBDA_ARG_BUILTINS.get(builtinName);
+    const want = LAMBDA_ARG_BUILTINS.get(_snakeName(builtinName));
     if (node.params.length !== want) {
       throw this._error(
         `?${builtinName}(...) parameter lambda expression must declare exactly ${want} `

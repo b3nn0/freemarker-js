@@ -106,8 +106,11 @@ export class IteratorBlock extends TemplateElement {
       item.size = length;
       env._iterStack.push(item);
       if (this.loopVar !== null) {
-        env.setVariable(this.loopVar, item.first);
-        if (this.loopVar2 !== null) env.setVariable(this.loopVar2, item.second);
+        const fb = env.configuration.getFallbackOnNullLoopVariable();
+        if (!(fb && item.first === null)) env.setVariable(this.loopVar, item.first);
+        if (this.loopVar2 !== null && !(fb && item.second === null)) {
+          env.setVariable(this.loopVar2, item.second);
+        }
       }
       let broke = false;
       try {
@@ -183,10 +186,18 @@ export class Items extends TemplateElement {
       ctx.first = first;
       ctx.second = second;
       env.pushScope();
-      env.setVariable(this.loopVar, first);
-      if (this.loopVar2 !== null) env.setVariable(this.loopVar2, second);
+      const fb = env.configuration.getFallbackOnNullLoopVariable();
+      if (!(fb && first === null)) env.setVariable(this.loopVar, first);
+      if (this.loopVar2 !== null && !(fb && second === null)) env.setVariable(this.loopVar2, second);
       try {
-        for (const c of this.children) yield* env.visit(c);
+        for (const c of this.children) {
+          // <- #sep in an #items body shows only between items, like in #list.
+          if (c instanceof Sep) {
+            if (i < n - 1) for (const sc of c.children) yield* env.visit(sc);
+          } else {
+            yield* env.visit(c);
+          }
+        }
       } catch (e) {
         if (e instanceof BreakInstructionException) break;
         else if (!(e instanceof ContinueInstructionException)) throw e;

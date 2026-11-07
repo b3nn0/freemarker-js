@@ -130,7 +130,15 @@ export class NestedInstruction extends TemplateElement {
     }
     const values = [];
     if (this.bodyParameters !== null) {
-      for (const e of this.bodyParameters) values.push(yield* e.evaluate(env));
+      for (const e of this.bodyParameters) {
+        try {
+          values.push(yield* e.evaluate(env));
+        } catch (err) {
+          // <- BodyInstruction: a missing nested argument binds null (no error)
+          if (!(err instanceof InvalidReferenceException)) throw err;
+          values.push(null);
+        }
+      }
     }
     // <- BodyInstruction.accept: the body runs in the CALLER's context, so swap the
     // macro-scoped frames for the caller's chain saved at invoke time.
@@ -139,7 +147,13 @@ export class NestedInstruction extends TemplateElement {
     env._scopes.push(...ctx.callerScopes);
     if (ctx.bodyParamNames !== null && ctx.bodyParamNames.length > 0) {
       const ps = new Map();
-      ctx.bodyParamNames.forEach((n, i) => ps.set(n, values[i] === undefined ? null : values[i]));
+      const fb = env.configuration.getFallbackOnNullLoopVariable();
+      ctx.bodyParamNames.forEach((n, i) => {
+        const v = values[i] === undefined ? null : values[i];
+        // <- fallbackOnNullLoopVariable: a null body parameter keeps the outer
+        // same-named variable visible instead of shadowing it.
+        if (!(fb && v === null)) ps.set(n, v);
+      });
       env._scopes.push(ps);
     }
     try {
