@@ -3,6 +3,7 @@
 // No regexes here (tag/text detection is token-type based).
 
 import { TokenManager } from './tokenManager.js';
+import { Configuration } from '../configuration.js';
 import { TT } from './tokenType.js';
 import * as LEX from './lexicalStates.js';
 import { ParseException, TokenMgrError, UnsupportedFeatureException,
@@ -14,6 +15,7 @@ import { Interpolation } from './ast/interpolation.js';
 import { TerseComment } from './ast/terseComment.js';
 import { CommentDirective } from './ast/commentDirective.js';
 import { NumberLiteral, StringLiteral, BooleanLiteral, ListLiteral, HashLiteral } from './ast/expressions/literals.js';
+import { InterpolatedStringExpression } from './ast/expressions/interpolatedString.js';
 import { Identifier, Dot, DynamicKeyName } from './ast/expressions/variables.js';
 import { MethodCall } from './ast/expressions/calls.js';
 import {
@@ -460,42 +462,11 @@ export class Parser {
       if (t.type === TT.DOLLAR_INTERPOLATION_OPENING || t.type === TT.HASH_INTERPOLATION_OPENING
         || t.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING) {
         this._next();
-        const expression = this._parseExpression();
-        let fracOpts = null;
-        // <- FTL.jj NumericalOutput(): #{exp; mN M2M4 format specifier
-        if (t.type === TT.HASH_INTERPOLATION_OPENING) {
-          this._checkNumericInterpolationLiteral(expression);
-          if (this._peek().type === TT.SEMICOLON) {
-            this._next();
-            const fmt = this._peek();
-            if (fmt.type !== TT.ID) {
-              throw this._error(
-                'Expected a format specifier like "m2M4" after the ";" in "#{...}", but got '
-                + `${this._desc(fmt)}.`, fmt);
-            }
-            this._next();
-            fracOpts = this._parseHashInterpolationFormat(fmt);
-          }
-        }
-        const closer = this._peek();
-        const expected = t.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING
-          ? TT.CLOSE_BRACKET : TT.CLOSING_CURLY_BRACKET;
-        if (closer.type !== expected) {
-          throw this._error(
-            `Expected "${expected === TT.CLOSE_BRACKET ? ']' : '}'}" to close the interpolation, but got ${this._desc(closer)}.`,
-            closer);
-        }
-        this._next();
-        // <- FTL.jj StringOutput: notHashLiteral/notListLiteral
-        if (expression instanceof HashLiteral) {
-          throw this._errorAt('A hash literal has no string form; it can\'t be interpolated with ${...}.', expression);
-        }
-        if (expression instanceof ListLiteral) {
-          throw this._errorAt('A list literal has no string form; it can\'t be interpolated with ${...}.', expression);
-        }
+        const body = this._parseInterpolationBody(t.type);
         // <- DollarVariable captures the format/auto-escape state at parse time
         group.addChild(this._span(
-          new Interpolation(this._applyEscape(expression), this.outputFormat, this.autoEscaping, fracOpts), t, closer));
+          new Interpolation(this._applyEscape(body.expression), this.outputFormat,
+            this.autoEscaping, body.fracOpts), t, body.closer));
         continue;
       }
 
@@ -1236,6 +1207,126 @@ export class Parser {
       throw this._error('You can\'t use the "#continue" directive here.', startTok);
     }
     return this._span(new ContinueInstruction(), startTok, startTok);
+  }
+
+  /**
+   * The expression + legacy format of an interpolation, starting after the opening token
+   * (already consumed); returns the closer token too.
+   * <- FTL.jj StringOutput() / NumericalOutput().
+   * @param {import('./tokenType.js').TokenType} openType
+   * @returns {{ expression: Object, fracOpts: Object|null, closer: import('./token.js').Token }}
+   */
+  _parseInterpolationBody(openType) {
+    const expression = this._parseExpression();
+    let fracOpts = null;
+    // <- FTL.jj NumericalOutput(): #{exp; mN M2M4 format specifier
+    if (openType === TT.HASH_INTERPOLATION_OPENING) {
+      this._checkNumericInterpolationLiteral(expression);
+      if (this._peek().type === TT.SEMICOLON) {
+        this._next();
+        const fmt = this._peek();
+        if (fmt.type !== TT.ID) {
+          throw this._error(
+            'Expected a format specifier like "m2M4" after the ";" in "#{...}", but got '
+            + `${this._desc(fmt)}.`, fmt);
+        }
+        this._next();
+        fracOpts = this._parseHashInterpolationFormat(fmt);
+      }
+    }
+    const closer = this._peek();
+    const expected = openType === TT.SQUARE_BRACKET_INTERPOLATION_OPENING
+      ? TT.CLOSE_BRACKET : TT.CLOSING_CURLY_BRACKET;
+    if (closer.type !== expected) {
+      throw this._error(
+        `Expected "${expected === TT.CLOSE_BRACKET ? ']' : '}'}" to close the interpolation, but got ${this._desc(closer)}.`,
+        closer);
+    }
+    this._next();
+    // <- FTL.jj StringOutput: notHashLiteral/notListLiteral
+    if (expression instanceof HashLiteral) {
+      throw this._errorAt('A hash literal has no string form; it can\'t be interpolated with ${...}.', expression);
+    }
+    if (expression instanceof ListLiteral) {
+      throw this._errorAt('A list literal has no string form; it can\'t be interpolated with ${...}.', expression);
+    }
+    return { expression, fracOpts, closer };
+  }
+
+  /**
+   * <- StringLiteral.parseValue: when the RAW image contains an interpolation opening for
+   * the configured syntax and the DECODED value is longer than 3 chars, the decoded value
+   * is re-lexed and re-parsed (StaticTextAndInterpolations); this also reproduces the two
+   * upstream glitches (a "\{" escape stops protecting an interpolation in such strings,
+   * and short values <= 3 chars are never interpolated).
+   * @param {string} rawImage - quoted raw token image
+   * @param {string} value - decoded content
+   * @returns {boolean}
+   */
+  _stringLiteralNeedsInterpolation(rawImage, value) {
+    if (value.length <= 3) return false;
+    const syn = this.tm.interpolationSyntax;
+    if (syn === Configuration.SQUARE_BRACKET_INTERPOLATION_SYNTAX) {
+      return rawImage.indexOf('[=') !== -1;
+    }
+    if (rawImage.indexOf('${') !== -1) return true;
+    return syn === Configuration.LEGACY_INTERPOLATION_SYNTAX && rawImage.indexOf('#{') !== -1;
+  }
+
+  /**
+   * Re-parses the decoded content of a string literal as static text + interpolations
+   * <- StringLiteral.parseValue + StaticTextAndInterpolations (shared parser instance,
+   * fresh sub-TokenManager positioned at the literal's opening quote).
+   * @param {string} value - decoded content (no quotes)
+   * @param {import('./token.js').Token} outerTok
+   * @returns {Object}
+   */
+  _parseInterpolatedString(value, outerTok) {
+    const sub = new TokenManager(value, this.cfg, {
+      startLine: outerTok.beginLine, startColumn: outerTok.beginColumn + 1,
+      stringLiteralMode: true,
+    });
+    const savedTm = this.tm;
+    const savedBuf = this._buf;
+    this.tm = sub;
+    this._buf = [];
+    const parts = [];
+    let staticText = '';
+    try {
+      for (;;) {
+        const tok = this._peek();
+        if (tok.type === TT.EOF) {
+          this._next();
+          break;
+        }
+        if (tok.type === TT.STATIC_TEXT_WS || tok.type === TT.STATIC_TEXT_NON_WS
+          || tok.type === TT.STATIC_TEXT_FALSE_ALARM) {
+          this._next();
+          staticText += tok.image;
+          continue;
+        }
+        if (tok.type === TT.DOLLAR_INTERPOLATION_OPENING || tok.type === TT.HASH_INTERPOLATION_OPENING
+          || tok.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING) {
+          const openType = tok.type;
+          this._next();
+          const body = this._parseInterpolationBody(openType);
+          if (staticText !== '') {
+            parts.push(staticText);
+            staticText = '';
+          }
+          parts.push({ expression: this._applyEscape(body.expression), fracOpts: body.fracOpts });
+          continue;
+        }
+        throw this._error(
+          `Unexpected ${this._desc(tok)} inside an interpolated string literal.`, tok);
+      }
+      if (staticText !== '') parts.push(staticText);
+      if (parts.length === 0) parts.push('');
+      return this._span(new InterpolatedStringExpression(parts), outerTok, outerTok);
+    } finally {
+      this.tm = savedTm;
+      this._buf = savedBuf;
+    }
   }
 
   // <- FTL.jj Assign()
@@ -1981,6 +2072,9 @@ export class Parser {
           value = unescapeFTLStringLiteral(t.image.slice(1, -1));
         } catch (e) {
           throw this._error(e.message, t);
+        }
+        if (this._stringLiteralNeedsInterpolation(t.image, value)) {
+          return this._parseInterpolatedString(value, t);
         }
         return this._span(new StringLiteral(value), t, t);
       }

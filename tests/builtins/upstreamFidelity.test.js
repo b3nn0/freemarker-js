@@ -744,3 +744,61 @@ describe('Upstream NumberBiTest (ported)', () => {
     ok(e2.message.includes('boolean_format'), e2.message);
   });
 });
+
+// <- Upstream StringLiteralInterpolationTest (ported; markup()/iciInheritanceBugFixed
+// need custom number-format factories, RTF output format and the i2 knob -> JVM-only).
+describe('Upstream StringLiteralInterpolationTest (ported)', () => {
+  it('basics', async () => {
+    snapshot(await out("${'${x}'}", { x: 1 }), '1');
+    snapshot(await out("${'#{x}'}", { x: 1 }), '1');
+    snapshot(await out("${'a${x}b${x*2}c'}", { x: 1 }), 'a1b2c');
+    snapshot(await out("${'a#{x}b#{x*2}c'}", { x: 1 }), 'a1b2c');
+    snapshot(await out("${'a#{x; m2}'}", { x: 1 }), 'a1.00');
+    snapshot(await out("${'${x} ${x}'}", { x: 1 }), '1 1');
+    snapshot(await out("${'$\\{x}'}", { x: 1 }), '${x}');
+    snapshot(await out("${'$\\{x} $\\{x}'}", { x: 1 }), '${x} ${x}');
+    snapshot(await out("${'<#-- not a comment -->${x}'}", { x: 1 }), '<#-- not a comment -->1');
+    snapshot(await out("${'<#-- not a comment -->$\\{x}'}", { x: 1 }),
+      '<#-- not a comment -->${x}');
+    snapshot(await out("${'<#assign x = 2> ${x} <#assign x = 2>'}", { x: 1 }),
+      '<#assign x = 2> 1 <#assign x = 2>');
+    snapshot(await out("${'<#assign x = 2> $\\{x} <#assign x = 2>'}", { x: 1 }),
+      '<#assign x = 2> ${x} <#assign x = 2>');
+    snapshot(await out("${'<@x/>${x}<@x/>'}", { x: 1 }), '<@x/>1<@x/>');
+    snapshot(await out("${'<@x/>$\\{x}<@x/>'}", { x: 1 }), '<@x/>${x}<@x/>');
+    snapshot(await out("${'<@ ${x}<@'}", { x: 1 }), '<@ 1<@');
+    snapshot(await out("${'<@ $\\{x}<@'}", { x: 1 }), '<@ ${x}<@');
+    snapshot(await out("${'</@x>${x}'}", { x: 1 }), '</@x>1');
+    snapshot(await out("${'</@x>$\\{x}'}", { x: 1 }), '</@x>${x}');
+    snapshot(await out("${'</@ ${x}</@'}", { x: 1 }), '</@ 1</@');
+    snapshot(await out("${'</@ $\\{x}</@'}", { x: 1 }), '</@ ${x}</@');
+    snapshot(await out("${'[@ ${x}'}", { x: 1 }), '[@ 1');
+    snapshot(await out("${'[@ $\\{x}'}", { x: 1 }), '[@ ${x}');
+  });
+
+  it('legacy escaping bug still present', async () => {
+    snapshot(await out("${'$\\{x} ${x}'}", { x: 1 }), '1 1');
+    snapshot(await out("${'${x} $\\{x}'}", { x: 1 }), '1 1');
+  });
+
+  it('legacy length glitch', async () => {
+    snapshot(await out("${'${'}", {}), '${');
+    snapshot(await out("${'${1'}", {}), '${1');
+    snapshot(await out("${'${}'}", {}), '${}');
+    snapshot(await out("${'${1}'}", {}), '1');
+    throwsMatch(() => new Template('t.ftl', "${'${  '}", new Configuration()), ParseException);
+  });
+
+  it('errors', async () => {
+    const e1 = await rejectsMatch(out("${'${noSuchVar}'}", { x: 1 }), InvalidReferenceException);
+    ok(e1.message.includes('noSuchVar'), e1.message);
+    ok(/line \d+, column \d+/.test(e1.message), e1.message);
+    const e2 = await rejectsMatch(out("${'${x/0}'}", { x: 1 }), TemplateException);
+    ok(e2.message.includes('0'), e2.message);
+  });
+
+  it('escaping', async () => {
+    snapshot(await out("<#escape x as x?html><#assign x = '&'>${x} ${'${x}'}</#escape> ${x}", {}),
+      '&amp; &amp; &');
+  });
+});

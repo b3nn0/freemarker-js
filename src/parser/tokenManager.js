@@ -132,14 +132,18 @@ export class TokenManager {
    * @param {string} source
    * @param {import('../configuration.js').Configuration} configuration
    */
-  constructor(source, configuration) {
+  constructor(source, configuration, opts = {}) {
     this.source = source;
     this.cfg = configuration;
     this.pos = 0;
-    this.line = 1;
-    this.column = 1;
-    this.lastLine = 1;
-    this.lastColumn = 1;
+    this.line = opts.startLine ?? 1;
+    this.column = opts.startColumn ?? 1;
+    this.lastLine = this.line;
+    this.lastColumn = this.column;
+    // <- FMParser.setupStringLiteralMode: sub-lexing the content of an interpolated
+    // string literal; tag/comment patterns don't apply, only static text and
+    // interpolations are produced.
+    this.stringLiteralMode = opts.stringLiteralMode === true;
     this.tabSize = configuration.getTabSize();
 
     this.curLexState = LEX.DEFAULT;
@@ -454,6 +458,11 @@ export class TokenManager {
     }
 
     if (c === '<' || c === '[') {
+      if (this.stringLiteralMode) {
+        // no tags/comments inside interpolated string literals (StaticTextAndInterpolations)
+        this._read();
+        return this._token(TT.STATIC_TEXT_FALSE_ALARM, startPos, startLine, startColumn);
+      }
       return this._lexTagStart(startPos, startLine, startColumn);
     }
 
