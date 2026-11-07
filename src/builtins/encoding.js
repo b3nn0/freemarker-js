@@ -174,7 +174,7 @@ registerBuiltIn('eval', {
     const src = yield* targetString(target, env, 'eval');
     let exp;
     try {
-      exp = parseExpression(src, env.configuration);
+      exp = parseExpression(src, env.configuration, env.template ? env.template.name : null);
     } catch (e) {
       if (e instanceof TemplateException) throw e;
       // <- keep the sub-parse position (tab-expanded column) in the cause text:
@@ -191,11 +191,13 @@ registerBuiltIn('eval', {
  * Parses a single FTL expression from a string (?eval support).
  * @param {string} source
  * @param {import('../configuration.js').Configuration} cfg
+ * @param {string|null} [templateName] - the template being evaluated in (JVM:
+ *   eval-parsed elements belong to the containing template)
  * @returns {Object} the expression AST node
  * @throws {import('../errors.js').ParseException}
  */
-export function parseExpression(source, cfg) {
-  const p = new Parser(source, cfg, null);
+export function parseExpression(source, cfg, templateName = null) {
+  const p = new Parser(source, cfg, templateName ?? null);
   p.tm.switchTo(LEX.FM_EXPRESSION); // <- like inside "${"
   const exp = p._parseExpression();
   const t = p._peek();

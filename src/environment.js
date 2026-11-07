@@ -68,6 +68,10 @@ export class Environment {
     // <- .template_name / .main_template_name always report the root template,
     // even after #include / ?interpret switch the current template.
     this._mainTemplate = template;
+    // <- Environment.legacyParent (pre-IcI 2.3.22 getTemplate()): switched by
+    // #include/#import/#nested; drives the deprecated .template_name.
+    this._legacyTemplate = null;
+    this._nsTemplate = template; // template owning the current namespace
     this.configuration = template.configuration;
     this.output = options.out;
     this.dataModel = options.dataModel == null
@@ -146,6 +150,7 @@ export class Environment {
     // <- Template's macros are part of the namespace from the very start.
     for (const m of this.template.macros) {
       m.macroModel.defTemplate = this.template;
+      m.macroModel.defNsTemplate = this.template;
       if (!this._nsScope.has(m.name)) this._nsScope.set(m.name, m.macroModel);
     }
     yield* this.visit(this.rootElement);

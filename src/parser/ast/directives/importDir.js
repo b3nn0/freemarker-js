@@ -43,17 +43,24 @@ export class ImportDirective extends TemplateElement {
     // <- initializeImportLibNamespace(): currentNamespace = new ns, out = NullWriter.
     for (const m of template.macros) {
       m.macroModel.defTemplate = template;
+      m.macroModel.defNsTemplate = template;
       ns.source.set(m.name, m.macroModel);
     }
     const prevOut = env.output;
     const prevNs = env._nsScope;
+    const prevLegacy = env._legacyTemplate;
+    const prevNsTemplate = env._nsTemplate;
     env.output = new StringWriter();
     env._nsScope = ns.source;
+    env._legacyTemplate = template.name ?? null;
+    env._nsTemplate = template;
     try {
       yield* env.visit(template.rootElement);
     } finally {
       env.output = prevOut;
       env._nsScope = prevNs;
+      env._legacyTemplate = prevLegacy;
+      env._nsTemplate = prevNsTemplate;
     }
     return null;
   }

@@ -36,11 +36,14 @@ export class InterpretModel {
       env._nsScope.set(m.name, m.macroModel);
     }
     const savedTemplate = env.template;
+    const savedLegacy = env._legacyTemplate;
     env.template = this.template;
+    env._legacyTemplate = this.template.name ?? null;
     try {
       yield* env.visit(this.template.rootElement);
     } finally {
       env.template = savedTemplate;
+      env._legacyTemplate = savedLegacy;
       for (const [k, v] of saved) {
         if (v === null) env._nsScope.delete(k);
         else env._nsScope.set(k, v);
@@ -111,9 +114,8 @@ registerBuiltIn('interpret', {
 function parseInterpretation(env, src, explicitName) {
   // <- InterpretBI: the sub-template name chains onto the parent template name
   // ("parent->anonymous_interpreted"), so .current_template_name is traceable.
-  const parentName = env.template && env.template.name != null ? env.template.name : null;
-  const name = (parentName !== null ? parentName + '->' : '')
-    + (explicitName !== null ? explicitName : 'anonymous_interpreted');
+  const parentName = env.template && env.template.name != null ? env.template.name : 'nameless_template';
+  const name = parentName + '->' + (explicitName !== null ? explicitName : 'anonymous_interpreted');
   try {
     return env.buildTemplate(name, src);
   } catch (e) {

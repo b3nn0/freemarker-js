@@ -150,6 +150,12 @@ export class NestedInstruction extends TemplateElement {
     // body's template, and calls inside the body are attributed to it).
     const prevMacroCtx = env._macroCtx;
     env._macroCtx = prevMacroCtx === null ? null : prevMacroCtx.prev;
+    // <- invokeNestedContent: legacyParent = the template owning the current
+    // namespace, i.e. the namespace in effect when the running macro was called.
+    const nsTemplate = prevMacroCtx !== null ? prevMacroCtx.callSiteNsTemplate : null;
+    const prevLegacy = env._legacyTemplate;
+    env._legacyTemplate = nsTemplate !== null && nsTemplate !== undefined
+      ? (nsTemplate.name ?? null) : (this.templateName ?? null);
     if (ctx.bodyParamNames !== null && ctx.bodyParamNames.length > 0) {
       const ps = new Map();
       const fb = env.configuration.getFallbackOnNullLoopVariable();
@@ -165,6 +171,7 @@ export class NestedInstruction extends TemplateElement {
       for (const c of ctx.bodyChildren) yield* env.visit(c);
     } finally {
       env._macroCtx = prevMacroCtx;
+      env._legacyTemplate = prevLegacy;
       env._scopes.length = 0;
       env._scopes.push(...macroView);
     }

@@ -67,6 +67,7 @@ export class MacroModel extends TemplateModel {
     this.isMacroLike = !macroDef.isFunction;
     this.isFunctionModel = macroDef.isFunction;
     this.defTemplate = null; // set when the model is seeded into a namespace
+    this.defNsTemplate = null; // template owning the namespace the model was seeded into
   }
 
   // <- Environment.invokeMacroOrFunctionCommonPart + Macro.accept
@@ -159,6 +160,12 @@ export class MacroModel extends TemplateModel {
     env._macroCtx = {
       callTemplate: env._macroCtx !== null ? env._macroCtx.codeTemplate : (env.template ?? null),
       codeTemplate: this.defTemplate ?? null,
+      // <- Environment.pushMacroContext: currentNamespace = the macro's namespace;
+      // its template drives the legacy parent for #nested content.
+      nsTemplate: this.defNsTemplate ?? this.defTemplate ?? null,
+      // <- Macro.Context.nestedContentNamespace = currentNamespace at call time
+      callSiteNsTemplate: env._macroCtx !== null ? env._macroCtx.nsTemplate
+        : (env._nsTemplate ?? null),
       prev: prevMacroCtx,
     };
     try {

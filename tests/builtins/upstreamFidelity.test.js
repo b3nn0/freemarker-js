@@ -1711,3 +1711,80 @@ describe('Upstream CallerTemplateNameTest (ported)', () => {
       TemplateException, ['Expected a hash']);
   });
 });
+
+describe('Upstream TemplateNameSpecialVariablesTest (ported)', () => {
+  const mk = (specVar) => {
+    const files = {
+      'main.ftl': "In main: ${" + specVar + "}\n<#import 'imp.ftl' as i>In imp: ${inImp}\nIn main: ${"
+        + specVar + "}\n<@i.impM>${" + specVar + "}</@>\n<@i.impM2 />\nIn main: ${" + specVar
+        + "}\n<#include 'inc.ftl'>In main: ${" + specVar + "}\n<@incM>${" + specVar
+        + "}</@>\n<@incM2 />\nIn main: ${" + specVar + "}\n",
+      'imp.ftl': "<#global inImp = " + specVar + "><#macro impM>${" + specVar + "}\n{<#nested>}</#macro>"
+        + "<#macro impM2>In imp call imp:\n<@impM>${" + specVar + "}</@>\nAfter: ${" + specVar + "}</#macro>",
+      'inc.ftl': "In inc: ${" + specVar + "}\nIn inc call imp:\n<@i.impM>${" + specVar + "}</@>"
+        + "<#macro incM>${" + specVar + "}\n{<#nested>}</#macro><#macro incM2>In inc call imp:\n"
+        + "<@i.impM>${" + specVar + "}</@></#macro>",
+    };
+    const c = new Configuration();
+    c.setWhitespaceStripping(false);
+    c.setIncludeResolver((n) => files[n] ?? null);
+    return new Template('main.ftl', files['main.ftl'], c).processToString({});
+  };
+  it("deprecated .template_name follows the legacy parent (IcI 2.3.23+)", async () => {
+    snapshot(await mk('.templateName'), "In main: main.ftl\nIn imp: imp.ftl\nIn main: main.ftl\nmain.ftl\n{main.ftl}\nIn imp call imp:\nmain.ftl\n{imp.ftl}\nAfter: main.ftl\nIn main: main.ftl\nIn inc: inc.ftl\nIn inc call imp:\ninc.ftl\n{main.ftl}In main: main.ftl\nmain.ftl\n{main.ftl}\nIn inc call imp:\nmain.ftl\n{main.ftl}\nIn main: main.ftl\n");
+  });
+  it(".main_template_name is always the main template", async () => {
+    snapshot(await mk('.mainTemplateName'), "In main: main.ftl\nIn imp: main.ftl\nIn main: main.ftl\nmain.ftl\n{main.ftl}\nIn imp call imp:\nmain.ftl\n{main.ftl}\nAfter: main.ftl\nIn main: main.ftl\nIn inc: main.ftl\nIn inc call imp:\nmain.ftl\n{main.ftl}In main: main.ftl\nmain.ftl\n{main.ftl}\nIn inc call imp:\nmain.ftl\n{main.ftl}\nIn main: main.ftl\n");
+  });
+  it(".current_template_name follows the defining template", async () => {
+    snapshot(await mk('.currentTemplateName'), "In main: main.ftl\nIn imp: imp.ftl\nIn main: main.ftl\nimp.ftl\n{main.ftl}\nIn imp call imp:\nimp.ftl\n{imp.ftl}\nAfter: imp.ftl\nIn main: main.ftl\nIn inc: inc.ftl\nIn inc call imp:\nimp.ftl\n{inc.ftl}In main: main.ftl\ninc.ftl\n{main.ftl}\nIn inc call imp:\nimp.ftl\n{inc.ftl}\nIn main: main.ftl\n");
+  });
+  it('nameless and named ad-hoc templates', async () => {
+    const P = "t=${.templateName}, ct=${.currentTemplateName!'-'}, mt=${.mainTemplateName!'-'}";
+    const run = async (name, src) => {
+      const c = new Configuration();
+      c.setWhitespaceStripping(false);
+      c.setIncludeResolver((n) => ({ 'inc.ftl': 'Inc: ' + P }[n] ?? null));
+      return new Template(name, src, c).processToString({});
+    };
+    snapshot(await run(null, P + "; <#include 'inc.ftl'>"),
+      't=, ct=-, mt=-; Inc: t=inc.ftl, ct=inc.ftl, mt=-');
+    snapshot(await run('foo.ftl', P + "; <#include 'inc.ftl'>"),
+      't=foo.ftl, ct=foo.ftl, mt=foo.ftl; Inc: t=inc.ftl, ct=inc.ftl, mt=foo.ftl');
+  });
+  it('interpreted template names chain onto the parent', async () => {
+    const P = "t=${.templateName}, ct=${.currentTemplateName!'-'}, mt=${.mainTemplateName!'-'}";
+    const run = async (name, src) =>
+      new Template(name, src, new Configuration()).processToString({ t: P });
+    snapshot(await run('foo.ftl', P + '; <@t?interpret />'),
+      't=foo.ftl, ct=foo.ftl, mt=foo.ftl; '
+      + 't=foo.ftl->anonymous_interpreted, ct=foo.ftl->anonymous_interpreted, mt=foo.ftl');
+    snapshot(await run(null, P + '; <@t?interpret />'),
+      't=, ct=-, mt=-; '
+      + 't=nameless_template->anonymous_interpreted, ct=nameless_template->anonymous_interpreted, mt=-');
+    snapshot(await run('foo.ftl', P + "; <@[t,'bar']?interpret />"),
+      't=foo.ftl, ct=foo.ftl, mt=foo.ftl; t=foo.ftl->bar, ct=foo.ftl->bar, mt=foo.ftl');
+  });
+  it('macro args evaluate in the call-site template (IcI 2.3.28+)', async () => {
+    const c = new Configuration();
+    c.setIncludeResolver((n) => ({
+      'inc.ftl': "<#macro m p1 p2=.currentTemplateName>p1: ${p1}\np2: ${p2}\nInside: "
+        + "${.currentTemplateName}\n<#nested .currentTemplateName></#macro>",
+    }[n] ?? null));
+    const src = "<#include 'inc.ftl'>Before: ${.currentTemplateName}\n<@m p1=.currentTemplateName; x>"
+      + "Loop var: ${x}\nIn nested: ${.currentTemplateName}\n</@>After: ${.currentTemplateName}";
+    snapshot(await new Template('main.ftl', src, c).processToString({}),
+      'Before: main.ftl\np1: main.ftl\np2: inc.ftl\nInside: inc.ftl\nLoop var: inc.ftl\n'
+      + 'In nested: main.ftl\nAfter: main.ftl');
+  });
+  it('function args evaluate in the call-site template (IcI 2.3.28+)', async () => {
+    const c = new Configuration();
+    c.setIncludeResolver((n) => ({
+      'inc.ftl': "<#function f(p1, p2=.currentTemplateName)><#return 'p1=${p1}, p2=${p2}, "
+        + "inside=${.currentTemplateName}'></#function>",
+    }[n] ?? null));
+    const src = "<#include 'inc.ftl'>${f(.currentTemplateName)}";
+    snapshot(await new Template('main.ftl', src, c).processToString({}),
+      'p1=main.ftl, p2=inc.ftl, inside=inc.ftl');
+  });
+});

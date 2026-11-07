@@ -95,10 +95,22 @@ export class BuiltinVariable extends Expression {
       throw new InvalidReferenceException(
         'The "args" special variable is only available inside a macro or function.');
     }
-    if (this.name === 'template_name' || this.name === 'current_template_name'
-      || this.name === 'main_template_name') {
-      const t = this.name === 'current_template_name' ? env.template : (env._mainTemplate ?? env.template);
-      return t && t.name !== null ? new StringModel(t.name) : null;
+    if (this.name === 'template_name') {
+      // <- Environment.getTemplate230(): the legacy parent template, switched at
+      // #include/#import/#nested but not at macro/function calls; the deprecated
+      // variable prints "" for a nameless template.
+      const fallback = env._mainTemplate ?? env.template;
+      const n = env._legacyTemplate ?? ((fallback && fallback.name != null) ? fallback.name : '');
+      return new StringModel(n === null ? '' : n);
+    }
+    if (this.name === 'current_template_name') {
+      // <- Environment.getCurrentTemplate(): the template this element was parsed
+      // from (macro bodies follow the definition site; nested bodies the call site).
+      return this.templateName != null ? new StringModel(this.templateName) : null;
+    }
+    if (this.name === 'main_template_name') {
+      const t = env._mainTemplate ?? env.template;
+      return t && t.name != null ? new StringModel(t.name) : null;
     }
     if (this.name === 'vars' || this.name === 'globals') return new VarsModel(env);
     if (this.name === 'namespace' || this.name === 'main') return new NamespaceModel(env);

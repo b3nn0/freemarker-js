@@ -84,14 +84,18 @@ export class IncludeDirective extends TemplateElement {
     // namespace from this point on (visible in the including template).
     for (const m of included.macros) {
       m.macroModel.defTemplate = included;
+      m.macroModel.defNsTemplate = env._nsTemplate ?? env._mainTemplate ?? included;
       if (!env._nsScope.has(m.name)) env._nsScope.set(m.name, m.macroModel);
     }
     const savedTemplate = env.template;
+    const savedLegacy = env._legacyTemplate;
     env.template = included;
+    env._legacyTemplate = included.name ?? null;
     try {
       yield* env.visit(included.rootElement); // <- visit as single element
     } finally {
       env.template = savedTemplate;
+      env._legacyTemplate = savedLegacy;
     }
     return null;
   }
