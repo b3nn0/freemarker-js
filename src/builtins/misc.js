@@ -4,7 +4,7 @@
 
 import { registerBuiltIn } from './registry.js';
 import {
-  BuiltinArgMethod, argCntError, sequenceItems, nonSequenceError,
+  BuiltinArgMethod, argCntError, stringMethodArg, sequenceItems, nonSequenceError,
 } from './common.js';
 import {
   StringModel, NumberModel, BooleanModel, DateModel, HashModel, SequenceModel,
@@ -329,6 +329,71 @@ registerBuiltIn('values', {
     if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('values', target, env);
     // raw values are wrapped lazily by the sequence model (async-capable raw values)
     return new SequenceModel(yield* awaitOp('hash values', target.values()), env.configuration.getObjectWrapper());
+  },
+});
+
+// ---- absolute_template_name (BuiltInsForStringsMisc.absolute_template_nameBI) ----
+
+/**
+ * <- TemplateNameFormat.Default020300.toRootBasedName + rootBasedNameToAbsoluteName
+ * @param {string|null} base - base template name, null for nameless templates
+ * @param {string} target - the name to resolve
+ * @returns {string} the absolute (slash-or-scheme-prefixed) template name
+ */
+function absoluteTemplateName(base, target) {
+  let rootBased;
+  if (base === null || base === undefined) {
+    rootBased = target;
+  } else if (target.indexOf('://') > 0) {
+    rootBased = target;
+  } else if (target.startsWith('/')) {
+    const schemeSepIdx = base.indexOf('://');
+    rootBased = schemeSepIdx > 0
+      ? base.slice(0, schemeSepIdx + 2) + target
+      : target.slice(1);
+  } else {
+    let dir = base;
+    if (!dir.endsWith('/')) dir = dir.slice(0, dir.lastIndexOf('/') + 1);
+    rootBased = dir + target;
+  }
+  if (rootBased.indexOf('://') > 0) return rootBased;
+  return rootBased.startsWith('/') ? rootBased : '/' + rootBased;
+}
+
+/**
+ * The BI result is both a scalar (resolved against the current template's name)
+ * and a 1-arg method (resolved against the given base name).
+ * <- AbsoluteTemplateNameResult
+ */
+class AbsoluteTemplateNameResult extends StringModel {
+  /** @param {string} value @param {string} target - unresolved original name */
+  constructor(value, target) {
+    super(value);
+    this.target = target;
+  }
+  /**
+   * @param {import('../environment.js').Environment} env
+   * @param {unknown[]} args - unwrapped plain JS values
+   * @returns {import('../model/models.js').StringModel}
+   */
+  * exec(env, args) {
+    if (args.length !== 1) throw argCntError('absolute_template_name', args.length, 1, 1);
+    return new StringModel(absoluteTemplateName(stringMethodArg(args[0], env), this.target));
+  }
+}
+
+registerBuiltIn('absolute_template_name', {
+  /**
+     * @param {import('../model/templateModel.js').TemplateModel} target
+     * @param {Array<Object>|null} args - unevaluated argument expressions
+     * @param {import('../environment.js').Environment} env
+     * @returns {import('../model/templateModel.js').TemplateModel}
+     */
+  * impl(target, args, env) {
+    guardMarkupTarget(target, env, 'absolute_template_name');
+    const s = yield* env.coerceToString(target, ' for the "?absolute_template_name" built-in');
+    const base = env.template ? env.template.name : null;
+    return new AbsoluteTemplateNameResult(absoluteTemplateName(base, s), s);
   },
 });
 

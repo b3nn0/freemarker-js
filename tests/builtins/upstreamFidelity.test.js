@@ -1535,3 +1535,33 @@ describe('Upstream SwitchTest (ported)', () => {
     '[\n      C1\n]\n[\n      C2\n]\n[\n      D\n]\n');
   });
 });
+
+// Upstream AbsoluteTemplateNameBITest (ported): ?absolute_template_name with
+// and without an explicit base name, JVM-pinned byte-identical via Drv81.
+describe('Upstream AbsoluteTemplateNameBITest (ported)', () => {
+  const run = (name, src) => new Template(name, src, new Configuration()).processToString({});
+  it('basics against the current (dir-less) template name', async () => {
+    for (const [src, exp] of [["'a/b'?", '/a/b'], ["'a/b/'?", '/a/b/'],
+      ["'foo://a/b'?", 'foo://a/b'], ["'/a/b'?", '/a/b']]) {
+      snapshot(await run('t', '${' + src.replace('?', '?absolute_template_name') + '}'), exp);
+    }
+  });
+  it('basics against the named template dir/f', async () => {
+    for (const [src, exp] of [["'a/b'", '/dir/a/b'], ["'a/b/'", '/dir/a/b/'],
+      ["'foo://a/b'", 'foo://a/b'], ["'/a/b'", '/a/b']]) {
+      snapshot(await run('dir/f', '${' + src + '?absolute_template_name}'), exp);
+    }
+  });
+  it('explicit base names', async () => {
+    for (const base of ['dir/f', '/dir/f', 'dir/', '/dir/']) {
+      for (const [src, exp] of [["'a/b'", '/dir/a/b'], ["'a/b/'", '/dir/a/b/'],
+        ["'foo://a/b'", 'foo://a/b'], ["'/a/b'", '/a/b']]) {
+        snapshot(await run('t', "${" + src + "?absolute_template_name('" + base + "')}"), exp);
+      }
+    }
+    for (const [src, exp] of [["'a/b'", 'schema://dir/a/b'], ["'a/b/'", 'schema://dir/a/b/'],
+      ["'foo://a/b'", 'foo://a/b'], ["'/a/b'", 'schema://a/b']]) {
+      snapshot(await run('t', "${" + src + "?absolute_template_name('schema://dir/f')}"), exp);
+    }
+  });
+});
