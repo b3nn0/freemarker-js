@@ -1,10 +1,10 @@
-// ← Macro / MacroModel (#macro, #function). ← freemarker.core.Macro
+// <- Macro / MacroModel (#macro, #function). <- freemarker.core.Macro
 
 import { TemplateElement } from '../templateElement.js';
 import { HashModel } from '../../../model/models.js';
 import { InvalidReferenceException, ReturnInstructionException } from '../../../errors.js';
 
-/** #macro / #function ← Macro. */
+/** #macro / #function <- Macro. */
 export class Macro extends TemplateElement {
   // params: [{ name, defaultExp|null }]; catchAllName: string|null
   /**
@@ -30,12 +30,12 @@ export class Macro extends TemplateElement {
    * @returns {null}
    */
   * execute(env) {
-    // Registration happens at parse time (← Parser.Macro(): template.addMacro); at
+    // Registration happens at parse time (<- Parser.Macro(): template.addMacro); at
     // render start the Environment seeds them into the namespace.
     return null;
   }
 
-  // ← Macro.dump: macros list space-separated params without parens;
+  // <- Macro.dump: macros list space-separated params without parens;
   // functions use parens and commas.
   /** @returns {string} */
   _paramsCanonical() {
@@ -57,7 +57,7 @@ export class Macro extends TemplateElement {
   }
 }
 
-/** A #macro as a callable value ← MacroModel. */
+/** A #macro as a callable value <- MacroModel. */
 export class MacroModel {
   /** @param {Macro} macroDef */
   constructor(macroDef) {
@@ -66,7 +66,7 @@ export class MacroModel {
     this.isFunctionModel = macroDef.isFunction;
   }
 
-  // ← Environment.invokeMacroOrFunctionCommonPart + Macro.accept
+  // <- Environment.invokeMacroOrFunctionCommonPart + Macro.accept
   * invoke(env, { positionalArgs = [], namedArgs = new Map(), bodyChildren = null,
     bodyParamNames = null }) {
     const def = this.macroDef;
@@ -114,14 +114,14 @@ export class MacroModel {
       }
     }
 
-    // ← Environment.pushMacroContext: a macro body sees only its own scope (plus
+    // <- Environment.pushMacroContext: a macro body sees only its own scope (plus
     // the namespace / data model), never the caller's loop/macro scopes.
     const callerScopes = env._scopes.slice();
     env._scopes.length = 0;
     env._scopes.push(scope);
     env._macroCallStack.push({ callerScopes, bodyChildren, bodyParamNames });
     try {
-      // ← Macro.java:274-288: default values are evaluated once the earlier
+      // <- Macro.java:274-288: default values are evaluated once the earlier
       // parameters are already set in the macro scope.
       for (const p of def.params) {
         if (!used.has(p.name)) {
@@ -156,5 +156,5 @@ export class MacroModel {
   }
 }
 
-// ← getFirstLeaf/getLastLeaf stop at Macro (treated as leaf for whitespace scans)
+// <- getFirstLeaf/getLastLeaf stop at Macro (treated as leaf for whitespace scans)
 Macro.prototype._whitespaceScanLeaf = true;

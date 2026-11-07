@@ -27,7 +27,7 @@ import { callOp, awaitOp } from './async.js';
 
 /**
  * The render-time state of a single template processing run; everything mutable
- * lives here (no module-global state). ← freemarker.core.Environment
+ * lives here (no module-global state). <- freemarker.core.Environment
  */
 export class Environment {
   /**
@@ -46,14 +46,14 @@ export class Environment {
     this.includeResolver = options.includeResolver ?? null;
     this.elementStack = [];
     this._scopes = []; // loop/macro scopes; innermost wins on read
-    this._nsScope = new Map(); // current template namespace ← #assign target
+    this._nsScope = new Map(); // current template namespace <- #assign target
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
     this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
-    this.loadedLibs = new Map(); // imported-template namespaces ← Environment.loadedLibs
-    // ← Environment.outputFormat (built-ins consult it; interpolations carry
+    this.loadedLibs = new Map(); // imported-template namespaces <- Environment.loadedLibs
+    // <- Environment.outputFormat (built-ins consult it; interpolations carry
     // their own parse-time binding instead)
     this.outputFormat = template.outputFormat ?? this.configuration.getOutputFormat();
-    // ← Environment settings layer (Configurable parent = the Configuration);
+    // <- Environment settings layer (Configurable parent = the Configuration);
     // #setting mutates this copy (no automatic restore, like upstream 2.3).
     const cfg = this.configuration;
     this._settings = {
@@ -71,7 +71,7 @@ export class Environment {
     };
   }
 
-  // ← Configurable.setSetting, restricted to the subset this port supports.
+  // <- Configurable.setSetting, restricted to the subset this port supports.
   /**
    * @param {string} name - setting name as written in #setting
    * @param {string} value - the evaluated string value
@@ -94,7 +94,7 @@ export class Environment {
     else if (name === 'output_encoding' || name === 'outputEncoding') s.outputEncoding = value; // inert
     else if (name === 'url_escaping_charset' || name === 'urlEscapingCharset') s.urlEscapingCharset = value; // inert
     else if (name === 'classic_compatible' || name === 'classicCompatible') {
-      // inert in this port; still parsed ← Configurable.setSetting
+      // inert in this port; still parsed <- Configurable.setSetting
       const isNum = [...value].some((c) => c >= '0' && c <= '9');
       s.classicCompatible = value === 'true' || (isNum && Number(value) !== 0);
     } else if (name === 'sql_date_and_time_time_zone' || name === 'sqlDateAndTimeTimeZone') {
@@ -109,7 +109,7 @@ export class Environment {
    * @returns {Generator<unknown, void, unknown>}
    */
   * process() {
-    // ← Template's macros are part of the namespace from the very start.
+    // <- Template's macros are part of the namespace from the very start.
     for (const m of this.template.macros) {
       if (!this._nsScope.has(m.name)) this._nsScope.set(m.name, m.macroModel);
     }
@@ -170,8 +170,8 @@ export class Environment {
   // ---- template references (#include / #import) ----
 
   /**
-   * Resolves a template's source text via the includeResolver. ← TemplateLoader.getSource
-   * (the resolver may return a Promise; awaited in async mode — generator form).
+   * Resolves a template's source text via the includeResolver. <- TemplateLoader.getSource
+   * (the resolver may return a Promise; awaited in async mode -- generator form).
    * @param {string} name
    * @returns {Generator<unknown, string, unknown>} source text
    */
@@ -201,7 +201,7 @@ export class Environment {
   }
 
   /**
-   * Parse-once per Configuration cache of referenced templates. ← TemplateCache
+   * Parse-once per Configuration cache of referenced templates. <- TemplateCache
    * (keyed by name only in this port - no locale/encoding variants). Parsing
    * itself is always sync; only the source resolution can be async.
    * @param {string} name
@@ -257,7 +257,7 @@ export class Environment {
 
   /**
    * Looks up a variable: innermost scope first, then the template namespace, then
-   * the data model. ← Environment.getVariable
+   * the data model. <- Environment.getVariable
    * @param {string} name
    * @returns {Generator<unknown, TemplateModel|null, unknown>}
    */
@@ -270,8 +270,8 @@ export class Environment {
   }
 
   /**
-   * Assignment.visit scope rules: global → data model (unwrapped); namespace → the
-   * template namespace; local → the innermost macro scope.
+   * Assignment.visit scope rules: global -> data model (unwrapped); namespace -> the
+   * template namespace; local -> the innermost macro scope.
    * @param {string} name
    * @param {TemplateModel|null} model - null clears/holds the null value
    * @param {'namespace'|'global'|'local'} scope
@@ -302,7 +302,7 @@ export class Environment {
   }
 
   /**
-   * Shared comparison ← ComparisonExpression.visit + #case/#on matching (M16 refines).
+   * Shared comparison <- ComparisonExpression.visit + #case/#on matching (M16 refines).
    * Generator form: the protocol getters may come from user models (async-capable).
    * @param {TemplateModel} l
    * @param {TemplateModel} r
@@ -392,7 +392,7 @@ export class Environment {
   }
 
   /**
-   * ← Environment.formatNumberModel with the env number_format setting.
+   * <- Environment.formatNumberModel with the env number_format setting.
    * @param {number} v
    * @param {{ minFrac?: number, maxFrac?: number }} [fracOpts] - from #{exp;mN}
    * @param {string|null} [formatString] - explicit (?string(fmt)); null = default
@@ -403,7 +403,7 @@ export class Environment {
   }
 
   /**
-   * ← BooleanFormat: a "true,false"-style comma-separated pair, or "c".
+   * <- BooleanFormat: a "true,false"-style comma-separated pair, or "c".
    * @param {boolean} v
    * @param {string|null} [formatString] - override (from ?string(fmt))
    * @returns {string}
@@ -414,7 +414,7 @@ export class Environment {
   }
 
   /**
-   * ← Environment.formatDateFormatModel with the env date/time/datetime formats.
+   * <- Environment.formatDateFormatModel with the env date/time/datetime formats.
    * @param {Date} d
    * @param {number} [dateType] - DateModel.DATE / TIME / DATE_TIME
    * @param {string|null} [formatString] - explicit (?string("x")); null = default
@@ -430,7 +430,7 @@ export class Environment {
 }
 
 /**
- * ← Configurable.parseBooleanFormat: "a,b" or "c"/"true,false" defaults.
+ * <- Configurable.parseBooleanFormat: "a,b" or "c"/"true,false" defaults.
  * @param {string} booleanFormat
  * @returns {[string, string]}
  * @throws {import('./errors.js').InvalidSettingException}

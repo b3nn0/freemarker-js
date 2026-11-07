@@ -20,9 +20,9 @@ Reference: HEAD `a422783`, suite 406 green.
   `#compress` implemented at string level (not writer stack); interpolation
   output-format/auto-esc bound at parse time with the runtime `env.outputFormat` stack
   only serving `?no_esc`/legacy bypass; `?interpret` would need the upstream writer
-  stack — flag before porting it.
+  stack -- flag before porting it.
 
-## B. Fidelity risks (no differential testing — no JVM in this environment)
+## B. Fidelity risks (no differential testing -- no JVM in this environment)
 
 - [ ] **B1. Error message texts are approximations** of upstream style, never compared
   against real 2.3.36 output. Rare-path divergence plausible (operator-precedence
@@ -42,7 +42,7 @@ Reference: HEAD `a422783`, suite 406 green.
   MarkupModel concatenation in expressions; RTF/CSS/JSON output formats;
   `?new`, `?api`, XML/DOM models, `#visit/#recurse`, `classic_compatible`
   (parse-accepted but inert), TemplateLoader/relative names, `#include parse=false`.
-- [ ] **B6. Auto-escaping off by default** (Undefined format — faithful to 2.3, but a
+- [ ] **B6. Auto-escaping off by default** (Undefined format -- faithful to 2.3, but a
   security foot-gun). Consider a loud README warning + recommended
   `cfg.setOutputFormat('HTML')` snippet.
 
@@ -51,7 +51,7 @@ Reference: HEAD `a422783`, suite 406 green.
 - [ ] **C1. Format patterns re-parsed on every output.** Every
   `${x?string("#,##0")}` / date output inside a loop calls `parseNumberPattern` /
   date-pattern parsing per iteration. Add a per-Configuration (or env) cache:
-  format-string → parsed pattern/printer. Biggest single win; the 26 ms / 10k
+  format-string -> parsed pattern/printer. Biggest single win; the 26 ms / 10k
   iteration benchmark already contains this waste.
 - [ ] **C2. Micro:** date formatting allocates per-field; number formatting does
   `toFixed` + manual grouping loop. Fine at current scale; revisit only with real
@@ -60,10 +60,10 @@ Reference: HEAD `a422783`, suite 406 green.
 ## D. Polish leftovers
 
 - [ ] **D1. JSDoc quality**: coverage is 100% (checker-enforced), but several parser
-  docs are generic (`@returns {Object}`); a few `// ← FTL.jj ...` comments are now
+  docs are generic (`@returns {Object}`); a few `// <- FTL.jj ...` comments are now
   duplicated directly above the equivalent new JSDoc line. Tighten opportunistically.
 - [x] **D2. Repo hygiene**: stray `core.*` crash dumps were silently committed at M9
-  and removed at M17 — `git add -A` swept them for 8 milestones. Add a `.gitignore`
+  and removed at M17 -- `git add -A` swept them for 8 milestones. Add a `.gitignore`
   (`core.*`, `*.log`, editor cruft) so it cannot recur.
 - [ ] **D3. Test-suite gaps to fill while touching the above**: no tests for
   `?sort` non-ASCII ordering, no canonical-form sweep over all node types (spot

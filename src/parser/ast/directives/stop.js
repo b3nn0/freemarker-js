@@ -1,10 +1,10 @@
-// ← freemarker.core.StopInstruction (#stop) and FlushInstruction (#flush).
+// <- freemarker.core.StopInstruction (#stop) and FlushInstruction (#flush).
 
 import { TemplateElement } from '../templateElement.js';
 import { StopException } from '../../../errors.js';
 
 /**
- * `#stop` / `#stop messageExp` — aborts processing with a StopException.
+ * `#stop` / `#stop messageExp` -- aborts processing with a StopException.
  */
 export class StopInstruction extends TemplateElement {
   /**
@@ -20,7 +20,7 @@ export class StopInstruction extends TemplateElement {
    * @returns {null}
    */
   * execute(env) {
-    // ← StopException.printStackTrace: "Encountered stop instruction" + "Cause given:".
+    // <- StopException.printStackTrace: "Encountered stop instruction" + "Cause given:".
     if (this.exp === null) throw new StopException('Encountered stop instruction');
     const msg = yield* env.coerceToString(yield* this.exp.evaluate(env), ' used as the #stop message');
     throw new StopException(`Encountered stop instruction\nCause given: ${msg}`);
@@ -35,7 +35,7 @@ export class StopInstruction extends TemplateElement {
 }
 
 /**
- * `#flush` — a no-op for in-memory writers (still calls Writer.flush()).
+ * `#flush` -- a no-op for in-memory writers (still calls Writer.flush()).
  */
 export class FlushInstruction extends TemplateElement {
   /**

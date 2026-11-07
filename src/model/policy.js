@@ -1,6 +1,6 @@
-// Zero-argument function-property handling ← ZeroArgumentNonVoidMethodPolicy,
+// Zero-argument function-property handling <- ZeroArgumentNonVoidMethodPolicy,
 // simplified to one knob for all model sources (no record/class split, no
-// getX/isX bean-reader carve-out — Java artifacts; see UPSTREAM.md).
+// getX/isX bean-reader carve-out -- Java artifacts; see UPSTREAM.md).
 
 /**
  * How a hash value that is a zero-argument JS function (e.g. a method stored on a
@@ -14,7 +14,7 @@
 export const ZeroArgumentPolicy = Object.freeze({
   /**
    * Default. A bare property read of a 0-arg function auto-invokes it with no
-   * arguments and yields its (wrapped) return value: `${h.x}` ≡ `${h.x()}` for
+   * arguments and yields its (wrapped) return value: `${h.x}` == `${h.x()}` for
    * `x() {}` (async returns are awaited in async mode). The function itself is
    * not reachable as a value through such a read. Applies uniformly to plain
    * objects, Maps, and class instances (no Java record/bean-name carve-outs).

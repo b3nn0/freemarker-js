@@ -1,4 +1,4 @@
-// <#t> / <#lt> / <#rt> / <#nt> ← freemarker/core/TrimInstruction.java (parse-time only).
+// <#t> / <#lt> / <#rt> / <#nt> <- freemarker/core/TrimInstruction.java (parse-time only).
 
 import { TemplateElement } from '../templateElement.js';
 
@@ -43,7 +43,7 @@ export class TrimInstruction extends TemplateElement {
 
   /**
    * @param {boolean} stripWhitespace
-   * @returns {boolean} always true ← TrimInstruction.isIgnorable
+   * @returns {boolean} always true <- TrimInstruction.isIgnorable
    */
   isIgnorable(stripWhitespace) {
     return true;

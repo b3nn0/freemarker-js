@@ -1,9 +1,9 @@
-// Literal nodes ← NumberLiteral, StringLiteral, BooleanLiteral, ListLiteral, HashLiteral.
+// Literal nodes <- NumberLiteral, StringLiteral, BooleanLiteral, ListLiteral, HashLiteral.
 
 import { Expression } from './expression.js';
 import { ftlQuote } from '../../../utility/stringUtil.js';
 
-/** Number literal ← NumberLiteral. */
+/** Number literal <- NumberLiteral. */
 export class NumberLiteral extends Expression {
   /** @param {number} value */
   constructor(value) {
@@ -25,7 +25,7 @@ export class NumberLiteral extends Expression {
   }
 }
 
-/** String literal ← StringLiteral. */
+/** String literal <- StringLiteral. */
 export class StringLiteral extends Expression {
   /** @param {string} value */
   constructor(value) {
@@ -47,7 +47,7 @@ export class StringLiteral extends Expression {
   }
 }
 
-/** Boolean literal ← BooleanLiteral. */
+/** Boolean literal <- BooleanLiteral. */
 export class BooleanLiteral extends Expression {
   /** @param {boolean} value */
   constructor(value) {
@@ -69,7 +69,7 @@ export class BooleanLiteral extends Expression {
   }
 }
 
-/** List literal ← ListLiteral. */
+/** List literal <- ListLiteral. */
 export class ListLiteral extends Expression {
   /** @param {Expression[]} items */
   constructor(items) {
@@ -93,7 +93,7 @@ export class ListLiteral extends Expression {
   }
 }
 
-/** Hash literal ← HashLiteral. */
+/** Hash literal <- HashLiteral. */
 export class HashLiteral extends Expression {
   /** @param {Expression[]} keys @param {Expression[]} values */
   constructor(keys, values) {

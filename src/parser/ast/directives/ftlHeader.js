@@ -1,4 +1,4 @@
-// <#ftl ...> header ← FTL.jj Root()/HeaderElement() inline production.
+// <#ftl ...> header <- FTL.jj Root()/HeaderElement() inline production.
 
 import { TemplateElement } from '../templateElement.js';
 

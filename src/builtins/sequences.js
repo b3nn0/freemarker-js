@@ -1,5 +1,5 @@
 // Sequence built-ins: ?sort, ?sort_by, ?filter, ?map.
-// ← freemarker.core.BuiltInsForSequences (sortBI 601, sort_byBI 548, filterBI 1051, mapBI 1207)
+// <- freemarker.core.BuiltInsForSequences (sortBI 601, sort_byBI 548, filterBI 1051, mapBI 1207)
 
 import { registerBuiltIn } from './registry.js';
 import { BuiltinArgMethod, sequenceItems, nonSequenceError } from './common.js';
@@ -22,7 +22,7 @@ function keyTypeName(key) {
 }
 
 /**
- * ← BuiltInsForSequences.sortBI.sort: type detection from the 1st key, stable sort.
+ * <- BuiltInsForSequences.sortBI.sort: type detection from the 1st key, stable sort.
  * Deviation: string keys compare by code point (upstream uses the locale Collator).
  * @param {Object[]} items
  * @param {(item: Object, index: number, startError: Function) => Object|null} keyOf
@@ -86,9 +86,9 @@ registerBuiltIn('sort', {
   },
 });
 
-// ← sort_byBI.BIMethod: ?sort_by evaluates to a method called with a string key or
+// <- sort_byBI.BIMethod: ?sort_by evaluates to a method called with a string key or
 // a string sequence key path.
-/** The method model that `?sort_by` evaluates to ← sort_byBI.BIMethod. */
+/** The method model that `?sort_by` evaluates to <- sort_byBI.BIMethod. */
 class SortByMethodModel extends TemplateMethodModel {
   /** @param {Object[]} items - the sequence elements to sort */
   constructor(items) {
@@ -164,7 +164,7 @@ registerBuiltIn('sort_by', {
 
 /**
  * Turns a ?filter/?map argument into an element -> result function
- * ← IntermediateStreamOperationLikeBuiltIn.evalElementTransformerExp.
+ * <- IntermediateStreamOperationLikeBuiltIn.evalElementTransformerExp.
  * @param {Object} argExp - the (unevaluated) argument expression
  * @param {import('../environment.js').Environment} env
  * @param {string} key - built-in name for messages
@@ -196,7 +196,7 @@ function* makeTransformer(argExp, env, key) {
     + `but it evaluated to a ${env.typeLabel(model)}.`);
 }
 
-// ?filter: ← filterBI + FilterLikeBI.elementMatches
+// ?filter: <- filterBI + FilterLikeBI.elementMatches
 registerBuiltIn('filter', {
   acceptsMissing: true,
   /**
@@ -227,7 +227,7 @@ registerBuiltIn('filter', {
   },
 });
 
-// ?map: ← mapBI.fetchAndMapNextElement
+// ?map: <- mapBI.fetchAndMapNextElement
 registerBuiltIn('map', {
   acceptsMissing: true,
   /**
@@ -253,7 +253,7 @@ registerBuiltIn('map', {
   },
 });
 
-// ← BuiltInsForSequences: ?join / ?seq_contains / ?seq_index_of / ?reverse
+// <- BuiltInsForSequences: ?join / ?seq_contains / ?seq_index_of / ?reverse
 // (DirectCallOptimization in upstream: the built-in evaluates to a method, and
 // the "(args)" arrives through MethodCall, like the BIMethod built-ins).
 registerBuiltIn('join', {
@@ -315,7 +315,7 @@ registerBuiltIn('seq_index_of', {
       for (let i = 0; i < items.length; i++) {
         if (yield* e.equals(items[i], needle)) return new NumberModel(i);
       }
-      return null; // ← upstream returns null; outputting it needs an ! or ?if_exists
+      return null; // <- upstream returns null; outputting it needs an ! or ?if_exists
     });
   },
 });

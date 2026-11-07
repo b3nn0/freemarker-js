@@ -1,4 +1,4 @@
-// A block of plain text. ← freemarker/core/TextBlock.java (incl. whitespace stripping).
+// A block of plain text. <- freemarker/core/TextBlock.java (incl. whitespace stripping).
 
 import { TemplateElement } from './templateElement.js';
 import { isTrimmableToEmpty } from '../../utility/stringUtil.js';
@@ -13,7 +13,7 @@ function isWsChar(c) {
   return c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f';
 }
 
-/** Static text ← TextBlock (incl. M13 whitespace-trim state). */
+/** Static text <- TextBlock (incl. M13 whitespace-trim state). */
 export class TextBlock extends TemplateElement {
   /** @param {string} text @param {boolean} [unparsed] */
   constructor(text, unparsed = false) {
@@ -38,7 +38,7 @@ export class TextBlock extends TemplateElement {
     return this.unparsed ? `<#noparse>${this.text}</#noparse>` : this.text;
   }
 
-  // ---- post-parse whitespace stripping ← TextBlock.postParseCleanup ----
+  // ---- post-parse whitespace stripping <- TextBlock.postParseCleanup ----
 
   /**
    * @param {boolean} stripWhitespace
@@ -67,7 +67,7 @@ export class TextBlock extends TemplateElement {
   }
 
   /**
-   * Scans forward the nodes on the same line for a deliberate #t/#lt ← deliberateLeftTrim().
+   * Scans forward the nodes on the same line for a deliberate #t/#lt <- deliberateLeftTrim().
    * @returns {boolean} true suppresses the automatic trailing strip
    */
   _deliberateLeftTrim() {
@@ -101,7 +101,7 @@ export class TextBlock extends TemplateElement {
   }
 
   /**
-   * Scans backward the nodes on the same line for a deliberate #t/#rt ← deliberateRightTrim().
+   * Scans backward the nodes on the same line for a deliberate #t/#rt <- deliberateRightTrim().
    * @returns {boolean} true suppresses the automatic opening strip
    */
   _deliberateRightTrim() {
@@ -173,7 +173,7 @@ export class TextBlock extends TemplateElement {
     return -1;
   }
 
-  /** ← openingCharsToStrip() */
+  /** <- openingCharsToStrip() */
   _openingCharsToStrip() {
     let newlineIndex = this._firstNewLineIndex();
     if (newlineIndex === -1 && this.beginColumn !== 1) return 0;
@@ -192,7 +192,7 @@ export class TextBlock extends TemplateElement {
     return newlineIndex;
   }
 
-  /** ← trailingCharsToStrip() */
+  /** <- trailingCharsToStrip() */
   _trailingCharsToStrip() {
     const lastNewlineIndex = this._lastNewLineIndex();
     if (lastNewlineIndex === -1 && this.beginColumn !== 1) return 0;
@@ -205,13 +205,13 @@ export class TextBlock extends TemplateElement {
     return this.text.length - (lastNewlineIndex + 1);
   }
 
-  /** ← isTopLevelTextIfParentIs */
+  /** <- isTopLevelTextIfParentIs */
   _isTopLevelTextIfParentIs(parentElement) {
     return parentElement == null
       || (parentElement.parent == null && parentElement instanceof MixedContentElements);
   }
 
-  /** ← heedsTrailingWhitespace(): content on the first line → true */
+  /** <- heedsTrailingWhitespace(): content on the first line -> true */
   heedsTrailingWhitespace() {
     if (this.isIgnorable(true)) return false;
     for (let i = 0; i < this.text.length; i++) {
@@ -222,7 +222,7 @@ export class TextBlock extends TemplateElement {
     return true;
   }
 
-  /** ← heedsOpeningWhitespace(): content on the last line → true */
+  /** <- heedsOpeningWhitespace(): content on the last line -> true */
   heedsOpeningWhitespace() {
     if (this.isIgnorable(true)) return false;
     for (let i = this.text.length - 1; i >= 0; i--) {
@@ -233,7 +233,7 @@ export class TextBlock extends TemplateElement {
     return true;
   }
 
-  /** ← isIgnorable(stripWhitespace) */
+  /** <- isIgnorable(stripWhitespace) */
   isIgnorable(stripWhitespace) {
     if (this.text === null || this.text.length === 0) return true;
     if (!stripWhitespace) return false;
@@ -246,7 +246,7 @@ export class TextBlock extends TemplateElement {
       && ((nextSibling === null && atTopLevel) || TextBlock._nonOutputtingType(nextSibling));
   }
 
-  /** ← nonOutputtingType */
+  /** <- nonOutputtingType */
   static _nonOutputtingType(element) {
     return element instanceof Macro
       || element instanceof Assignment

@@ -33,7 +33,7 @@ export class Template {
     const root = parser.parse();
     this.macros = parser.macros;
     this.ftlHeader = parser.headerElement;
-    // ← the template keeps the format/auto-escape state the parser ended with
+    // <- the template keeps the format/auto-escape state the parser ended with
     this.outputFormat = parser.outputFormat;
     this.autoEscaping = parser.autoEscaping;
     if (root.beginLine === -1) {
@@ -93,7 +93,7 @@ export class Template {
   }
 
   /**
-   * Async-capable render into options.out (← deviation from upstream, which is
+   * Async-capable render into options.out (<- deviation from upstream, which is
    * sync; the generator core pumps through runAsync, see async.js).
    * @param {Object|import('./model/templateModel.js').TemplateModel|null} [model]
    * @param {{ out?: import('./io/writer.js').StringWriter, includeResolver?: Function }} [options]

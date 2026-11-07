@@ -1,10 +1,10 @@
-// <#autoesc> / <#noautoesc> blocks ← FTL.jj AutoEscapeBlock / NoAutoEscBlock.
+// <#autoesc> / <#noautoesc> blocks <- FTL.jj AutoEscapeBlock / NoAutoEscBlock.
 // Upstream binds auto-escaping to each interpolation at parse time; these nodes
 // only exist to hold children (their accept() just visits them).
 
 import { TemplateElement } from '../templateElement.js';
 
-/** <#autoesc> ← AutoEscapingBlock (parse-time binding holder). */
+/** <#autoesc> <- AutoEscapingBlock (parse-time binding holder). */
 export class AutoEscBlock extends TemplateElement {
   /** @param {TemplateElement[]} children */
   constructor(children) {
@@ -31,7 +31,7 @@ export class AutoEscBlock extends TemplateElement {
   }
 }
 
-/** <#noautoesc> ← NoAutoEscapingBlock. */
+/** <#noautoesc> <- NoAutoEscapingBlock. */
 export class NoAutoEscBlock extends TemplateElement {
   /** @param {TemplateElement[]} children */
   constructor(children) {

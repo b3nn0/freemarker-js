@@ -1,4 +1,4 @@
-# PLAN.md — milestones (one commit each, suite green at commit)
+# PLAN.md -- milestones (one commit each, suite green at commit)
 
 - [x] M0 scaffold: package.json, dirs, harness (harness.js/cli.mjs/index.html), README, UPSTREAM.md, PLAN.md, .gitignore, git init
 - [x] M1 Writer/StringWriter, Template parse-text-only, TextBlock, processToString

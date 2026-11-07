@@ -1,10 +1,10 @@
-// Date/time formatting ← Environment.getTemplateDateFormat + ISOLikeTemplateDateFormat
+// Date/time formatting <- Environment.getTemplateDateFormat + ISOLikeTemplateDateFormat
 // + JavaTemplateDateFormatFactory (SimpleDateFormat subset) (2.3.36).
 // Locale and time zone handling are not ported (browser-local times; see UPSTREAM.md).
 
 import { InvalidFormatStringException } from '../errors.js';
 
-/** ← TemplateDateModel date types. @type {{ NONE: number, DATE: number, TIME: number, DATE_TIME: number, FULL: number }} */
+/** <- TemplateDateModel date types. @type {{ NONE: number, DATE: number, TIME: number, DATE_TIME: number, FULL: number }} */
 export const DATE_TYPES = { NONE: 0, DATE: 1, TIME: 2, DATE_TIME: 3, FULL: 4 };
 
 /**
@@ -187,7 +187,7 @@ function pad(v, width) {
 /**
  * Formats a date model value: resolves "iso"-prefixed and pattern formats,
  * choosing date_format/time_format/datetime_format when formatString is null.
- * ← Environment.formatDateFormatModel.
+ * <- Environment.formatDateFormatModel.
  * @param {Date} d
  * @param {string|null} formatString - explicit format (?string("x"), #{} has none)
  * @param {number} dateType - DATE_TYPES member

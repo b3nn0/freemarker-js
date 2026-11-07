@@ -123,7 +123,7 @@ describe('Interpolation: coercion errors', () => {
 });
 
 describe('Interpolation: error positions beyond line 1', () => {
-  it('reports the failing expression line/column (← upstream blames the expression)', async () => {
+  it('reports the failing expression line/column (<- upstream blames the expression)', async () => {
     const e = await rejectsMatch(out('a\n\n${x}', {}), UnassignedVariableException);
     ok(e.beginLine === 3, `line ${e.beginLine}`);
     ok(e.beginColumn === 3, `column ${e.beginColumn}`);

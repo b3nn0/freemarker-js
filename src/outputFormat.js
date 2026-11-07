@@ -1,4 +1,4 @@
-// Output formats ← freemarker.core.OutputFormat / MarkupOutputFormat /
+// Output formats <- freemarker.core.OutputFormat / MarkupOutputFormat /
 // UndefinedOutputFormat / PlainTextOutputFormat / HTMLOutputFormat /
 // XHTMLOutputFormat / XMLOutputFormat (2.3.36). RTF/CSS/JSON formats and
 // CombinedMarkupOutputFormat ("{outer{inner}}") are out of scope (see UPSTREAM.md).
@@ -6,7 +6,7 @@
 import { xhtmlEnc, xmlEnc } from './utility/stringUtil.js';
 import { UnregisteredOutputFormatException } from './errors.js';
 
-/** Base: no escaping capability. ← OutputFormat */
+/** Base: no escaping capability. <- OutputFormat */
 export class OutputFormat {
   /** @param {string} name */
   constructor(name) {
@@ -18,7 +18,7 @@ export class OutputFormat {
     return false;
   }
 
-  /** ← OutputFormat.isOutputFormatMixingAllowed() = true */
+  /** <- OutputFormat.isOutputFormatMixingAllowed() = true */
   get isOutputFormatMixingAllowed() {
     return true;
   }
@@ -36,9 +36,9 @@ export class OutputFormat {
   }
 }
 
-/** Output format "Undefined": format-agnostic. ← UndefinedOutputFormat */
+/** Output format "Undefined": format-agnostic. <- UndefinedOutputFormat */
 export class UndefinedOutputFormat extends OutputFormat {
-  /** Singleton instance ← UndefinedOutputFormat.INSTANCE */
+  /** Singleton instance <- UndefinedOutputFormat.INSTANCE */
   static INSTANCE = new UndefinedOutputFormat();
 
   /** Constructs the singleton. */
@@ -47,9 +47,9 @@ export class UndefinedOutputFormat extends OutputFormat {
   }
 }
 
-/** Output format "PlainText": still not a markup format. ← PlainTextOutputFormat */
+/** Output format "PlainText": still not a markup format. <- PlainTextOutputFormat */
 export class PlainTextOutputFormat extends OutputFormat {
-  /** Singleton instance ← PlainTextOutputFormat.INSTANCE */
+  /** Singleton instance <- PlainTextOutputFormat.INSTANCE */
   static INSTANCE = new PlainTextOutputFormat();
 
   /** Constructs the singleton. */
@@ -58,19 +58,19 @@ export class PlainTextOutputFormat extends OutputFormat {
   }
 }
 
-/** Base for escaping formats. ← MarkupOutputFormat */
+/** Base for escaping formats. <- MarkupOutputFormat */
 export class MarkupOutputFormat extends OutputFormat {
   /** @returns {boolean} */
   get isMarkup() {
     return true;
   }
 
-  /** ← CommonMarkupOutputFormat.isAutoEscapedByDefault() = true */
+  /** <- CommonMarkupOutputFormat.isAutoEscapedByDefault() = true */
   get isAutoEscapedByDefault() {
     return true;
   }
 
-  /** ← CommonMarkupOutputFormat.isOutputFormatMixingAllowed() = false */
+  /** <- CommonMarkupOutputFormat.isOutputFormatMixingAllowed() = false */
   get isOutputFormatMixingAllowed() {
     return false;
   }
@@ -84,9 +84,9 @@ export class MarkupOutputFormat extends OutputFormat {
   }
 }
 
-/** HTML: escapes via StringUtil.XHTMLEnc. ← HTMLOutputFormat */
+/** HTML: escapes via StringUtil.XHTMLEnc. <- HTMLOutputFormat */
 export class HTMLOutputFormat extends MarkupOutputFormat {
-  /** Singleton instance ← HTMLOutputFormat.INSTANCE */
+  /** Singleton instance <- HTMLOutputFormat.INSTANCE */
   static INSTANCE = new HTMLOutputFormat();
 
   /** Constructs the singleton. */
@@ -111,9 +111,9 @@ export class HTMLOutputFormat extends MarkupOutputFormat {
   }
 }
 
-/** XHTML: same escaper as HTML. ← XHTMLOutputFormat */
+/** XHTML: same escaper as HTML. <- XHTMLOutputFormat */
 export class XHTMLOutputFormat extends MarkupOutputFormat {
-  /** Singleton instance ← XHTMLOutputFormat.INSTANCE */
+  /** Singleton instance <- XHTMLOutputFormat.INSTANCE */
   static INSTANCE = new XHTMLOutputFormat();
 
   /** Constructs the singleton. */
@@ -130,9 +130,9 @@ export class XHTMLOutputFormat extends MarkupOutputFormat {
   }
 }
 
-/** XML: StringUtil.XMLEnc (the apostrophe is not escaped). ← XMLOutputFormat */
+/** XML: StringUtil.XMLEnc (the apostrophe is not escaped). <- XMLOutputFormat */
 export class XMLOutputFormat extends MarkupOutputFormat {
-  /** Singleton instance ← XMLOutputFormat.INSTANCE */
+  /** Singleton instance <- XMLOutputFormat.INSTANCE */
   static INSTANCE = new XMLOutputFormat();
 
   /** Constructs the singleton. */
@@ -149,7 +149,7 @@ export class XMLOutputFormat extends MarkupOutputFormat {
   }
 }
 
-// ← Configuration.STANDARD_OUTPUT_FORMATS (the ones this port registers)
+// <- Configuration.STANDARD_OUTPUT_FORMATS (the ones this port registers)
 /** name -> standard OutputFormat instance. @type {Map<string, Object>} */
 const STANDARD_OUTPUT_FORMATS = new Map([
   ['Undefined', UndefinedOutputFormat.INSTANCE],
@@ -160,7 +160,7 @@ const STANDARD_OUTPUT_FORMATS = new Map([
 ]);
 
 /**
- * ← Configuration.getOutputFormat(String): exact name match, then
+ * <- Configuration.getOutputFormat(String): exact name match, then
  * UnregisteredOutputFormatException listing the registered names.
  * @param {string} name
  * @returns {OutputFormat}

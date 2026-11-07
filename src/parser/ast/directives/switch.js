@@ -1,14 +1,14 @@
-// ← SwitchBlock / Case / On (#switch with #case/#default; #on keeps its expression list).
+// <- SwitchBlock / Case / On (#switch with #case/#default; #on keeps its expression list).
 
 import { TemplateElement } from '../templateElement.js';
 import { BreakInstructionException } from '../../../errors.js';
 
-/** #case ← Case. */
+/** #case <- Case. */
 export class Case extends TemplateElement {
   /** @param {Expression} condition @param {TemplateElement[]} children */
   constructor(condition, children) {
     super();
-    this.condition = condition; // null ← #default
+    this.condition = condition; // null <- #default
     if (children) for (const c of children) this.addChild(c);
   }
   /**
@@ -22,7 +22,7 @@ export class Case extends TemplateElement {
   }
 }
 
-/** #default ← On. */
+/** #default <- On. */
 export class On extends TemplateElement {
   /** @param {Expression[]} exps @param {TemplateElement[]} children */
   constructor(exps, children) {
@@ -39,7 +39,7 @@ export class On extends TemplateElement {
   }
 }
 
-/** #switch ← Switch. */
+/** #switch <- Switch. */
 export class SwitchBlock extends TemplateElement {
   /** @param {Expression} switchExp @param {Case[]} cases @param {On[]} ons */
   constructor(switchExp, cases, ons) {

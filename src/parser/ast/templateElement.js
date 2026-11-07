@@ -1,6 +1,6 @@
 // Base AST element: execute(env), getCanonicalForm(), location.
 
-/** Base class for AST elements: execute(env), getCanonicalForm(), location ← TemplateElement. */
+/** Base class for AST elements: execute(env), getCanonicalForm(), location <- TemplateElement. */
 export class TemplateElement {
   /** Location fields are filled in by the parser via setLocation. */
   constructor() {
@@ -38,7 +38,7 @@ export class TemplateElement {
   }
 
   /**
-   * @returns {TemplateElement|null} previous sibling ← TemplateElement.previousSibling
+   * @returns {TemplateElement|null} previous sibling <- TemplateElement.previousSibling
    */
   previousSibling() {
     if (this.parent == null) return null;
@@ -47,7 +47,7 @@ export class TemplateElement {
   }
 
   /**
-   * @returns {TemplateElement|null} next sibling ← TemplateElement.nextSibling
+   * @returns {TemplateElement|null} next sibling <- TemplateElement.nextSibling
    */
   nextSibling() {
     if (this.parent == null) return null;
@@ -56,7 +56,7 @@ export class TemplateElement {
   }
 
   /**
-   * @returns {TemplateElement|null} deepest first leaf ← TemplateElement.getFirstLeaf
+   * @returns {TemplateElement|null} deepest first leaf <- TemplateElement.getFirstLeaf
    * (Macro / block-assignment are treated as leaves)
    */
   getFirstLeaf() {
@@ -66,7 +66,7 @@ export class TemplateElement {
   }
 
   /**
-   * @returns {TemplateElement|null} deepest last leaf ← TemplateElement.getLastLeaf
+   * @returns {TemplateElement|null} deepest last leaf <- TemplateElement.getLastLeaf
    * (Macro / block-assignment are treated as leaves)
    */
   getLastLeaf() {
@@ -76,7 +76,7 @@ export class TemplateElement {
   }
 
   /**
-   * ← TemplateElement.prevTerminalNode (tree-walk helper for whitespace cleanup).
+   * <- TemplateElement.prevTerminalNode (tree-walk helper for whitespace cleanup).
    * @returns {TemplateElement|null}
    */
   prevTerminalNode() {
@@ -87,7 +87,7 @@ export class TemplateElement {
   }
 
   /**
-   * ← TemplateElement.nextTerminalNode (tree-walk helper for whitespace cleanup).
+   * <- TemplateElement.nextTerminalNode (tree-walk helper for whitespace cleanup).
    * @returns {TemplateElement|null}
    */
   nextTerminalNode() {
@@ -98,7 +98,7 @@ export class TemplateElement {
   }
 
   /**
-   * ← TemplateElement.heedsOpeningWhitespace default (non-output directives: false).
+   * <- TemplateElement.heedsOpeningWhitespace default (non-output directives: false).
    * @returns {boolean}
    */
   heedsOpeningWhitespace() {
@@ -106,7 +106,7 @@ export class TemplateElement {
   }
 
   /**
-   * ← TemplateElement.heedsTrailingWhitespace default (non-output directives: false).
+   * <- TemplateElement.heedsTrailingWhitespace default (non-output directives: false).
    * @returns {boolean}
    */
   heedsTrailingWhitespace() {
@@ -114,7 +114,7 @@ export class TemplateElement {
   }
 
   /**
-   * ← TemplateElement.isIgnorable: removed by post-parse cleanup.
+   * <- TemplateElement.isIgnorable: removed by post-parse cleanup.
    * @param {boolean} stripWhitespace
    * @returns {boolean}
    */

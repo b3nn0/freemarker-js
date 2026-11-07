@@ -1,4 +1,4 @@
-// Token ← javacc Token: image + 1-based begin/end positions, `next` link.
+// Token <- javacc Token: image + 1-based begin/end positions, `next` link.
 
 /**
  * A token: type + image + 1-based span (mirrors JavaCC Token's position fields).

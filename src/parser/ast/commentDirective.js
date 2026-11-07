@@ -1,8 +1,8 @@
-// <#comment> ... </#comment> ← freemarker.core.CommentDirective.
+// <#comment> ... </#comment> <- freemarker.core.CommentDirective.
 
 import { TemplateElement } from './templateElement.js';
 
-/** <#-- --> comment ← Comment. */
+/** <#-- --> comment <- Comment. */
 export class CommentDirective extends TemplateElement {
   /** @param {string} text */
   constructor(text) {

@@ -32,8 +32,8 @@ includes) and `examples/browser.html` (plain browser `<script type="module">`, n
 | Feature | Status | Notes |
 |---|---|---|
 | Static text pass-through (M1) | done | |
-| `${...}`/`#{...}` interpolation, expression language (M2–M3) | done | |
-| Directives `#if #list #items #sep #switch #attempt #assign #macro #function ...` (M7–M9) | done | |
+| `${...}`/`#{...}` interpolation, expression language (M2-M3) | done | |
+| Directives `#if #list #items #sep #switch #attempt #assign #macro #function ...` (M7-M9) | done | |
 | Lambdas, `?filter ?map ?sort ?sort_by` (M10) | done | |
 | Built-ins ~60 target (M11) | done | deferred regex/flag variants (UPSTREAM.md) |
 | Tag/interpolation syntax modes, naming conventions (M12) | done | angle + square bracket |
@@ -47,7 +47,7 @@ includes) and `examples/browser.html` (plain browser `<script type="module">`, n
 | XML/DOM nodes, `#visit`, `#recurse`, `?node_*`, `?new`, `?api` | out of scope | parse OK, runtime `UnsupportedFeatureException` |
 | `classic_compatible`, `?interpret`, locale-aware formatting | out of scope | |
 
-All milestones (M0–M18) are complete; the suite has 418 tests.
+All milestones (M0-M18) are complete; the suite has 418 tests.
 See `IMPROVEMENTS.md` for the post-M17 self-review backlog (A: design, B: fidelity,
 C: performance, D: polish).
 
@@ -70,10 +70,10 @@ C: performance, D: polish).
 
 ## Performance sanity (Node 20, dev machine)
 
-- Parse: ~0.06 ms for a 12-line template with a macro and a `#list` (100 parses ≈ 6 ms);
+- Parse: ~0.06 ms for a 12-line template with a macro and a `#list` (100 parses ~ 6 ms);
   the parser is sync-only, so the M18 generator core costs nothing there.
-- Render: 10 000 iterations of `<#list 1..10000>` with `#if`/number-format ≈ 4 ms per render
-  before M18 (commit `a422783`), ≈ 9 ms async / ≈ 11 ms sync after: the generator green-threads
-  core costs ~2.5× on the hot render loop (measured warm, Node 20, dev machine).
+- Render: 10 000 iterations of `<#list 1..10000>` with `#if`/number-format ~ 4 ms per render
+  before M18 (commit `a422783`), ~ 9 ms async / ~ 11 ms sync after: the generator green-threads
+  core costs ~2.5x on the hot render loop (measured warm, Node 20, dev machine).
 
 These are order-of-magnitude figures, not a benchmark suite.

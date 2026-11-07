@@ -1,8 +1,8 @@
-// <#-- ... --> ← freemarker.core.TerseComment.
+// <#-- ... --> <- freemarker.core.TerseComment.
 
 import { TemplateElement } from './templateElement.js';
 
-/** <#-- terse -->-style comment ← TerseComment. */
+/** <#-- terse -->-style comment <- TerseComment. */
 export class TerseComment extends TemplateElement {
   /** @param {string} text */
   constructor(text) {

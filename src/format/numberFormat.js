@@ -1,4 +1,4 @@
-// Number formatting ← Environment.getTemplateNumberFormatWithoutCache +
+// Number formatting <- Environment.getTemplateNumberFormatWithoutCache +
 // JavaTemplateNumberFormatFactory (en_US locale fixed, see UPSTREAM.md) +
 // CTemplateNumberFormat ("c"/"computer") (2.3.36).
 
@@ -64,7 +64,7 @@ function invalidPattern(p) {
 
 /** named number formats (en_US symbols). @type {Map<string, Object>} */
 const NAMED = new Map([
-  // DecimalFormat("#,##0.###") — the en_US "number" instance
+  // DecimalFormat("#,##0.###") -- the en_US "number" instance
   ['number', { prefix: '', suffix: '', grouping: true, minIntDigits: 1, minFrac: 0, maxFrac: 3, percent: false }],
   // NumberFormat.getCurrencyInstance(Locale.US)
   ['currency', { prefix: '$', suffix: '', grouping: true, minIntDigits: 1, minFrac: 2, maxFrac: 2, percent: false }],
@@ -72,7 +72,7 @@ const NAMED = new Map([
   ['percent', { prefix: '', suffix: '', grouping: true, minIntDigits: 1, minFrac: 0, maxFrac: 3, percent: true }],
 ]);
 
-// ← CTemplateNumberFormat: the shortest representation that round-trips
+// <- CTemplateNumberFormat: the shortest representation that round-trips
 // (Java Double/BigDecimal.toString equivalent: JS String()).
 /**
  * @param {number} v
@@ -87,10 +87,10 @@ export function cFormat(v) {
 
 /**
  * Formats a number with the given format string, or null for the default.
- * ← Environment.formatNumberModel (+ min/max fraction digits from #{}).
+ * <- Environment.formatNumberModel (+ min/max fraction digits from #{}).
  * @param {number} v
  * @param {string|null|undefined} formatString - named ("number", "c"/"computer",
- *   "currency", "percent") or a custom pattern; null/undefined → "number"
+ *   "currency", "percent") or a custom pattern; null/undefined -> "number"
  * @param {{ minFrac?: number, maxFrac?: number }} [fracOpts] - #{exp;mNMM} overrides
  * @returns {string}
  */

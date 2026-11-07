@@ -1,4 +1,4 @@
-// ← freemarker.core.BuiltIn: target?key; positional (args) consumption landed with M10/M11.
+// <- freemarker.core.BuiltIn: target?key; positional (args) consumption landed with M10/M11.
 
 import { Expression } from './expression.js';
 import { getBuiltIn } from '../../../builtins/registry.js';
@@ -6,8 +6,8 @@ import '../../../builtins/index.js'; // registers the milestone's built-ins (sid
 import { HashModel } from '../../../model/models.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 
-// ← freemarker.core.BuiltinVariable: the leading-dot special variables. Only .args lands in M9.
-/** ?loop_var style builtin variable ← BuiltinVariable. */
+// <- freemarker.core.BuiltinVariable: the leading-dot special variables. Only .args lands in M9.
+/** ?loop_var style builtin variable <- BuiltinVariable. */
 export class BuiltinVariable extends Expression {
   /** @param {string} name */
   constructor(name) {
@@ -40,10 +40,10 @@ export class BuiltinVariable extends Expression {
   }
 }
 
-/** x?name ← BuiltIn (target, key, args). */
+/** x?name <- BuiltIn (target, key, args). */
 export class BuiltIn extends Expression {
-  // args: Expression[] | null — raw argument expressions; builtins that accept
-  // lambda arguments receive the unevaluated nodes (← BuiltInWithParseTimeParameters).
+  // args: Expression[] | null -- raw argument expressions; builtins that accept
+  // lambda arguments receive the unevaluated nodes (<- BuiltInWithParseTimeParameters).
   /** @param {Expression} target @param {string} key @param {Expression[]|null} [args] */
   constructor(target, key, args = null) {
     super();
@@ -66,13 +66,13 @@ export class BuiltIn extends Expression {
   * evaluate(env) {
     const spec = getBuiltIn(this.key);
     if (!spec) {
-      // ← upstream reports unknown built-ins at parse time; the registry fills by
+      // <- upstream reports unknown built-ins at parse time; the registry fills by
       // milestone, so this port detects at run time (deviation in UPSTREAM.md).
       throw new TemplateException(`There is no such built-in: ${this.key}`);
     }
     let target;
     if (spec.acceptsMissing) {
-      // ← ExistenceBuiltIn.evalMaybeNonexistentTarget: a missing target becomes null
+      // <- ExistenceBuiltIn.evalMaybeNonexistentTarget: a missing target becomes null
       try {
         target = yield* this.target.evaluate(env);
       } catch (e) {
@@ -82,7 +82,7 @@ export class BuiltIn extends Expression {
     } else {
       target = yield* this.target.evaluate(env);
       if (target === null || target === undefined) {
-        // ← the type-bound BuiltInForXxx classes reject null targets
+        // <- the type-bound BuiltInForXxx classes reject null targets
         throw new InvalidReferenceException(
           `The "?${this.key}" built-in needs a value, but its target has evaluated to `
           + 'null or missing.');

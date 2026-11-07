@@ -1,4 +1,4 @@
-// ← freemarker.core.LocalLambdaExpression: `(a, b) -> exp` / `a -> exp`.
+// <- freemarker.core.LocalLambdaExpression: `(a, b) -> exp` / `a -> exp`.
 // Only legal as the argument of a few built-ins (?filter, ?map); it is not a value.
 
 import { Expression } from './expression.js';
@@ -21,7 +21,7 @@ export class LocalLambdaExpression extends Expression {
   }
 
   /**
-   * A lambda is not a value in 2.3.36 — evaluating it as one is an error.
+   * A lambda is not a value in 2.3.36 -- evaluating it as one is an error.
    * @throws {TemplateException} always
    */
   * evaluate() {
@@ -31,7 +31,7 @@ export class LocalLambdaExpression extends Expression {
   }
 
   /**
-   * ← LocalLambdaExpression.invokeLambdaDefinedFunction /
+   * <- LocalLambdaExpression.invokeLambdaDefinedFunction /
    * Environment.evaluateWithNewLocal: a single scope layer, visible to the body only.
    * @param {import('../../../environment.js').Environment} env
    * @param {Object[]} values - one model per declared parameter
@@ -48,7 +48,7 @@ export class LocalLambdaExpression extends Expression {
     }
   }
 
-  // ← LocalLambdaExpression.getCanonicalForm / LambdaParameterList.getCanonicalForm
+  // <- LocalLambdaExpression.getCanonicalForm / LambdaParameterList.getCanonicalForm
   /**
    * @returns {string} the upstream-style canonical template source of this node
    */

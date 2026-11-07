@@ -1,4 +1,4 @@
-// ← IteratorBlock (#list / #forEach), ListElseContainer merged into IteratorBlock, Items, Sep.
+// <- IteratorBlock (#list / #forEach), ListElseContainer merged into IteratorBlock, Items, Sep.
 
 import { TemplateElement } from '../templateElement.js';
 import {
@@ -8,7 +8,7 @@ import {
 import { TemplateSequenceModel, TemplateHashModelEx } from '../../../model/templateModel.js';
 import { awaitOp, callOp } from '../../../async.js';
 
-/** #list / #forEach ← IteratorBlock. */
+/** #list / #forEach <- IteratorBlock. */
 export class IteratorBlock extends TemplateElement {
   // sourceExp, loopVar, loopVar2, hashListing, forEach; children before #else; elseChildren|null
   /**
@@ -112,7 +112,7 @@ export class IteratorBlock extends TemplateElement {
   }
 }
 
-/** #items ← Items. */
+/** #items <- Items. */
 export class Items extends TemplateElement {
   /** @param {string|null} loopVar @param {string|null} loopVar2 @param {TemplateElement[]} children */
   constructor(loopVar, loopVar2, children) {
@@ -149,7 +149,7 @@ export class Items extends TemplateElement {
   }
 }
 
-/** #sep ← Sep. */
+/** #sep <- Sep. */
 export class Sep extends TemplateElement {
   /** @param {TemplateElement[]} children */
   constructor(children) {

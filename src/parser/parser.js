@@ -47,7 +47,7 @@ import { unescapeFTLStringLiteral, isTrimmableToEmpty } from '../utility/stringU
 /** @type {Set<TokenType>} */
 const STATIC_TYPES = new Set([TT.STATIC_TEXT_WS, TT.STATIC_TEXT_NON_WS, TT.STATIC_TEXT_FALSE_ALARM]);
 
-// ← FTL.jj HeaderElement() "you may meant" suggestions for unknown #ftl params
+// <- FTL.jj HeaderElement() "you may meant" suggestions for unknown #ftl params
 /** typo hints for #ftl params. @type {Map<string, string>} */
 const FTL_HEADER_PARAM_SUGGESTIONS = new Map([
   ['charset', 'encoding'],
@@ -65,7 +65,7 @@ const EQUALITY_OPS = new Set([TT.EQUALS, TT.DOUBLE_EQUALS, TT.NOT_EQUALS]);
 const RELATIONAL_OPS = new Set([
   TT.NATURAL_GT, TT.NATURAL_GTE, TT.ESCAPED_GT, TT.ESCAPED_GTE, TT.LESS_THAN, TT.LESS_THAN_EQUALS,
 ]);
-// keyword tokens usable as plain names after a dot ← FTL.jj DotVariable production
+// keyword tokens usable as plain names after a dot <- FTL.jj DotVariable production
 /** @type {Set<TokenType>} */
 const DOT_KEY_TOKENS = new Set([
   TT.ID, TT.TRUE, TT.FALSE, TT.IN, TT.AS, TT.USING,
@@ -77,11 +77,11 @@ const EXPRESSION_START = new Set([
   TT.ID, TT.OPEN_BRACKET, TT.OPENING_CURLY_BRACKET, TT.OPEN_PAREN, TT.DOT, TT.PLUS, TT.MINUS, TT.EXCLAM,
 ]);
 // Built-ins that bind their arguments at parse time and accept a lambda argument
-// (name -> required lambda parameter count) ← BuiltInWithParseTimeParameters
+// (name -> required lambda parameter count) <- BuiltInWithParseTimeParameters
 // isLocalLambdaParameterSupported (filterBI, mapBI).
 /** builtin -> param count. @type {Map<string, number>} */
 const LAMBDA_ARG_BUILTINS = new Map([['filter', 1], ['map', 1]]);
-// ← BuiltInWithParseTimeParameters with unevaluated (lazy) parameters: these consume
+// <- BuiltInWithParseTimeParameters with unevaluated (lazy) parameters: these consume
 // "(args)" at parse time. All other built-ins return first; "(args)" is a MethodCall.
 /** builtins with parse-time (unevaluated) args. @type {Set<string>} */
 const LAZY_ARG_BUILTINS = new Set(['then', 'switch', 'default', 'string']);
@@ -101,28 +101,28 @@ export class Parser {
     this.templateName = templateName;
     this.tm = new TokenManager(source, configuration);
     this._buf = [];
-    // directive context tracking ← FTL.jj parserIteratorBlockContexts / *DirectiveNesting
+    // directive context tracking <- FTL.jj parserIteratorBlockContexts / *DirectiveNesting
     this._iterCtx = [];
     this.breakableDepth = 0;
     this.continuableDepth = 0;
-    this.inMacroOrFunction = false; // ← #local is only legal inside macros/functions (M9)
+    this.inMacroOrFunction = false; // <- #local is only legal inside macros/functions (M9)
     this.inMacro = false;
     this.inFunction = false;
-    this.macros = []; // ← template.addMacro equivalent; collected Macro nodes
+    this.macros = []; // <- template.addMacro equivalent; collected Macro nodes
     this._argsFlag = false; // set when `.args` is parsed inside the current macro/function
-    this.headerElement = null; // ← FTL.jj Root(): at most one header
+    this.headerElement = null; // <- FTL.jj Root(): at most one header
     this.stripWhitespace = configuration.getWhitespaceStripping();
     this.stripText = false; // only the #ftl header can set it (2.3)
-    this.preventStrippings = false; // ← Configuration.preventStrippings (not exposed by this port)
-    this.mixedContentNesting = 0; // ← FTL.jj mixedContentNesting (for stripText)
-    // ← FTL.jj outputFormat / autoEscapingPolicy / autoEscaping parser fields
+    this.preventStrippings = false; // <- Configuration.preventStrippings (not exposed by this port)
+    this.mixedContentNesting = 0; // <- FTL.jj mixedContentNesting (for stripText)
+    // <- FTL.jj outputFormat / autoEscapingPolicy / autoEscaping parser fields
     this.outputFormat = configuration.getOutputFormat();
     this.autoEscapingPolicy = configuration.getAutoEscapingPolicy();
     this.autoEscaping = this._recalculateAutoEscaping();
   }
 
-  // ← FTL.jj recalculateAutoEscapingField()
-  /** ← FTL.jj recalculateAutoEscapingField. @returns {void} */
+  // <- FTL.jj recalculateAutoEscapingField()
+  /** <- FTL.jj recalculateAutoEscapingField. @returns {void} */
   _recalculateAutoEscaping() {
     if (this.outputFormat.isMarkup) {
       switch (this.autoEscapingPolicy) {
@@ -147,7 +147,7 @@ export class Parser {
   parse() {
     try {
       const root = this._parseRoot();
-    // ← Root(): if (!preventStrippings) root = root.postParseCleanup(stripWhitespace);
+    // <- Root(): if (!preventStrippings) root = root.postParseCleanup(stripWhitespace);
     if (!this.preventStrippings) this._postParseCleanup(root);
     return root;
     } catch (e) {
@@ -210,7 +210,7 @@ export class Parser {
     return node;
   }
 
-  // ---- FTL header (at most one, at the start) ← FTL.jj Root() header branch ----
+  // ---- FTL header (at most one, at the start) <- FTL.jj Root() header branch ----
 
   /**
    * @param {import('./token.js').Token} t - the TRIVIAL_FTL_HEADER token
@@ -262,7 +262,7 @@ export class Parser {
   _applyFTLHeaderParam(keyTok, exp, settings) {
     const k = keyTok.image;
     const ks = k.toLowerCase();
-    // ← FTL.jj: equalsIgnoreCase(snake_case) || equals(camelCase)
+    // <- FTL.jj: equalsIgnoreCase(snake_case) || equals(camelCase)
     const matches = (snake, camel) => ks === snake || k === camel;
     if (ks === 'encoding') {
       const v = this._evalHeaderConstant(exp);
@@ -276,7 +276,7 @@ export class Parser {
       settings.strictSyntax = this._evalHeaderBoolean(keyTok.image, exp);
     } else if (matches('auto_esc', 'autoEsc')) {
       settings.autoEsc = this._evalHeaderBoolean(keyTok.image, exp);
-      // ← FTL.jj header: auto_esc=true/false picks the policy, then recalculate.
+      // <- FTL.jj header: auto_esc=true/false picks the policy, then recalculate.
       this.autoEscapingPolicy = settings.autoEsc
         ? 'enableIfSupported'
         : (this.autoEscapingPolicy === 'force' ? this.autoEscapingPolicy : 'disable');
@@ -319,7 +319,7 @@ export class Parser {
   }
 
   /**
-   * ← FTL.jj getBoolean(): true/false constants, or string "true"/"false".
+   * <- FTL.jj getBoolean(): true/false constants, or string "true"/"false".
    * @param {string} name - parameter name (for messages)
    * @param {import('./ast/expressions/expression.js').Expression} exp
    * @returns {boolean}
@@ -337,7 +337,7 @@ export class Parser {
       exp);
   }
 
-  // ---- root (mixed content) ← FTL.jj MixedContentElements() ----
+  // ---- root (mixed content) <- FTL.jj MixedContentElements() ----
 
   /** @returns {TemplateElement} */
   _parseRoot() {
@@ -346,7 +346,7 @@ export class Parser {
     if (t.type !== TT.EOF) {
       throw this._error(`Unexpected ${this._desc(t)} at top level.`, t);
     }
-    // ← FTL.jj Root() / TemplateElements.asSingleElement(): a lone child *is* the root
+    // <- FTL.jj Root() / TemplateElements.asSingleElement(): a lone child *is* the root
     return root.children.length === 1 ? root.children[0] : root;
   }
 
@@ -372,7 +372,7 @@ export class Parser {
 
       if (STATIC_TYPES.has(t.type)) {
         this._next();
-        // ← PCData()/WhitespaceText(): stripText removes top-level text runs at parse time
+        // <- PCData()/WhitespaceText(): stripText removes top-level text runs at parse time
         if (this.stripText && this.mixedContentNesting === 1 && !this.preventStrippings) continue;
         if (pendingBegin === null) pendingBegin = t;
         pending += t.image;
@@ -387,7 +387,7 @@ export class Parser {
         this._next();
         const expression = this._parseExpression();
         let fracOpts = null;
-        // ← FTL.jj NumericalOutput(): #{exp; mN M2M4 format specifier
+        // <- FTL.jj NumericalOutput(): #{exp; mN M2M4 format specifier
         if (t.type === TT.HASH_INTERPOLATION_OPENING) {
           this._checkNumericInterpolationLiteral(expression);
           if (this._peek().type === TT.SEMICOLON) {
@@ -411,14 +411,14 @@ export class Parser {
             closer);
         }
         this._next();
-        // ← FTL.jj StringOutput: notHashLiteral/notListLiteral
+        // <- FTL.jj StringOutput: notHashLiteral/notListLiteral
         if (expression instanceof HashLiteral) {
           throw this._errorAt('A hash literal has no string form; it can\'t be interpolated with ${...}.', expression);
         }
         if (expression instanceof ListLiteral) {
           throw this._errorAt('A list literal has no string form; it can\'t be interpolated with ${...}.', expression);
         }
-        // ← DollarVariable captures the format/auto-escape state at parse time
+        // <- DollarVariable captures the format/auto-escape state at parse time
         group.addChild(this._span(
           new Interpolation(expression, this.outputFormat, this.autoEscaping, fracOpts), t, closer));
         continue;
@@ -449,7 +449,7 @@ export class Parser {
       }
 
       if (t.type === TT.TRIVIAL_FTL_HEADER || t.type === TT.FTL_HEADER) {
-        // ← FTL.jj Root(): the header is only allowed at the start, preceded only by
+        // <- FTL.jj Root(): the header is only allowed at the start, preceded only by
         // whitespace (the LOOKAHEAD [STATIC_TEXT_WS] consumes that whitespace run).
         if (this.headerElement !== null
           || (group.children.length > 0
@@ -462,7 +462,7 @@ export class Parser {
         pendingBegin = null;
         pendingEnd = null;
         this._next();
-        // ← FTL.jj Root()/HeaderElement(): the header is NOT an AST child (void
+        // <- FTL.jj Root()/HeaderElement(): the header is NOT an AST child (void
         // production); it only configures the parser/template. The following text is
         // the first top-level text, so it skips the opening auto-strip.
         if (t.type === TT.TRIVIAL_FTL_HEADER) this._parseTrivialFTLHeader(t);
@@ -598,7 +598,7 @@ export class Parser {
       }
       if (t.type === TT.ELSE || t.type === TT.ELSE_IF) {
         throw this._error(
-          `Unexpected "${t.image}" — it must belong to an enclosing <#if> or <#list> block.`, t);
+          `Unexpected "${t.image}" -- it must belong to an enclosing <#if> or <#list> block.`, t);
       }
       // remaining tag-starting tokens are directives not yet parseable
       if (t.image.startsWith('<') || t.image.startsWith('[')) {
@@ -622,7 +622,7 @@ export class Parser {
    */
   _parseInclude(startTok) {
     const nameExp = this._parseExpression();
-    if (this._peek().type === TT.SEMICOLON) this._next(); // ← [<SEMICOLON>]
+    if (this._peek().type === TT.SEMICOLON) this._next(); // <- [<SEMICOLON>]
     let parseExp = null;
     let encodingExp = null;
     let ignoreMissingExp = null;
@@ -695,7 +695,7 @@ export class Parser {
     return this._span(new StopInstruction(exp), startTok, kt);
   }
 
-  // ---- post-parse whitespace cleanup ← TemplateElement.postParseCleanup ----
+  // ---- post-parse whitespace cleanup <- TemplateElement.postParseCleanup ----
 
   /**
    * Recurses (children first), then runs TextBlock trimming, then drops ignorable children.
@@ -719,7 +719,7 @@ export class Parser {
   }
 
   /**
-   * <#compress> body ← FTL.jj Compress().
+   * <#compress> body <- FTL.jj Compress().
    * @param {import('./token.js').Token} startTok
    * @returns {CompressedBlock}
    */
@@ -735,14 +735,14 @@ export class Parser {
     return block;
   }
 
-  // ---- output format / auto-escape blocks ← FTL.jj AutoEscapeBlock(),
+  // ---- output format / auto-escape blocks <- FTL.jj AutoEscapeBlock(),
   // NoAutoEscBlock(), OutputFormatBlock() ----
 
   /** @param {Token} startTok @returns {TemplateElement} */
   _parseAutoEsc(startTok) {
     const isAuto = startTok.type === TT.AUTOESC;
     this._next();
-    // ← checkCurrentOutputFormatCanEscape(start): only for #autoesc
+    // <- checkCurrentOutputFormatCanEscape(start): only for #autoesc
     if (isAuto && !this.outputFormat.isMarkup) {
       throw this._error(
         `The current output format can't do escaping: ${this.outputFormat}`, startTok);
@@ -796,7 +796,7 @@ export class Parser {
       return this._span(new OutputFormatBlock([], name, format), startTok, emptyEnd);
     }
     this._expect(TT.DIRECTIVE_END, '">"');
-    // ← FTL.jj OutputFormatBlock(): the parser-level format switches for the
+    // <- FTL.jj OutputFormatBlock(): the parser-level format switches for the
     // whole block (its interpolations bind to it), then restores.
     const savedFormat = this.outputFormat;
     const savedAutoEscaping = this.autoEscaping;
@@ -816,9 +816,9 @@ export class Parser {
     }
   }
 
-  // ---- #{...} numeric interpolation helpers ← FTL.jj NumericalOutput() ----
+  // ---- #{...} numeric interpolation helpers <- FTL.jj NumericalOutput() ----
 
-  // ← numberLiteralOnly(): string/list/hash/boolean literals are rejected.
+  // <- numberLiteralOnly(): string/list/hash/boolean literals are rejected.
   /** @param {Expression} exp @returns {void} @throws {ParseException} */
   _checkNumericInterpolationLiteral(exp) {
     if (exp instanceof StringLiteral) {
@@ -837,7 +837,7 @@ export class Parser {
   }
 
   /**
-   * Parses an "m2M4"-style format specifier ← FTL.jj NumericalOutput() inline parse.
+   * Parses an "m2M4"-style format specifier <- FTL.jj NumericalOutput() inline parse.
    * @param {import('./token.js').Token} fmt - the ID token holding the specifier
    * @returns {{ minFrac: number, maxFrac: number }}
    */
@@ -884,7 +884,7 @@ export class Parser {
     return { minFrac, maxFrac };
   }
 
-  // ---- #setting ← FTL.jj Setting() + PropertySetting constructor ----
+  // ---- #setting <- FTL.jj Setting() + PropertySetting constructor ----
 
   /** @param {Token} startTok @returns {PropertySetting} */
   _parseSetting(startTok) {
@@ -899,7 +899,7 @@ export class Parser {
     }
     this._next();
     const value = this._parseExpression();
-    // ← LooseDirectiveEnd(): #setting is an empty element; both ">" and "/>" end it
+    // <- LooseDirectiveEnd(): #setting is an empty element; both ">" and "/>" end it
     const end = this._peek();
     if (end.type !== TT.DIRECTIVE_END && end.type !== TT.EMPTY_DIRECTIVE_END) {
       throw this._error(`Expected ">" or "/>" after the "#setting" directive, but got ${this._desc(end)}.`, end);
@@ -1088,7 +1088,7 @@ export class Parser {
     return this._span(new ContinueInstruction(), startTok, startTok);
   }
 
-  // ← FTL.jj Assign()
+  // <- FTL.jj Assign()
   /** @returns {string} */
   _assignName() {
     const t = this._peek();
@@ -1182,7 +1182,7 @@ export class Parser {
 
   // ---- M9: macros / functions / calls ----
 
-  // ← FTL.jj Macro()
+  // <- FTL.jj Macro()
   /** @param {Token} startTok @returns {Macro} */
   _parseMacro(startTok) {
     const isFunction = startTok.type === TT.FUNCTION;
@@ -1255,7 +1255,7 @@ export class Parser {
     }
   }
 
-  // ← FTL.jj PositionalArgs(): whitespace separated; the comma between two args is optional
+  // <- FTL.jj PositionalArgs(): whitespace separated; the comma between two args is optional
   /** @returns {Expression[]} */
   _parsePositionalArgs() {
     const args = [];
@@ -1272,7 +1272,7 @@ export class Parser {
     return args;
   }
 
-  // ← FTL.jj UnifiedCall() (the `<@name ...>` form; legacy `<#call>` stays unsupported)
+  // <- FTL.jj UnifiedCall() (the `<@name ...>` form; legacy `<#call>` stays unsupported)
   /** @param {Token} startTok @returns {UnifiedCall} */
   _parseUnifiedCall(startTok) {
     const target = this._parseExpression();
@@ -1281,7 +1281,7 @@ export class Parser {
     let named = null;
     const t = this._peek();
     if (t.type === TT.ID && this._peek(1).type === TT.EQUALS) {
-      // ← NamedArgs(): `name=value` pairs separated by whitespace only (no commas)
+      // <- NamedArgs(): `name=value` pairs separated by whitespace only (no commas)
       named = new Map();
       for (;;) {
         const id = this._expect(TT.ID, 'an argument name');
@@ -1330,7 +1330,7 @@ export class Parser {
       startTok, endTok);
   }
 
-  // ← FTL.jj Return()
+  // <- FTL.jj Return()
   /** @param {Token} startTok @returns {ReturnInstruction} */
   _parseReturn(startTok) {
     let exp = null;
@@ -1355,7 +1355,7 @@ export class Parser {
     return this._span(new ReturnInstruction(exp), startTok, endTok);
   }
 
-  // ← FTL.jj Nested()
+  // <- FTL.jj Nested()
   /** @param {Token} startTok @returns {NestedInstruction} */
   _parseNested(startTok) {
     if (!this.inMacro) {
@@ -1400,7 +1400,7 @@ export class Parser {
   _parseSwitch(startTok) {
     const exp = this._parseExpression();
     this._expect(TT.DIRECTIVE_END, '">"');
-    // ← ignoredSectionBeforeFirstCase: whitespace before the first case is dropped.
+    // <- ignoredSectionBeforeFirstCase: whitespace before the first case is dropped.
     while (STATIC_TYPES.has(this._peek().type)) this._next();
     const caseStop = new Set([TT.CASE, TT.DEFAUL, TT.ON, TT.END_SWITCH]);
     const cases = [];
@@ -1424,7 +1424,7 @@ export class Parser {
           cases.push(new Case(null, this._parseMixedContent(caseStop).children));
         } else if (t.type === TT.ON) {
           this._next();
-          // ← FTL.jj On(): exps = PositionalArgs() — no parens; commas optional
+          // <- FTL.jj On(): exps = PositionalArgs() -- no parens; commas optional
           const exps = this._parsePositionalArgs();
           this._expect(TT.DIRECTIVE_END, '">"');
           ons.push(new On(exps, this._parseMixedContent(caseStop).children));
@@ -1441,7 +1441,7 @@ export class Parser {
     return this._span(new SwitchBlock(exp, cases, ons), startTok, endTok);
   }
 
-  // ---- expression precedence chain ← FTL.jj Expression/... productions ----
+  // ---- expression precedence chain <- FTL.jj Expression/... productions ----
 
   /** @returns {Expression} */
   _parseExpression() {
@@ -1559,7 +1559,7 @@ export class Parser {
 
   /** @returns {Expression} */
   _parseUnary() {
-    // ← NotExpression: zero or more ! (or soft "not"), then primary
+    // <- NotExpression: zero or more ! (or soft "not"), then primary
     let nots = 0;
     let firstNot = null;
     for (;;) {
@@ -1627,7 +1627,7 @@ export class Parser {
           this._next();
           args = [arg];
         } else if (hasParen && LAZY_ARG_BUILTINS.has(name.image)) {
-          // ← BuiltInWithParseTimeParameters: the args must arrive unevaluated
+          // <- BuiltInWithParseTimeParameters: the args must arrive unevaluated
           this._next(); // "("
           args = this._peek().type === TT.CLOSE_PAREN ? [] : this._parsePositionalArgs();
           const c = this._peek();
@@ -1637,7 +1637,7 @@ export class Parser {
           this._next();
         }
         // Otherwise the "(" is left for the primary loop to parse as a MethodCall
-        // ← upstream: plain built-ins return immediately and the "(...)" is a call.
+        // <- upstream: plain built-ins return immediately and the "(...)" is a call.
         exp = this._span(new BuiltIn(exp, name.image, args), exp, name);
       } else if (t.type === TT.EXCLAM) {
         this._next();
@@ -1659,7 +1659,7 @@ export class Parser {
     }
   }
 
-  // ← FTL.jj LocalLambdaExpression (only as the argument of a few built-ins) +
+  // <- FTL.jj LocalLambdaExpression (only as the argument of a few built-ins) +
   // PositionalMaybeLambdaArgs: `x -> exp`, `(x, y) -> exp`, or a plain expression.
   /** @param {string} builtinName @returns {Expression} */
   _parseMaybeLambdaArg(builtinName) {
@@ -1705,7 +1705,7 @@ export class Parser {
     return this._parseExpression();
   }
 
-  // ← BuiltInWithParseTimeParameters.checkLocalLambdaParamCount
+  // <- BuiltInWithParseTimeParameters.checkLocalLambdaParamCount
   /** @param {Object} node @param {string} builtinName @param {Token} tok @returns {void} */
   _checkLambdaParamCount(node, builtinName, tok) {
     const want = LAMBDA_ARG_BUILTINS.get(builtinName);
@@ -1742,7 +1742,7 @@ export class Parser {
     const t = this._peek();
     switch (t.type) {
       case TT.DOT: {
-        // ← FTL.jj BuiltinVariable(): a leading "." + id is a special variable (.args here)
+        // <- FTL.jj BuiltinVariable(): a leading "." + id is a special variable (.args here)
         const nt = this._peek(1);
         if (nt.type !== TT.ID) {
           throw this._error(`Expected a special-variable name after ".", but got ${this._desc(nt)}.`, nt);
@@ -1809,7 +1809,7 @@ export class Parser {
         if (this._peek().type !== TT.CLOSING_CURLY_BRACKET) {
           for (;;) {
             const key = this._parseExpression();
-            // ← FTL.jj stringLiteralOnly(key): number/list/hash/boolean literals excluded;
+            // <- FTL.jj stringLiteralOnly(key): number/list/hash/boolean literals excluded;
             // identifiers and other expressions stay legal (evaluated at render time).
             for (const [cls, kind] of [[NumberLiteral, 'number'], [ListLiteral, 'list'],
               [HashLiteral, 'hash'], [BooleanLiteral, 'boolean']]) {

@@ -10,7 +10,7 @@
 const TYPES = new Map();
 let count = 0;
 
-/** Named token type ← freemarker.core.TokenType. */
+/** Named token type <- freemarker.core.TokenType. */
 export class TokenType {
   /** @param {string} name */
   constructor(name) {

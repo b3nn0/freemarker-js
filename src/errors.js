@@ -1,6 +1,6 @@
 // Error hierarchy mirroring upstream names; position fields are mandatory carriers.
 
-/** Base of all port exceptions ← FreeMarkerException. */
+/** Base of all port exceptions <- FreeMarkerException. */
 export class FreeMarkerException extends Error {
   /** @param {string} [message] */
   constructor(message) {
@@ -9,7 +9,7 @@ export class FreeMarkerException extends Error {
   }
 }
 
-/** Template parse error ← ParseException. */
+/** Template parse error <- ParseException. */
 export class ParseException extends FreeMarkerException {
   /**
    * @param {string} message
@@ -25,7 +25,7 @@ export class ParseException extends FreeMarkerException {
   }
 }
 
-/** Runtime template error ← TemplateException. */
+/** Runtime template error <- TemplateException. */
 export class TemplateException extends FreeMarkerException {
   /**
    * @param {string} message
@@ -56,11 +56,11 @@ export class TemplateException extends FreeMarkerException {
   }
 }
 
-/** Value is null/missing ← InvalidReferenceException. */
+/** Value is null/missing <- InvalidReferenceException. */
 export class InvalidReferenceException extends TemplateException {}
 /**
  * A model/loader callback returned a promise during a synchronous render
- * (port-level feature; no upstream analogue — upstream is sync-only).
+ * (port-level feature; no upstream analogue -- upstream is sync-only).
  */
 export class AsyncOperationNotAllowedException extends TemplateException {
   /** @param {string} op - description of the offending callback */
@@ -70,44 +70,44 @@ export class AsyncOperationNotAllowedException extends TemplateException {
     this.operation = op;
   }
 }
-/** Identifier has no value ← UnassignedVariableException. */
+/** Identifier has no value <- UnassignedVariableException. */
 export class UnassignedVariableException extends InvalidReferenceException {}
-/** Unknown hash property ← InvalidPropertyException. */
+/** Unknown hash property <- InvalidPropertyException. */
 export class InvalidPropertyException extends InvalidReferenceException {}
 
-/** Expected string ← NonStringException. */
+/** Expected string <- NonStringException. */
 export class NonStringException extends TemplateException {}
-/** Expected hash ← NonHashException. */
+/** Expected hash <- NonHashException. */
 export class NonHashException extends TemplateException {}
-/** Expected extended hash ← NonExtendedHashException. */
+/** Expected extended hash <- NonExtendedHashException. */
 export class NonExtendedHashException extends NonHashException {}
-/** Expected sequence/collection ← NonSequenceOrCollectionException. */
+/** Expected sequence/collection <- NonSequenceOrCollectionException. */
 export class NonSequenceOrCollectionException extends TemplateException {}
-/** Expected sequence ← NonSequenceException. */
+/** Expected sequence <- NonSequenceException. */
 export class NonSequenceException extends NonSequenceOrCollectionException {}
-/** Expected boolean ← NonBooleanException. */
+/** Expected boolean <- NonBooleanException. */
 export class NonBooleanException extends TemplateException {}
-/** Expected number ← NonNumericalException. */
+/** Expected number <- NonNumericalException. */
 export class NonNumericalException extends TemplateException {}
-/** Expected method ← NonMethodException. */
+/** Expected method <- NonMethodException. */
 export class NonMethodException extends TemplateException {}
-/** Expected date ← NonDateException. */
+/** Expected date <- NonDateException. */
 export class NonDateException extends TemplateException {}
 
-/** Bad format string ← InvalidFormatStringException. */
+/** Bad format string <- InvalidFormatStringException. */
 export class InvalidFormatStringException extends TemplateException {}
 
-/** #stop encountered ← StopException. */
+/** #stop encountered <- StopException. */
 export class StopException extends TemplateException {}
 
-// Internal control-flow markers (← BreakException/ContinueException); not exported publicly.
-/** Flow: #break ← BreakInstruction. */
+// Internal control-flow markers (<- BreakException/ContinueException); not exported publicly.
+/** Flow: #break <- BreakInstruction. */
 export class BreakInstructionException extends TemplateException {}
-/** Flow: #continue ← ContinueInstruction. */
+/** Flow: #continue <- ContinueInstruction. */
 export class ContinueInstructionException extends TemplateException {}
-/** Flow: #return ← ReturnInstruction. */
+/** Flow: #return <- ReturnInstruction. */
 export class ReturnInstructionException extends TemplateException {
-  // ← ReturnInstructionException: internal #return marker, carries the returned value.
+  // <- ReturnInstructionException: internal #return marker, carries the returned value.
   /**
    * @param {Object|null} [value] - the model returned by #return (null when valueless)
    */
@@ -116,19 +116,19 @@ export class ReturnInstructionException extends TemplateException {
     this.value = value ?? null;
   }
 }
-/** Not supported by this port ← UnsupportedFeatureException. */
+/** Not supported by this port <- UnsupportedFeatureException. */
 export class UnsupportedFeatureException extends FreeMarkerException {}
-// ← freemarker.template.UnregisteredOutputFormatException
-/** Unknown output format name ← UnregisteredOutputFormatException. */
+// <- freemarker.template.UnregisteredOutputFormatException
+/** Unknown output format name <- UnregisteredOutputFormatException. */
 export class UnregisteredOutputFormatException extends FreeMarkerException {}
-// ← freemarker.template.InvalidSettingException
-/** Unknown/invalid #setting ← InvalidSettingException. */
+// <- freemarker.template.InvalidSettingException
+/** Unknown/invalid #setting <- InvalidSettingException. */
 export class InvalidSettingException extends TemplateException {}
-/** Internal port bug ← BugException. */
+/** Internal port bug <- BugException. */
 export class BugException extends FreeMarkerException {}
 
-// ← javacc TokenMgrError: lexer-level failure, wrapped into ParseException at parse time.
-/** Lexer-level failure ← javacc TokenMgrError. */
+// <- javacc TokenMgrError: lexer-level failure, wrapped into ParseException at parse time.
+/** Lexer-level failure <- javacc TokenMgrError. */
 export class TokenMgrError extends Error {
   /**
    * @param {string} message

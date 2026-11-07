@@ -92,7 +92,7 @@ describe('runtime: escaping built-ins', () => {
   });
 
   it('?url percent-encodes UTF-8, space becomes +', async () => {
-    eq(await render('${v?url}', new Configuration(), { v: 'a b/c?é日' }), 'a+b%2Fc%3F%C3%A9%E6%97%A5');
+    eq(await render('${v?url}', new Configuration(), { v: 'a b/c?\u00e9\u65e5' }), 'a+b%2Fc%3F%C3%A9%E6%97%A5');
   });
 
   it('?json_string escapes per JSON rules', async () => {

@@ -13,24 +13,24 @@ export class Configuration {
   /** Baseline version constant (never branched on). */
   static VERSION = VERSION;
 
-  // ← Configuration.java exact values:
-  /** @type {number} ← Configurable.AUTO_DETECT_TAG_SYNTAX */
+  // <- Configuration.java exact values:
+  /** @type {number} <- Configurable.AUTO_DETECT_TAG_SYNTAX */
   static AUTO_DETECT_TAG_SYNTAX = 0;
-  /** @type {number} ← Configurable.ANGLE_BRACKET_TAG_SYNTAX */
+  /** @type {number} <- Configurable.ANGLE_BRACKET_TAG_SYNTAX */
   static ANGLE_BRACKET_TAG_SYNTAX = 1;
-  /** @type {number} ← Configurable.SQUARE_BRACKET_TAG_SYNTAX */
+  /** @type {number} <- Configurable.SQUARE_BRACKET_TAG_SYNTAX */
   static SQUARE_BRACKET_TAG_SYNTAX = 2;
-  /** @type {number} ← Configurable.LEGACY_INTERPOLATION_SYNTAX */
+  /** @type {number} <- Configurable.LEGACY_INTERPOLATION_SYNTAX */
   static LEGACY_INTERPOLATION_SYNTAX = 20;
-  /** @type {number} ← Configurable.DOLLAR_INTERPOLATION_SYNTAX */
+  /** @type {number} <- Configurable.DOLLAR_INTERPOLATION_SYNTAX */
   static DOLLAR_INTERPOLATION_SYNTAX = 21;
-  /** @type {number} ← Configurable.SQUARE_BRACKET_INTERPOLATION_SYNTAX */
+  /** @type {number} <- Configurable.SQUARE_BRACKET_INTERPOLATION_SYNTAX */
   static SQUARE_BRACKET_INTERPOLATION_SYNTAX = 22;
-  /** @type {number} ← Configurable.AUTO_DETECT_NAMING_CONVENTION */
+  /** @type {number} <- Configurable.AUTO_DETECT_NAMING_CONVENTION */
   static AUTO_DETECT_NAMING_CONVENTION = 10;
-  /** @type {number} ← Configurable.LEGACY_NAMING_CONVENTION */
+  /** @type {number} <- Configurable.LEGACY_NAMING_CONVENTION */
   static LEGACY_NAMING_CONVENTION = 11;
-  /** @type {number} ← Configurable.CAMEL_CASE_NAMING_CONVENTION */
+  /** @type {number} <- Configurable.CAMEL_CASE_NAMING_CONVENTION */
   static CAMEL_CASE_NAMING_CONVENTION = 12;
 
   /**
@@ -39,14 +39,14 @@ export class Configuration {
   constructor(version = VERSION) {
     this.version = version;
     this._tagSyntax = Configuration.ANGLE_BRACKET_TAG_SYNTAX;
-    // ← Configuration.java:573 — 2.3.x default is LEGACY (${} and #{}).
+    // <- Configuration.java:573 -- 2.3.x default is LEGACY (${} and #{}).
     this._interpolationSyntax = Configuration.LEGACY_INTERPOLATION_SYNTAX;
     this._namingConvention = Configuration.AUTO_DETECT_NAMING_CONVENTION;
     this._whitespaceStripping = true;
-    // ← Configuration.java:566-567 defaults
+    // <- Configuration.java:566-567 defaults
     this._autoEscapingPolicy = Configuration.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY;
     this._outputFormat = UndefinedOutputFormat.INSTANCE;
-    // ← Configurable format defaults (en_US locale fixed; see UPSTREAM.md):
+    // <- Configurable format defaults (en_US locale fixed; see UPSTREAM.md):
     this._numberFormat = 'number';
     this._booleanFormat = 'true,false';
     this._cFormat = 'c';
@@ -60,10 +60,10 @@ export class Configuration {
     this._classicCompatible = false;
     this._tabSize = 8;
     this._objectWrapper = new SimpleObjectWrapper();
-    // ← simplified from upstream's per-source policies (deviation, see UPSTREAM.md):
+    // <- simplified from upstream's per-source policies (deviation, see UPSTREAM.md):
     this._zeroArgumentPolicy = ZeroArgumentPolicy.AUTO_INVOKE;
     this._includeResolver = null;
-    this._templateCache = new Map(); // referenced-template parse cache ← TemplateCache
+    this._templateCache = new Map(); // referenced-template parse cache <- TemplateCache
   }
 
   /**
@@ -109,7 +109,7 @@ export class Configuration {
   setWhitespaceStripping(v) { this._whitespaceStripping = !!v; }
 
   /**
-   * Sets the sync source resolver used by #include/#import. ← Configuration.setTemplateLoader
+   * Sets the sync source resolver used by #include/#import. <- Configuration.setTemplateLoader
    * (a function of name -> source string in this port; see UPSTREAM.md).
    * @param {((name: string) => string)|null} fn
    * @returns {void}
@@ -123,15 +123,15 @@ export class Configuration {
   setOutputFormat(name) { this._outputFormat = getStandardOutputFormat(String(name)); }
   getOutputFormat() { return this._outputFormat; }
 
-  // ← Configuration auto-escaping policy constants (strings instead of ints;
+  // <- Configuration auto-escaping policy constants (strings instead of ints;
   // see UPSTREAM.md). "force" is not supported by this port.
-  /** @type {string} ← Configurable.DISABLE_AUTO_ESCAPING_POLICY */
+  /** @type {string} <- Configurable.DISABLE_AUTO_ESCAPING_POLICY */
   static DISABLE_AUTO_ESCAPING_POLICY = 'disable';
-  /** @type {string} ← Configurable.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY */
+  /** @type {string} <- Configurable.ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY */
   static ENABLE_IF_DEFAULT_AUTO_ESCAPING_POLICY = 'enableIfDefault';
-  /** @type {string} ← Configurable.ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY */
+  /** @type {string} <- Configurable.ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY */
   static ENABLE_IF_SUPPORTED_AUTO_ESCAPING_POLICY = 'enableIfSupported';
-  /** @type {string} ← Configurable.FORCE_AUTO_ESCAPING_POLICY */
+  /** @type {string} <- Configurable.FORCE_AUTO_ESCAPING_POLICY */
   static FORCE_AUTO_ESCAPING_POLICY = 'force'; // recognized, never settable via #ftl=false cases
 
   /**

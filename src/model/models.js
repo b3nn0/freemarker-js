@@ -1,4 +1,4 @@
-// Concrete model implementations for JS values ← DefaultObjectWrapper/SimpleObjectWrapper models.
+// Concrete model implementations for JS values <- DefaultObjectWrapper/SimpleObjectWrapper models.
 
 import {
   TemplateScalarModel, TemplateNumberModel, TemplateBooleanModel, TemplateDateModel,
@@ -20,9 +20,9 @@ export class StringModel extends TemplateScalarModel {
   }
 }
 
-// ← TemplateMarkupOutputModel (CommonTemplateMarkupOutputModel flavor): a value
+// <- TemplateMarkupOutputModel (CommonTemplateMarkupOutputModel flavor): a value
 // that is either already markup, or plain text to be escaped by its format.
-/** A string tagged with an OutputFormat ← MarkupOutputFormat output values. */
+/** A string tagged with an OutputFormat <- MarkupOutputFormat output values. */
 export class MarkupModel extends StringModel {
   /**
    * @param {string|null} plainText - the unescaped source text (nullable once markup is known)
@@ -39,7 +39,7 @@ export class MarkupModel extends StringModel {
   /**
    * @param {string|null} plainText
    * @param {import('../outputFormat.js').OutputFormat} outputFormat
-   * @returns {MarkupModel} ← fromPlainTextByEscaping
+   * @returns {MarkupModel} <- fromPlainTextByEscaping
    */
   static fromPlainText(plainText, outputFormat) {
     return new MarkupModel(plainText, outputFormat, null);
@@ -48,7 +48,7 @@ export class MarkupModel extends StringModel {
   /**
    * @param {string} markup
    * @param {import('../outputFormat.js').OutputFormat} outputFormat
-   * @returns {MarkupModel} ← fromMarkup
+   * @returns {MarkupModel} <- fromMarkup
    */
   static fromMarkup(markup, outputFormat) {
     return new MarkupModel(null, outputFormat, markup);
@@ -88,7 +88,7 @@ export class DateModel extends TemplateDateModel {
   /**
    * @param {Date} value
    * @param {number} [dateType] - TemplateDateModel-style type (date-only/time-only
-   *   vs. date-time); defaults to date-time ← wrapped java.util.Date
+   *   vs. date-time); defaults to date-time <- wrapped java.util.Date
    */
   constructor(value, dateType = DateModel.DATE_TIME) {
     super();
@@ -100,7 +100,7 @@ export class DateModel extends TemplateDateModel {
     return this.value;
   }
 }
-// ← TemplateDateModel constants (the port's values differ; names kept):
+// <- TemplateDateModel constants (the port's values differ; names kept):
 DateModel.NONE = 0;
 DateModel.DATE = 1;
 DateModel.TIME = 2;
@@ -157,7 +157,7 @@ export class HashModel extends TemplateHashModelEx {
    * @param {string} key
    * @returns {Generator<unknown, import('./templateModel.js').TemplateModel|null, unknown>}
    *   null when missing; plain objects walk the prototype chain but never past
-   *   Object.prototype; async property values (getter → Promise) are awaited in
+   *   Object.prototype; async property values (getter -> Promise) are awaited in
    *   async mode (generator form; see async.js)
    */
   * get(key) {
@@ -169,7 +169,7 @@ export class HashModel extends TemplateHashModelEx {
       }
       return this._wrap(v);
     }
-    // Walk the prototype chain but never past Object.prototype (← class methods are members).
+    // Walk the prototype chain but never past Object.prototype (<- class methods are members).
     let obj = this.source;
     while (obj !== null && obj !== Object.prototype) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -187,7 +187,7 @@ export class HashModel extends TemplateHashModelEx {
   keys() {
     return this.isMap ? [...this.source.keys()].map(String) : Object.keys(this.source);
   }
-  /** @returns {unknown[]} raw (unwrapped) values ← the wrapper re-wraps them on demand */
+  /** @returns {unknown[]} raw (unwrapped) values <- the wrapper re-wraps them on demand */
   values() {
     return this.isMap ? [...this.source.values()] : this.keys().map(k => this.source[k]);
   }
@@ -213,7 +213,7 @@ export class MethodModel extends TemplateMethodModel {
     this.name = name;
   }
   /**
-   * Args arrive already unwrapped to plain JS values (← MethodCall). A JS
+   * Args arrive already unwrapped to plain JS values (<- MethodCall). A JS
    * function returning a Promise awaits it in async mode (generator form).
    * @param {import('../environment.js').Environment} env
    * @param {unknown[]} [args]
@@ -227,9 +227,9 @@ export class MethodModel extends TemplateMethodModel {
   }
 }
 
-// 0..size-1 mapping over a numeric range ← freemarker.core.Range's model.
+// 0..size-1 mapping over a numeric range <- freemarker.core.Range's model.
 /**
- * 0..size-1 mapping over a numeric range ← freemarker.core.Range's model.
+ * 0..size-1 mapping over a numeric range <- freemarker.core.Range's model.
  * @param {number} from @param {number|null} to - null = unbounded open end
  * @param {'inclusive'|'exclusive'} endType
  */

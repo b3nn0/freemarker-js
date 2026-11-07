@@ -1,5 +1,5 @@
-// ← SimpleObjectWrapper-like default wrapper (see UPSTREAM.md decisions).
-// WeakMap identity cache ← the IntrospectionCache analogue: one model per wrapped object.
+// <- SimpleObjectWrapper-like default wrapper (see UPSTREAM.md decisions).
+// WeakMap identity cache <- the IntrospectionCache analogue: one model per wrapped object.
 
 import { TemplateModel } from './templateModel.js';
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';

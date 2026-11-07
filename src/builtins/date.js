@@ -1,4 +1,4 @@
-// Date/type formatting built-ins ← BuiltInsForDates + BuiltInsForOutputFormatRelated
+// Date/type formatting built-ins <- BuiltInsForDates + BuiltInsForOutputFormatRelated
 // ?string (2.3.36). Only the local-time ISO subset and java-style patterns are
 // supported (no UTC/local/zone variants; see UPSTREAM.md).
 
@@ -107,7 +107,7 @@ function* formatWithHash(target, hash, env) {
   return new StringModel(yield* env.coerceToString(target, ' with ?string'));
 }
 
-// ← dateBI / timeBI / dateTimeBI: change the date-type used by formatting
+// <- dateBI / timeBI / dateTimeBI: change the date-type used by formatting
 // (parsing strings into dates is not ported; see UPSTREAM.md).
 /**
  * @param {string} name - built-in name
@@ -136,7 +136,7 @@ asType('date', DATE_TYPES.DATE);
 asType('time', DATE_TYPES.TIME);
 asType('datetime', DATE_TYPES.DATE_TIME);
 
-// ← isoDateBI / isoTimeBI / isoDateTimeBI: ISO strings with the type fixed.
+// <- isoDateBI / isoTimeBI / isoDateTimeBI: ISO strings with the type fixed.
 /**
  * @param {string} name - built-in name
  * @param {number} dateType - DATE_TYPES member

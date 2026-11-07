@@ -1,4 +1,4 @@
-// ← AttemptBlock / RecoveryBlock (#attempt ... #recover ...).
+// <- AttemptBlock / RecoveryBlock (#attempt ... #recover ...).
 
 import { TemplateElement } from '../templateElement.js';
 import {
@@ -6,7 +6,7 @@ import {
   ReturnInstructionException,
 } from '../../../errors.js';
 
-/** #attempt/#recover ← Attempt. */
+/** #attempt/#recover <- Attempt. */
 export class AttemptBlock extends TemplateElement {
   /** @param {TemplateElement[]} children @param {TemplateElement[]} recoveryChildren */
   constructor(children, recoveryChildren) {

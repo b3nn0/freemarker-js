@@ -1,11 +1,11 @@
-// <#outputformat "NAME"> ... </#outputformat> ← FTL.jj OutputFormatBlock (2.3.36).
+// <#outputformat "NAME"> ... </#outputformat> <- FTL.jj OutputFormatBlock (2.3.36).
 // The format name must be a parse-time constant literal (upstream: any literal
 // expression; this port evaluates literals like the #ftl params). The "{...}"
 // combined-format syntax is unsupported.
 
 import { TemplateElement } from '../templateElement.js';
 
-/** <#outputformat ...> ← OutputFormat (the directive). */
+/** <#outputformat ...> <- OutputFormat (the directive). */
 export class OutputFormatBlock extends TemplateElement {
   /**
    * @param {TemplateElement[]} children - block contents

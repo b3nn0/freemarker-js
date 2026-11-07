@@ -1,4 +1,4 @@
-// ← freemarker.core.MethodCall: target(args). Named parameters (<@> / #macro) land in M9.
+// <- freemarker.core.MethodCall: target(args). Named parameters (<@> / #macro) land in M9.
 
 import { Expression } from './expression.js';
 import { InvalidReferenceException, NonMethodException } from '../../../errors.js';
@@ -6,7 +6,7 @@ import { TemplateMethodModel } from '../../../model/templateModel.js';
 import { unwrap } from '../../../model/unwrap.js';
 import { callOp } from '../../../async.js';
 
-/** f(x) ← MethodCall. */
+/** f(x) <- MethodCall. */
 export class MethodCall extends Expression {
   /** @param {Expression} target @param {Expression[]} args */
   constructor(target, args) {
@@ -28,7 +28,7 @@ export class MethodCall extends Expression {
     let t;
     let preCalled = false;
     if (typeof this.target._evaluateForMethodCall === 'function') {
-      // ← BeforeMethodCall path (ZeroArgumentPolicy at Dot/DynamicKeyName).
+      // <- BeforeMethodCall path (ZeroArgumentPolicy at Dot/DynamicKeyName).
       [t, preCalled] = yield* this.target._evaluateForMethodCall(env, this.args);
       if (preCalled) return t;
     } else {
@@ -40,7 +40,7 @@ export class MethodCall extends Expression {
         + '(can\'t be called as a method).');
     }
     if (t.isFunctionModel === true) {
-      // ← Environment.invokeFunction: an FTL #function called as f(args)
+      // <- Environment.invokeFunction: an FTL #function called as f(args)
       const models = [];
       for (const a of this.args) models.push(yield* a.evaluate(env));
       return yield* callOp(`function call "${this.target.getCanonicalForm()}"`, t, 'invoke', env,

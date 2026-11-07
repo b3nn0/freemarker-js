@@ -1,4 +1,4 @@
-// Variable reference nodes ← Identifier, Dot, DynamicKeyName (← freemarker.core.VariableExpression).
+// Variable reference nodes <- Identifier, Dot, DynamicKeyName (<- freemarker.core.VariableExpression).
 
 import { Expression } from './expression.js';
 import { backslashEscapeIdentifier } from '../../../utility/stringUtil.js';
@@ -11,7 +11,7 @@ import { unwrap } from '../../../model/unwrap.js';
 import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
 
 // ZeroArgumentPolicy application for a hash-value read (Dot / DynamicKeyName shared).
-// argExprs=null → bare read (0-arg pre-call); array → parenthesized call gets the args.
+// argExprs=null -> bare read (0-arg pre-call); array -> parenthesized call gets the args.
 /**
  * @param {import('../../../environment.js').Environment} env
  * @param {Object} t - the hash model holding the value
@@ -34,7 +34,7 @@ function* applyZeroArgPolicy(env, t, label, v, argExprs) {
 }
 import { awaitOp, callOp } from '../../../async.js';
 
-/** Bare name ← Identifier. */
+/** Bare name <- Identifier. */
 export class Identifier extends Expression {
   /** @param {string} name */
   constructor(name) {
@@ -56,7 +56,7 @@ export class Identifier extends Expression {
     if (v === null || v === undefined) {
       const e = new UnassignedVariableException(
         `The variable ${JSON.stringify(this.name)} is not in the data model.`);
-      // ← upstream carries the blamed expression's position on the exception
+      // <- upstream carries the blamed expression's position on the exception
       e.templateName = this.templateName;
       e.beginLine = this.beginLine;
       e.beginColumn = this.beginColumn;
@@ -66,7 +66,7 @@ export class Identifier extends Expression {
   }
 }
 
-/** x.y ← Dot. */
+/** x.y <- Dot. */
 export class Dot extends Expression {
   /** @param {Expression} target @param {Expression|null} key */
   constructor(target, key) {
@@ -102,12 +102,12 @@ export class Dot extends Expression {
         `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
         + 'has not been found (it is missing).');
     }
-    // ZeroArgumentPolicy: property-like read of a 0-arg function ← get()/getBeforeMethodCall.
+    // ZeroArgumentPolicy: property-like read of a 0-arg function <- get()/getBeforeMethodCall.
     const [m] = yield* applyZeroArgPolicy(env, t, this.key, v, null);
     return m;
   }
 
-  // ← the parse-time BeforeMethodCall trick: a directly enclosing MethodCall routes through here.
+  // <- the parse-time BeforeMethodCall trick: a directly enclosing MethodCall routes through here.
   // Returns [model, preCalled]; preCalled=true when the policy already produced the value.
   /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */
   * _evaluateForMethodCall(env, argExprs) {
@@ -132,14 +132,14 @@ export class Dot extends Expression {
   }
 }
 
-// ← freemarker.core.DynamicKeyName: target[key] or target[...]
-/** x[h] ← DynamicKeyName. */
+// <- freemarker.core.DynamicKeyName: target[key] or target[...]
+/** x[h] <- DynamicKeyName. */
 export class DynamicKeyName extends Expression {
   /** @param {Expression} target @param {Expression|null} key */
   constructor(target, key) {
     super();
     this.target = target;
-    this.key = key; // null ← empty [] (only legal before !/??)
+    this.key = key; // null <- empty [] (only legal before !/??)
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node

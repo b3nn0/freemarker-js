@@ -1,4 +1,4 @@
-// Basic string built-ins ← freemarker.core.BuiltInsForStringsBasic (2.3.36).
+// Basic string built-ins <- freemarker.core.BuiltInsForStringsBasic (2.3.36).
 // Arg-taking ones evaluate to a method model (the BIMethod pattern); the parser
 // leaves the "(args)" to MethodCall, matching upstream.
 
@@ -14,7 +14,7 @@ const BoolTrue = BooleanModel.TRUE;
 const BoolFalse = BooleanModel.FALSE;
 
 // Java String.trim equivalent: strips chars <= U+0020 at both ends (JS trim also
-// strips NBSP etc. — deviation noted in UPSTREAM.md).
+// strips NBSP etc. -- deviation noted in UPSTREAM.md).
 /**
  * @param {string} s
  * @returns {string} it without leading/trailing U+0020-and-below characters
@@ -49,7 +49,7 @@ function capitalize(s) {
   return out;
 }
 
-// Target must be a string ← BuiltInForString.getTargetString.
+// Target must be a string <- BuiltInForString.getTargetString.
 /**
  * @param {import('../model/templateModel.js').TemplateModel} target
  * @param {import('../environment.js').Environment} env
@@ -75,7 +75,7 @@ function* methodOnString(target, env, key, minArgs, maxArgs, fn) {
   return new BuiltinArgMethod(key, minArgs, maxArgs, (e, a) => fn(e, s, a));
 }
 
-// ← getNumberMethodArg: the argument must be a number.
+// <- getNumberMethodArg: the argument must be a number.
 /**
  * @param {unknown} v - unwrapped method argument
  * @param {import('../environment.js').Environment} env
@@ -174,7 +174,7 @@ registerBuiltIn('chop_linebreak', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    // ← StringUtil.chomp
+    // <- StringUtil.chomp
     const s = yield* targetString(target, env, 'chop_linebreak');
     if (s.endsWith('\r\n')) return new StringModel(s.slice(0, -2));
     if (s.endsWith('\r') || s.endsWith('\n')) return new StringModel(s.slice(0, -1));
@@ -267,7 +267,7 @@ registerBuiltIn('split', {
   },
 });
 
-// 2.3.36 literal (non-regex) replace of every occurrence ← replaceBI.
+// 2.3.36 literal (non-regex) replace of every occurrence <- replaceBI.
 registerBuiltIn('replace', {
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -295,7 +295,7 @@ registerBuiltIn('replace', {
   },
 });
 
-// ← padBI.BIMethod: filling may be multi-char; repeated and truncated to width.
+// <- padBI.BIMethod: filling may be multi-char; repeated and truncated to width.
 /**
  * @param {string} s
  * @param {number} width - desired total width

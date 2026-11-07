@@ -1,4 +1,4 @@
-// ← Assignment / AssignmentInstruction / block-assignment (#assign, #global, #local).
+// <- Assignment / AssignmentInstruction / block-assignment (#assign, #global, #local).
 
 import { TemplateElement } from '../templateElement.js';
 import {
@@ -10,7 +10,7 @@ import { StringModel } from '../../../model/models.js';
 /** @type {{ NAMESPACE: string, GLOBAL: string, LOCAL: string }} */
 export const ASSIGN_SCOPE = { NAMESPACE: 'namespace', GLOBAL: 'global', LOCAL: 'local' };
 
-/** #assign/#global/#local ← Assignment. */
+/** #assign/#global/#local <- Assignment. */
 export class Assignment extends TemplateElement {
   // name; opKind: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '++' | '-- | 'block' | 'block+=' ;
   // exp (null for ++/-- and block); scope: ASSIGN_SCOPE value
@@ -25,7 +25,7 @@ export class Assignment extends TemplateElement {
     super();
     this.name = name;
     this.opKind = opKind;
-    if (opKind === 'block' || opKind === 'block+=') this._whitespaceScanLeaf = true; // ← BlockAssignment
+    if (opKind === 'block' || opKind === 'block+=') this._whitespaceScanLeaf = true; // <- BlockAssignment
     this.exp = exp;
     this.scope = scope;
     this.blockChildren = blockChildren;
@@ -137,7 +137,7 @@ export class Assignment extends TemplateElement {
   }
 }
 
-/** #assign a=1, b=2 ← AssignmentInstruction. */
+/** #assign a=1, b=2 <- AssignmentInstruction. */
 export class AssignmentInstruction extends TemplateElement {
   /** @param {Assignment[]} assignments @param {Expression|null} namespaceExp */
   constructor(assignments, namespaceExp) {

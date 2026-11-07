@@ -50,7 +50,7 @@ const END_TAGS = new Map(Object.entries({
   switch: TT.END_SWITCH, escape: TT.END_ESCAPE, noescape: TT.END_NOESCAPE, noEscape: TT.END_NOESCAPE,
 }));
 
-// all directive names ← _CoreAPI.ALL_BUILT_IN_DIRECTIVE_NAMES
+// all directive names <- _CoreAPI.ALL_BUILT_IN_DIRECTIVE_NAMES
 /** every directive keyword. @type {Set<string>} */
 const ALL_DIRECTIVE_NAMES = new Set([
   'assign', 'attempt', 'autoesc', 'autoEsc', 'break', 'call', 'case', 'comment', 'compress',
@@ -61,7 +61,7 @@ const ALL_DIRECTIVE_NAMES = new Set([
   'setting', 'stop', 'switch', 't', 'transform', 'visit',
 ]);
 
-// word spellings that lex to non-ID token types ← FTL.jj token literals
+// word spellings that lex to non-ID token types <- FTL.jj token literals
 /** expression-language keywords. @type {Map<string, Object>} */
 const KEYWORDS = new Map(Object.entries({
   true: TT.TRUE, false: TT.FALSE, as: TT.AS, in: TT.IN, using: TT.USING,
@@ -267,7 +267,7 @@ export class TokenManager {
       endLine ?? this.lastLine, endColumn ?? this.lastColumn);
   }
 
-  // ---- state / tag syntax / naming convention ← FTL.jj TOKEN_MGR_DECLS ----
+  // ---- state / tag syntax / naming convention <- FTL.jj TOKEN_MGR_DECLS ----
 
   /**
    * Switches the active token state.
@@ -280,7 +280,7 @@ export class TokenManager {
 
   /**
    * Applies tag-syntax auto-detection/consistency, then the naming convention and state switch
-   * ← FTL.jj handleTagSyntaxAndSwitch.
+   * <- FTL.jj handleTagSyntaxAndSwitch.
    * @param {import('./token.js').Token} tok
    * @param {number} tokenNamingConvention
    * @param {number} newLexState
@@ -311,7 +311,7 @@ export class TokenManager {
 
   /**
    * Enforces the #ftl naming convention once established
-   * ← FTL.jj checkNamingConvention.
+   * <- FTL.jj checkNamingConvention.
    * @param {import('./token.js').Token} tok
    * @param {number} tokenNamingConvention
    * @returns {void}
@@ -360,7 +360,7 @@ export class TokenManager {
 
   /**
    * Enters expression mode for an interpolation opening that matches the configured syntax;
-   * a disabled syntax demotes the token to static text ← FTL.jj startInterpolation.
+   * a disabled syntax demotes the token to static text <- FTL.jj startInterpolation.
    * @param {import('./token.js').Token} tok
    * @returns {void}
    */
@@ -368,7 +368,7 @@ export class TokenManager {
     const syntax = this.interpolationSyntax;
     const isSquOpen = tok.type === TT.SQUARE_BRACKET_INTERPOLATION_OPENING;
     const isDollarOpen = tok.type === TT.DOLLAR_INTERPOLATION_OPENING;
-    // ← FTL.jj startInterpolation: LEGACY accepts ${ and #{ but demotes [=;
+    // <- FTL.jj startInterpolation: LEGACY accepts ${ and #{ but demotes [=;
     // DOLLAR accepts only ${; SQUARE accepts only [=
     const demoted = (syntax === Configuration.LEGACY_INTERPOLATION_SYNTAX && isSquOpen)
       || (syntax === Configuration.DOLLAR_INTERPOLATION_SYNTAX && !isDollarOpen)
@@ -539,7 +539,7 @@ export class TokenManager {
         startLine, startColumn, this.lastLine, this.lastColumn);
     }
 
-    // #items as loopVar → single token spanning through "as "
+    // #items as loopVar -> single token spanning through "as "
     if (!isEnd && name === 'items') {
       const save = this._save();
       let wsLen = 0;
@@ -608,7 +608,7 @@ export class TokenManager {
 
     const paramType = PARAM_START.get(name);
     if (paramType != null && wsLen > 0) {
-      this._restore(wsEnd); // ← FTL.jj: IF/LIST/... tokens end at the single BLANK
+      this._restore(wsEnd); // <- FTL.jj: IF/LIST/... tokens end at the single BLANK
       const tok = this._token(paramType, startPos, startLine, startColumn);
       this.handleTagSyntaxAndSwitch(tok, TokenManager._tagNamingConvention(name, camelIdx(name)), LEX.FM_EXPRESSION);
       return tok;
@@ -632,7 +632,7 @@ export class TokenManager {
       return tok;
     }
 
-    // known name in wrong form → malformed-tag; unknown name → unknown-directive
+    // known name in wrong form -> malformed-tag; unknown name -> unknown-directive
     this._restore(beforeClose);
     return this._unknownDirective(startPos, startLine, startColumn, opener, isEnd, name);
   }
@@ -660,7 +660,7 @@ export class TokenManager {
 
   /** @returns {void} */
   _eatNewline() {
-    // ← FTL.jj eatNewline: consumes whitespace only up to and including the first
+    // <- FTL.jj eatNewline: consumes whitespace only up to and including the first
     // line break; a whitespace run without any line break is put back unread.
     const save = this._save();
     while (!this._eof()) {
@@ -1066,12 +1066,12 @@ export class TokenManager {
 
   /**
    * Reads comment/noparse body up to the matching closing tag; called by the parser after
-   * COMMENT / TERSE_COMMENT / NOPARSE tokens ← UnparsedContent().
+   * COMMENT / TERSE_COMMENT / NOPARSE tokens <- UnparsedContent().
    * @returns {{ text: string, closed: boolean, beginLine: number, beginColumn: number,
    *   endLine: number, endColumn: number, endTagImage: string|null }}
    */
   readUnparsedContent() {
-    // ← UnparsedContent(): returns { text, closed, beginLine, beginColumn, endLine, endColumn, endTagImage }
+    // <- UnparsedContent(): returns { text, closed, beginLine, beginColumn, endLine, endColumn, endTagImage }
     const parts = [];
     const startLine = this.line;
     const startColumn = this.column;
@@ -1105,7 +1105,7 @@ export class TokenManager {
 
   /** @returns {boolean} */
   _looksLikeNoparseEnd() {
-    // MAYBE_END ← ("<" | "[") "/" ("#")? letters ws* (">" | "]") with name == noparseTag
+    // MAYBE_END <- ("<" | "[") "/" ("#")? letters ws* (">" | "]") with name == noparseTag
     let i = 1;
     if (this._peek(i) === '/') i++;
     if (this._peek(i) === '#') i++;

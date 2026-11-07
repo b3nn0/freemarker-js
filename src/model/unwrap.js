@@ -1,4 +1,4 @@
-// Deep unwrap of models back to plain JS values (← BeansWrapper "wrapper" removal,
+// Deep unwrap of models back to plain JS values (<- BeansWrapper "wrapper" removal,
 // used when handing arguments to JS functions).
 
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';

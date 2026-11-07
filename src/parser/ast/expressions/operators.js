@@ -1,4 +1,4 @@
-// Operator nodes, canonical forms ← FTL.jj production actions.
+// Operator nodes, canonical forms <- FTL.jj production actions.
 
 import { Expression } from './expression.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
@@ -6,7 +6,7 @@ import { awaitOp, callOp } from '../../../async.js';
 import { BooleanModel, RangeModel } from '../../../model/models.js';
 import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
 
-/** (...) ← ParentheticalExpression. */
+/** (...) <- ParentheticalExpression. */
 export class ParentheticalExpression extends Expression {
   /** @param {Expression} expression */
   constructor(expression) {
@@ -29,8 +29,8 @@ export class ParentheticalExpression extends Expression {
 }
 
 // "+": sequence+sequence and hash+hash stay collections; number+number is arithmetic;
-// otherwise both sides are coerced to strings ← AddConcatExpression.visit.
-/** + (string/sequence concat) ← AddConcat. */
+// otherwise both sides are coerced to strings <- AddConcatExpression.visit.
+/** + (string/sequence concat) <- AddConcat. */
 export class AddConcatExpression extends Expression {
   /** @param {Expression} left @param {Expression} right */
   constructor(left, right) {
@@ -73,7 +73,7 @@ export class AddConcatExpression extends Expression {
   }
 }
 
-/** - * / % ← ArithmeticExpression. */
+/** - * / % <- ArithmeticExpression. */
 export class ArithmeticExpression extends Expression {
   /** @param {Expression} left @param {Expression} right @param {string} operator */
   constructor(left, right, operator) {
@@ -109,7 +109,7 @@ export class ArithmeticExpression extends Expression {
   }
 }
 
-/** -x/+x ← UnaryPlusMinusExpression. */
+/** -x/+x <- UnaryPlusMinusExpression. */
 export class UnaryPlusMinusExpression extends Expression {
   /** @param {Expression} target @param {boolean} isMinus */
   constructor(target, isMinus) {
@@ -133,7 +133,7 @@ export class UnaryPlusMinusExpression extends Expression {
   }
 }
 
-/** !x ← NotExpression. */
+/** !x <- NotExpression. */
 export class NotExpression extends Expression {
   /** @param {Expression} target */
   constructor(target) {
@@ -156,8 +156,8 @@ export class NotExpression extends Expression {
 }
 
 // Comparison semantics v1 (M16 refines date handling and natural string order):
-// both numbers → numeric; both dates → time; both booleans → identity; else string form.
-/** == != < <= > >= ← ComparisonExpression. */
+// both numbers -> numeric; both dates -> time; both booleans -> identity; else string form.
+/** == != < <= > >= <- ComparisonExpression. */
 export class ComparisonExpression extends Expression {
   /** @param {Expression} left @param {Expression} right @param {string} opString */
   constructor(left, right, opString) {
@@ -199,8 +199,8 @@ export class ComparisonExpression extends Expression {
   }
 }
 
-// endType: inclusive | exclusive | sizeLimited | unbound ← Range.END_*
-/** x..y ← Range. */
+// endType: inclusive | exclusive | sizeLimited | unbound <- Range.END_*
+/** x..y <- Range. */
 export class Range extends Expression {
   /** @param {Expression} left @param {Expression} right @param {string} endType */
   constructor(left, right, endType) {
@@ -241,7 +241,7 @@ export class Range extends Expression {
   }
 }
 
-/** && ← AndExpression. */
+/** && <- AndExpression. */
 export class AndExpression extends Expression {
   /** @param {Expression} left @param {Expression} right */
   constructor(left, right) {
@@ -265,7 +265,7 @@ export class AndExpression extends Expression {
   }
 }
 
-/** || ← OrExpression. */
+/** || <- OrExpression. */
 export class OrExpression extends Expression {
   /** @param {Expression} left @param {Expression} right */
   constructor(left, right) {
@@ -290,13 +290,13 @@ export class OrExpression extends Expression {
 }
 
 // `x!y` / `x!`: missing left side (thrown or null) falls back to right side.
-/** x!y ← DefaultToExpression. */
+/** x!y <- DefaultToExpression. */
 export class DefaultToExpression extends Expression {
   /** @param {Expression} left @param {Expression|null} right */
   constructor(left, right) {
     super();
     this.left = left;
-    this.right = right ?? null; // ← x! (trailing ! in named params)
+    this.right = right ?? null; // <- x! (trailing ! in named params)
   }
   /**
    * @returns {string} the upstream-style canonical template source of this node
@@ -321,7 +321,7 @@ export class DefaultToExpression extends Expression {
   }
 }
 
-/** x?has? ← ExistsExpression. */
+/** x?has? <- ExistsExpression. */
 export class ExistsExpression extends Expression {
   /** @param {Expression} expression */
   constructor(expression) {

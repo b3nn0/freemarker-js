@@ -1,11 +1,11 @@
-// ← freemarker.core.Include (#include).
+// <- freemarker.core.Include (#include).
 
 import { TemplateElement } from '../templateElement.js';
 import { UnsupportedFeatureException, NonBooleanException } from '../../../errors.js';
 import { StringModel, BooleanModel } from '../../../model/models.js';
 
 /**
- * `#include name [parse=..] [encoding=..] [ignore_missing=..]` — at render time
+ * `#include name [parse=..] [encoding=..] [ignore_missing=..]` -- at render time
  * resolves the source via the includeResolver, parses (cached per Configuration),
  * and visits the included template with the same data model/namespace.
  */
@@ -70,8 +70,8 @@ export class IncludeDirective extends TemplateElement {
       if (ignoreMissing) return null;
       throw e;
     }
-    // ← Environment.include(): same data model and namespace; children visit inline.
-    yield* env.visit(included.rootElement); // ← Environment.include(): visit as single element
+    // <- Environment.include(): same data model and namespace; children visit inline.
+    yield* env.visit(included.rootElement); // <- Environment.include(): visit as single element
     return null;
   }
 

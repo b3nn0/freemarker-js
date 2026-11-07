@@ -125,7 +125,7 @@ describe('FTL header directive', () => {
   });
 
   it('canonical form round-trips through the header', () => {
-    // ← upstream HeaderElement() is void: the header isn't an AST child; its canonical
+    // <- upstream HeaderElement() is void: the header isn't an AST child; its canonical
     // form is exposed via Template.ftlHeader only.
     eq(new Template('t.ftl', '<#ftl>').ftlHeader.getCanonicalForm(), '<#ftl/>');
     eq(new Template('t.ftl', '<#ftl encoding="UTF-8" strip_whitespace=false/>').ftlHeader.getCanonicalForm(),

@@ -1,5 +1,5 @@
 // Existence-handling, lazy conditional, multi-type, type-check, hash and number
-// built-ins ← BuiltInsForExistenceHandling, BuiltInsWithLazyConditionals,
+// built-ins <- BuiltInsForExistenceHandling, BuiltInsWithLazyConditionals,
 // BuiltInsForMultipleTypes, BuiltInsForHashes, BuiltInsForNumbers (2.3.36).
 
 import { registerBuiltIn } from './registry.js';
@@ -24,9 +24,9 @@ const BoolFalse = BooleanModel.FALSE;
 
 // ---- existence handling (BuiltInsForExistenceHandling) ----
 
-// ← Expression.isEmpty
+// <- Expression.isEmpty
 /**
- * ← Expression.isEmpty.
+ * <- Expression.isEmpty.
  * @param {Object|null} model
  * @param {import('../environment.js').Environment} env
  * @returns {boolean}
@@ -50,7 +50,7 @@ registerBuiltIn('if_exists', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target) {
-    // ← TemplateModel.NOTHING: an empty string for output purposes
+    // <- TemplateModel.NOTHING: an empty string for output purposes
     return target === null || target === undefined ? new StringModel('') : target;
   },
 });
@@ -68,7 +68,7 @@ registerBuiltIn('has_content', {
   },
 });
 
-// ← defaultBI: a method returning the target (ConstantMethod), or the first
+// <- defaultBI: a method returning the target (ConstantMethod), or the first
 // non-null argument when the target was missing (FIRST_NON_NULL_METHOD).
 registerBuiltIn('default', {
   acceptsMissing: true,
@@ -130,7 +130,7 @@ registerBuiltIn('blank_to_null', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    // ← isBlank: whitespace (or NBSP) only; the empty string is blank too
+    // <- isBlank: whitespace (or NBSP) only; the empty string is blank too
     return yield* toNull(target, env, 'blank_to_null',
       (s) => s.length === 0 || [...s].every((c) => c.charCodeAt(0) <= 0x20 || c === '\u00a0'));
   },
@@ -179,7 +179,7 @@ registerBuiltIn('then', {
     }
     const lho = yield* env.toBoolean(target, ' on the left side of "?then"');
     const branch = argExprs[lho ? 0 : 1];
-    const v = yield* branch.evaluate(env); // ← only the chosen branch is evaluated
+    const v = yield* branch.evaluate(env); // <- only the chosen branch is evaluated
     if (v === null || v === undefined) {
       throw new InvalidReferenceException(
         `The following has evaluated to null or missing: ${branch.getCanonicalForm()} `
@@ -378,7 +378,7 @@ registerBuiltIn('floor', {
   },
 });
 
-// Java rounds halves away from zero; Math.round(-2.5) is -2 → explicit.
+// Java rounds halves away from zero; Math.round(-2.5) is -2 -> explicit.
 registerBuiltIn('round', {
   /**
      * @param {import('../model/templateModel.js').TemplateModel} target
@@ -392,7 +392,7 @@ registerBuiltIn('round', {
   },
 });
 
-// ---- type checks (BuiltInsForMultipleTypes is_*BI; null targets → false) ----
+// ---- type checks (BuiltInsForMultipleTypes is_*BI; null targets -> false) ----
 
 registerBuiltIn('is_string', {
   acceptsMissing: true,

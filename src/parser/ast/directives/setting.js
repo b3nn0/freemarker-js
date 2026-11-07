@@ -1,11 +1,11 @@
-// <#setting name=value> ← PropertySetting (2.3.36). The value is evaluated and
+// <#setting name=value> <- PropertySetting (2.3.36). The value is evaluated and
 // applied to the environment at render time (2.3 behavior; parse-time key
 // validation only).
 
 import { TemplateElement } from '../templateElement.js';
 import { callOp } from '../../../async.js';
 
-// ← PropertySetting.SETTING_NAMES (legacy-naming view; camelCase variants are
+// <- PropertySetting.SETTING_NAMES (legacy-naming view; camelCase variants are
 // accepted too when the parser's naming convention is camel).
 /** Allowed #setting keys (snake convention). @type {string[]} */
 export const SETTING_NAMES = [
@@ -14,7 +14,7 @@ export const SETTING_NAMES = [
   'time_format', 'time_zone', 'url_escaping_charset',
 ];
 
-// ← the *_KEY_CAMEL_CASE twins (accepted regardless of the naming convention;
+// <- the *_KEY_CAMEL_CASE twins (accepted regardless of the naming convention;
 // see UPSTREAM.md).
 /** camelCase aliases accepted too. @type {string[]} */
 export const CAMEL_SETTING_NAMES = [
@@ -23,7 +23,7 @@ export const CAMEL_SETTING_NAMES = [
   'timeFormat', 'timeZone', 'urlEscapingCharset',
 ];
 
-/** <#setting key=value> ← PropertySetting. */
+/** <#setting key=value> <- PropertySetting. */
 export class PropertySetting extends TemplateElement {
   /**
    * @param {string} key - the setting name as written

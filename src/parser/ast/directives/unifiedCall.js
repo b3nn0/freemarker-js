@@ -1,11 +1,11 @@
-// ← UnifiedCall (<@...>), NestedInstruction (#nested), FallbackInstruction (#fallback).
-// ← freemarker.core.UnifiedCall / BodyInstruction / FallbackInstruction
+// <- UnifiedCall (<@...>), NestedInstruction (#nested), FallbackInstruction (#fallback).
+// <- freemarker.core.UnifiedCall / BodyInstruction / FallbackInstruction
 
 import { TemplateElement } from '../templateElement.js';
 import { InvalidReferenceException, UnsupportedFeatureException } from '../../../errors.js';
 import { callOp } from '../../../async.js';
 
-/** <@call ...> ← UnifiedCall. */
+/** <@call ...> <- UnifiedCall. */
 export class UnifiedCall extends TemplateElement {
   // target: Expression; namedArgs: Map<string, Expression> | null; positionalArgs: Expression[] | null;
   // bodyParamNames: string[] | null (the "; p1, p2" list); bodyChildren: TemplateElement[]
@@ -64,7 +64,7 @@ export class UnifiedCall extends TemplateElement {
     return null;
   }
 
-  // ← UnifiedCall.dump: positional args are comma separated; named args use
+  // <- UnifiedCall.dump: positional args are comma separated; named args use
   // "name=value" pairs separated by single spaces (sorted by name upstream).
   /** @returns {string} */
   _argsCanonical() {
@@ -95,7 +95,7 @@ export class UnifiedCall extends TemplateElement {
   }
 }
 
-/** #nested ← Nested. */
+/** #nested <- Nested. */
 export class NestedInstruction extends TemplateElement {
   /** @param {Expression[]|null} bodyParameters */
   constructor(bodyParameters) {
@@ -116,7 +116,7 @@ export class NestedInstruction extends TemplateElement {
     if (this.bodyParameters !== null) {
       for (const e of this.bodyParameters) values.push(yield* e.evaluate(env));
     }
-    // ← BodyInstruction.accept: the body runs in the CALLER's context, so swap the
+    // <- BodyInstruction.accept: the body runs in the CALLER's context, so swap the
     // macro-scoped frames for the caller's chain saved at invoke time.
     const macroView = env._scopes.slice();
     env._scopes.length = 0;
@@ -144,7 +144,7 @@ export class NestedInstruction extends TemplateElement {
   }
 }
 
-/** #fallback ← MacroFallback. */
+/** #fallback <- MacroFallback. */
 export class FallbackInstruction extends TemplateElement {
   /** @returns {null} */
   * execute() {

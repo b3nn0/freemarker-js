@@ -1,4 +1,4 @@
-// Escaping/encoding/string-formatting built-ins ← BuiltInsForStringsEncoding
+// Escaping/encoding/string-formatting built-ins <- BuiltInsForStringsEncoding
 // + BuiltInsForStringsBasic ?c + ?eval (2.3.36).
 
 import { registerBuiltIn } from './registry.js';
@@ -22,7 +22,7 @@ function* targetString(target, env, key) {
   return yield* env.coerceToString(target, ` for the "?${key}" built-in`);
 }
 
-// ← BuiltInForLegacyEscaping: if the target is markup of a format that bypasses
+// <- BuiltInForLegacyEscaping: if the target is markup of a format that bypasses
 // this built-in (e.g. ?html on an HTML value), the built-in is silently skipped.
 /**
  * @param {Object} target
@@ -76,7 +76,7 @@ registerBuiltIn('xml', {
 });
 
 // ?no_esc: wrap in the current output format's markup model so the
-// interpolation writes it out as-is (← NoEsc BI + OutputFormat.output path).
+// interpolation writes it out as-is (<- NoEsc BI + OutputFormat.output path).
 registerBuiltIn('no_esc', {
   /**
    * @param {import('../model/templateModel.js').TemplateModel} target
@@ -150,7 +150,7 @@ registerBuiltIn('c', {
 });
 
 // ?eval: evaluates the string as an FTL expression. The static import of the
-// parser creates a load-time cycle (builtIn → index → encoding → parser →
+// parser creates a load-time cycle (builtIn -> index -> encoding -> parser ->
 // builtIn); it stays safe because the Parser class is only touched at runtime.
 registerBuiltIn('eval', {
   /**
@@ -182,7 +182,7 @@ registerBuiltIn('eval', {
  */
 export function parseExpression(source, cfg) {
   const p = new Parser(source, cfg, null);
-  p.tm.switchTo(LEX.FM_EXPRESSION); // ← like inside "${"
+  p.tm.switchTo(LEX.FM_EXPRESSION); // <- like inside "${"
   const exp = p._parseExpression();
   const t = p._peek();
   if (t.type !== TT.EOF) {

@@ -1,9 +1,9 @@
-// <#compress> ... </#compress> ← CompressedBlock + StandardCompress writer (string-level port).
+// <#compress> ... </#compress> <- CompressedBlock + StandardCompress writer (string-level port).
 
 import { TemplateElement } from '../templateElement.js';
 import { StringWriter } from '../../../io/writer.js';
 
-/** ← StandardCompressWriter state machine. @type {number} */
+/** <- StandardCompressWriter state machine. @type {number} */
 const AT_BEGINNING = 0;
 /** @type {number} */
 const INIT = 1;
@@ -22,7 +22,7 @@ function isWs(c) {
 }
 
 /**
- * ← StandardCompress.StandardCompressWriter: each consecutive whitespace run
+ * <- StandardCompress.StandardCompressWriter: each consecutive whitespace run
  * becomes a single line break (if it contains one) or a single space;
  * leading/trailing whitespace is removed.
  * @param {string} s
@@ -74,7 +74,7 @@ export function standardCompress(s, singleLine = false) {
   return out; // pending trailing whitespace is dropped (no line-break write at close)
 }
 
-/** #compress ← Compress. */
+/** #compress <- Compress. */
 export class CompressedBlock extends TemplateElement {
   /**
    * @param {import('../templateElement.js').TemplateElement[]} children - block contents

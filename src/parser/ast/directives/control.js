@@ -1,11 +1,11 @@
-// Control-flow directives ← freemarker.core BreakInstruction / ContinueInstruction.
+// Control-flow directives <- freemarker.core BreakInstruction / ContinueInstruction.
 
 import { TemplateElement } from '../templateElement.js';
 import {
   BreakInstructionException, ContinueInstructionException, ReturnInstructionException,
 } from '../../../errors.js';
 
-/** #break ← BreakInstruction. */
+/** #break <- BreakInstruction. */
 export class BreakInstruction extends TemplateElement {
   /** @returns {null} @throws {BreakInstructionException} */
   * execute() {
@@ -19,7 +19,7 @@ export class BreakInstruction extends TemplateElement {
   }
 }
 
-/** #continue ← ContinueInstruction. */
+/** #continue <- ContinueInstruction. */
 export class ContinueInstruction extends TemplateElement {
   /** @returns {null} @throws {BreakInstructionException} */
   * execute() {
@@ -33,8 +33,8 @@ export class ContinueInstruction extends TemplateElement {
   }
 }
 
-// ← ReturnInstruction (#return): exits a macro (no value) or returns a value from a function.
-/** #return ← ReturnInstruction. */
+// <- ReturnInstruction (#return): exits a macro (no value) or returns a value from a function.
+/** #return <- ReturnInstruction. */
 export class ReturnInstruction extends TemplateElement {
   /** @param {Expression|null} exp */
   constructor(exp) {

@@ -2,7 +2,7 @@
 // Every frame on the transitive path to a model/loader callback is a generator;
 // at each async boundary it yields a `{ op, promise }` token up to the driver
 // instead of consuming the promise itself. runSync() turns a token into an
-// error; runAsync() awaits it. ← the co-routine technique; upstream Java has no
+// error; runAsync() awaits it. <- the co-routine technique; upstream Java has no
 // analogue (its engine is simply sync), see UPSTREAM.md.
 
 import { AsyncOperationNotAllowedException } from './errors.js';

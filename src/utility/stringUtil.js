@@ -1,6 +1,6 @@
 // Canonical-form helpers mirrored from upstream StringUtil / _CoreStringUtils.
 
-// ← StringUtil.isBackslashEscapedFTLIdentifierCharacter
+// <- StringUtil.isBackslashEscapedFTLIdentifierCharacter
 /**
  * @param {string} c - a single character
  * @returns {boolean} whether backslash-escaping identifiers applies to it
@@ -9,7 +9,7 @@ export function isBackslashEscapedFTLIdentifierChar(c) {
   return c === '-' || c === '.' || c === ':' || c === '#';
 }
 
-// ← _CoreStringUtils.backslashEscapeIdentifier
+// <- _CoreStringUtils.backslashEscapeIdentifier
 /**
  * @param {string} name
  * @returns {string} the identifier with backslash escapes where required
@@ -27,7 +27,7 @@ export function backslashEscapeIdentifier(name) {
   return out === null ? name : out;
 }
 
-// ← StringUtil.createEscapes
+// <- StringUtil.createEscapes
 /** char -> entity table for XMLEnc/XHTMLEnc. @type {Map<string, string>} */
 const ESCAPES = (() => {
   const e = new Array(0x5c + 1).fill(0);
@@ -51,7 +51,7 @@ function isInterpolationStart(c) {
   return c === '$' || c === '#';
 }
 
-// ← StringUtil.ftlQuote + FTLStringLiteralEnc(s, q, true)
+// <- StringUtil.ftlQuote + FTLStringLiteralEnc(s, q, true)
 /**
  * @param {string} s - arbitrary string
  * @returns {string} it as a safe FTL string literal (upstream escaping table)
@@ -90,7 +90,7 @@ export function ftlQuote(s) {
   return buf === null ? quotation + s + quotation : buf + quotation;
 }
 
-// ← FTL.jj <ESCAPED_CHAR> decoding (grammar: n t r f b g l a \\ ' " { = xHH)
+// <- FTL.jj <ESCAPED_CHAR> decoding (grammar: n t r f b g l a \\ ' " { = xHH)
 /**
  * Decodes an FTL string literal body (escape sequences per the grammar's ESCAPED_CHAR).
  * @param {string} body
@@ -138,7 +138,7 @@ export function unescapeFTLStringLiteral(body) {
 }
 
 /**
- * ← StringUtil.isTrimmableToEmpty: true when every char in [from, to) is
+ * <- StringUtil.isTrimmableToEmpty: true when every char in [from, to) is
  * whitespace per Java's String.trim() rule (c <= ' ').
  * @param {string} s
  * @param {number} [from]
@@ -196,7 +196,7 @@ function escapeChars(s, escApos) {
 }
 
 // StringUtil.URLEnc(s): safe chars pass, space becomes '+', everything else is
-// percent-encoded UTF-8 octets. (Charset fixed to UTF-8 — deviation.)
+// percent-encoded UTF-8 octets. (Charset fixed to UTF-8 -- deviation.)
 /**
  * @param {string} s
  * @param {boolean} [keepSlash] - URLPathEnc variant: '/' stays unescaped

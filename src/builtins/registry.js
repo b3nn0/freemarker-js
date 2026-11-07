@@ -10,7 +10,7 @@ const BUILTINS = new Map();
  * @typedef {Object} BuiltInSpec
  * @property {boolean} [acceptsMissing] - true when the built-in handles a null/missing
  *   target itself (existence built-ins, type checks); otherwise a null target throws
- *   ← BuiltInsForExistenceHandling vs the type-bound BuiltInForXxx classes
+ *   <- BuiltInsForExistenceHandling vs the type-bound BuiltInForXxx classes
  * @property {(target: import('../model/templateModel.js').TemplateModel,
  *   argExprs: Object[]|null, env: import('../environment.js').Environment) =>
  *   import('../model/templateModel.js').TemplateModel} impl

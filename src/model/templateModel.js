@@ -1,7 +1,7 @@
-// Model interfaces ← freemarker.template.TemplateXxxModel (v1; M5 adds method/collection nodes).
+// Model interfaces <- freemarker.template.TemplateXxxModel (v1; M5 adds method/collection nodes).
 
 /**
- * Marker base class of every TemplateModel (← freemarker.template.TemplateModel).
+ * Marker base class of every TemplateModel (<- freemarker.template.TemplateModel).
  * @typedef {import('./models.js').StringModel|import('./models.js').NumberModel|import('./models.js').BooleanModel|import('./models.js').DateModel|import('./models.js').SequenceModel|import('./models.js').HashModel|import('./models.js').MethodModel|TemplateModel} AnyModel
  */
 export class TemplateModel {}

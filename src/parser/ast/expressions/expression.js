@@ -1,6 +1,6 @@
-// Expression AST base node (← freemarker.core.Expression). Evaluation lands in M4.
+// Expression AST base node (<- freemarker.core.Expression). Evaluation lands in M4.
 
-/** Base for expression AST nodes ← Expression. */
+/** Base for expression AST nodes <- Expression. */
 export class Expression {
   /** Location fields are filled in by the parser. */
   constructor() {
@@ -42,7 +42,7 @@ export class Expression {
     throw new Error(`getCanonicalForm() not implemented for ${this.constructor.name}`);
   }
 
-  // Returns a TemplateModel, or null for missing values (← Expression.visit semantics;
+  // Returns a TemplateModel, or null for missing values (<- Expression.visit semantics;
   // missing-as-error conversion happens at consumption points).
   /**
    * @param {import('../../../environment.js').Environment} env - rendering environment

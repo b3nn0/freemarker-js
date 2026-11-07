@@ -1,17 +1,17 @@
-// ${...} (and [=...], canonicalized to ${...}). ← freemarker.core.DollarVariable (Interpolation).
+// ${...} (and [=...], canonicalized to ${...}). <- freemarker.core.DollarVariable (Interpolation).
 
 import { TemplateElement } from './templateElement.js';
 import { MarkupModel, NumberModel } from '../../model/models.js';
 import { InvalidReferenceException, TemplateException } from '../../errors.js';
 
-/** ${...} ← DollarVariable; with fracOpts set it is the legacy #{...} (NumericalOutput). */
+/** ${...} <- DollarVariable; with fracOpts set it is the legacy #{...} (NumericalOutput). */
 export class Interpolation extends TemplateElement {
   /**
    * @param {import('./expressions/expression.js').Expression} expression
    * @param {import('../../outputFormat.js').OutputFormat|null} [outputFormat] -
-   *   the format bound at parse time ← DollarVariable.outputFormat
-   * @param {boolean} [autoEscape] - ← DollarVariable.autoEscape
-   * @param {{ minFrac?: number, maxFrac?: number }|null} [fracOpts] - ← NumericalOutput #{exp;mN}
+   *   the format bound at parse time <- DollarVariable.outputFormat
+   * @param {boolean} [autoEscape] - <- DollarVariable.autoEscape
+   * @param {{ minFrac?: number, maxFrac?: number }|null} [fracOpts] - <- NumericalOutput #{exp;mN}
    */
   constructor(expression, outputFormat = null, autoEscape = false, fracOpts = null) {
     super();
@@ -22,7 +22,7 @@ export class Interpolation extends TemplateElement {
   }
 
   /**
-   * ← DollarVariable.accept: markup values follow the format-mixing rules,
+   * <- DollarVariable.accept: markup values follow the format-mixing rules,
    * plain values are escaped iff this interpolation was parse-bound to autoEscape.
    * @param {import('../../environment.js').Environment} env - rendering environment
    * @returns {null}
@@ -71,19 +71,19 @@ export class Interpolation extends TemplateElement {
    */
   getCanonicalForm() {
     if (this.fracOpts !== null) {
-      // ← NumericalOutput keeps the #{} form; m/M spell back the parsed bounds
+      // <- NumericalOutput keeps the #{} form; m/M spell back the parsed bounds
       return `#{${this.expression.getCanonicalForm()};m${this.fracOpts.minFrac}`
         + `M${this.fracOpts.maxFrac}}`;
     }
     return `\${${this.expression.getCanonicalForm()}}`;
   }
 
-  /** ← DollarVariable: interpolations heed whitespace around them */
+  /** <- DollarVariable: interpolations heed whitespace around them */
   heedsOpeningWhitespace() {
     return true;
   }
 
-  /** ← DollarVariable: interpolations heed whitespace around them */
+  /** <- DollarVariable: interpolations heed whitespace around them */
   heedsTrailingWhitespace() {
     return true;
   }

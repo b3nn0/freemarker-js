@@ -1,4 +1,4 @@
-// StringWriter / Writer-sink basics (src/io/writer.js ← java.io.Writer/StringWriter).
+// StringWriter / Writer-sink basics (src/io/writer.js <- java.io.Writer/StringWriter).
 import { describe, it, eq, snapshot } from '../harness.js';
 import { StringWriter } from '../../src/index.js';
 

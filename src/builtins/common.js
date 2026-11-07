@@ -1,4 +1,4 @@
-// Shared helpers for the built-in implementations ← BuiltIn.java's protected helpers
+// Shared helpers for the built-in implementations <- BuiltIn.java's protected helpers
 // (checkMethodArgCount) and the BuiltInWithDirectCallOptimization BIMethod pattern.
 
 import { TemplateMethodModel } from '../model/templateModel.js';
@@ -6,7 +6,7 @@ import { awaitOp, callOp, isGenerator } from '../async.js';
 import { NonStringException, TemplateException } from '../errors.js';
 
 /**
- * ← _MessageUtil.newArgCntError.
+ * <- _MessageUtil.newArgCntError.
  * @param {string} key - built-in name without "?"
  * @param {number} argCnt
  * @param {number} minCnt
@@ -32,7 +32,7 @@ export function argCntError(key, argCnt, minCnt, maxCnt) {
 
 /**
  * A built-in that evaluates to a method, called later through MethodCall syntax
- * ← the BIMethod inner classes of the arg-taking built-ins.
+ * <- the BIMethod inner classes of the arg-taking built-ins.
  */
 export class BuiltinArgMethod extends TemplateMethodModel {
   /**
@@ -40,7 +40,7 @@ export class BuiltinArgMethod extends TemplateMethodModel {
    * @param {number} minArgs
    * @param {number} maxArgs - may be Infinity
    * @param {(env: import('../environment.js').Environment, args: unknown[]) => Object} fn
-   *   args arrive already unwrapped (← MethodCall)
+   *   args arrive already unwrapped (<- MethodCall)
    */
   constructor(name, minArgs, maxArgs, fn) {
     super();
@@ -67,7 +67,7 @@ export class BuiltinArgMethod extends TemplateMethodModel {
 }
 
 /**
- * Coerce an unwrapped method argument to a string ← BuiltIn.getStringMethodArg.
+ * Coerce an unwrapped method argument to a string <- BuiltIn.getStringMethodArg.
  * @param {unknown} v
  * @param {import('../environment.js').Environment} env
  * @returns {string}

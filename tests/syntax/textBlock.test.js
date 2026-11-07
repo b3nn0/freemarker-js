@@ -1,4 +1,4 @@
-// Static-text pass-through: TextBlock.execute → env output.
+// Static-text pass-through: TextBlock.execute -> env output.
 // Intent ported from freemarker/core/TextBlock.java accept() + Template.process(model, writer).
 import { describe, it, snapshot, eq } from '../harness.js';
 import { Configuration, Template } from '../../src/index.js';
@@ -23,7 +23,7 @@ describe('TextBlock pass-through', () => {
   });
 
   it('unicode + special chars preserved', async () => {
-    snapshot(await out('Ünïcödé — $ < [ # { end'), 'Ünïcödé — $ < [ # { end');
+    snapshot(await out('\u00dcn\u00efc\u00f6d\u00e9 \u2014 $ < [ # { end'), '\u00dcn\u00efc\u00f6d\u00e9 \u2014 $ < [ # { end');
   });
 
   it('model may be omitted', async () => {
