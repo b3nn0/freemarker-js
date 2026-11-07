@@ -47,8 +47,10 @@ export class SwitchBlock extends TemplateElement {
     this.switchExp = switchExp;
     this.cases = cases;
     this.ons = ons ?? [];
-    for (const c of cases) this.addChild(c);
-    for (const o of this.ons) this.addChild(o);
+    // Children go in SOURCE order (parser passes them interleaved); the
+    // whitespace-cleanup walk relies on it.
+    for (const c of [...cases, ...this.ons]) this.addChild(c);
+    this.children.sort((a, b) => (a.beginLine - b.beginLine) || (a.beginColumn - b.beginColumn));
   }
 
   /**

@@ -1499,15 +1499,15 @@ export class Parser {
           }
           hadCase = true;
           const cexp = this._parseExpression();
-          this._expect(TT.DIRECTIVE_END, '">"');
-          cases.push(new Case(cexp, this._parseMixedContent(caseStop).children));
+          const caseEndTok = this._expect(TT.DIRECTIVE_END, '">"');
+          cases.push(this._span(new Case(cexp, this._parseMixedContent(caseStop).children), t, caseEndTok));
         } else if (t.type === TT.DEFAUL) {
           this._next();
           if (hadDefault) {
             throw this._error('You already had a #default in the #switch block', t);
           }
           hadDefault = true;
-          cases.push(new Case(null, this._parseMixedContent(caseStop).children));
+          cases.push(this._span(new Case(null, this._parseMixedContent(caseStop).children), t, t));
         } else if (t.type === TT.ON) {
           this._next();
           if (hadCase) {
@@ -1524,8 +1524,8 @@ export class Parser {
           }
           // <- FTL.jj On(): exps = PositionalArgs() -- no parens; commas optional
           const exps = this._parsePositionalArgs();
-          this._expect(TT.DIRECTIVE_END, '">"');
-          ons.push(new On(exps, this._parseMixedContent(caseStop).children));
+          const onEndTok = this._expect(TT.DIRECTIVE_END, '">"');
+          ons.push(this._span(new On(exps, this._parseMixedContent(caseStop).children), t, onEndTok));
         } else if (t.type === TT.END_SWITCH) {
           break;
         } else {

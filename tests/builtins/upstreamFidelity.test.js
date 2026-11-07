@@ -205,3 +205,75 @@ describe('Upstream BreakAndContinuePlacementTest (ported subset)', () => {
       ParseException, ['#break']);
   });
 });
+
+describe('Upstream SwitchTest (ported subset)', () => {
+  it('#case fall-through basics', async () => {
+    for (let i = 1; i <= 6; i++) {
+      for (const hd of [true, false]) {
+        snapshot(await out('[<#switch ' + i + '>\n<#case 3>Case 3<#break><#case 1>Case 1<#break>'
+          + '<#case 4><#case 5>Case 4 or 5<#break><#case 2>Case 2<#break>'
+          + (hd ? '<#default>D' : '') + '</#switch>]', {}),
+          i < 6 ? '[Case ' + (i < 4 ? i : '4 or 5') + ']' : (hd ? '[D]' : '[]'));
+      }
+    }
+  });
+
+  it('#on stops at first match, supports multi-value #on', async () => {
+    for (let i = 1; i <= 6; i++) {
+      for (const hd of [true, false]) {
+        snapshot(await out('[<#switch ' + i + '>\n<#on 3>On 3<#on 1>On 1<#on 4, 5>On 4 or 5'
+          + '<#on 2>On 2' + (hd ? '<#default>D' : '') + '</#switch>]', {}),
+          i < 6 ? '[On ' + (i < 4 ? i : '4 or 5') + ']' : (hd ? '[D]' : '[]'));
+      }
+    }
+  });
+
+  it('oddly-placed #default and #default-only still work', async () => {
+    snapshot(await out('<#list 1..3 as i><#switch i><#case 1>1<#default>D<#case 3>3</#switch>;</#list>', {}),
+      '1D3;D;3;');
+    snapshot(await out('<#switch 1><#default>D</#switch>', {}), 'D');
+    snapshot(await out('<#list 1..2 as i><#switch 1><#default>D<#break>unreachable</#switch></#list>', {}), 'DD');
+  });
+
+  it('whitespace handling: #on is not a whitespace-stripping tag', async () => {
+    snapshot(await out('<#list 1..3 as i>\n[\n  <#switch i>\n    <#case 1>C1\n    <#case 2>C2<#break>\n'
+      + '    <#default>D\n  </#switch>\n]\n</#list>', {}), '[\nC1\n    C2]\n[\nC2]\n[\nD\n]\n');
+    snapshot(await out('<#list 1..3 as i>\n[\n  <#switch i>\n    <#on 1>C1\n    <#on 2>C2\n'
+      + '    <#default>D\n  </#switch>\n]\n</#list>', {}), '[\nC1\n    ]\n[\nC2\n    ]\n[\nD\n]\n');
+    snapshot(await out('<#list 1..3 as i>\n[\n  <#switch i>\n    <#on 1>C1<#t>\n    <#on 2>C2<#t>\n'
+      + '    <#default>D<#t>\n  </#switch>\n]\n</#list>', {}), '[\nC1]\n[\nC2]\n[\nD]\n');
+  });
+
+  it('#on/#case/#default mixing errors (upstream message parts)', () => {
+    const errs = [
+      ['<#switch x><#on 1>On 1<#default>D<#on 2>On 2</#switch>', '#on after #default'],
+      ['<#switch x><#on 1>On 1<#default>D<#on 2>On 2</#switch>', '#default must come last'],
+      ['<#switch x><#on 1>On 1<#case 2>On 2</#switch>', "can't use both #on, and #case"],
+      ['<#switch x><#on 1>On 1<#case 2>On 2</#switch>', 'already had an #on'],
+      ['<#switch x><#case 1>On 1<#on 2>On 2</#switch>', 'already had a #case'],
+      ['<#switch x><#on 1>On 1<#default>D1<#default>D2</#switch>', 'already had a #default'],
+      ['<#switch x><#default>D<#on 2>On 2</#switch>', '#on after #default'],
+    ];
+    for (const [tpl, part] of errs) {
+      throwsMatch(() => new Template('t.ftl', tpl, new Configuration()), ParseException, [part]);
+    }
+  });
+});
+
+describe('Upstream UnclosedCommentTest (ported; modern i21+ behavior)', () => {
+  it('unclosed comment/noparse fail at parse time blaming the open tag', () => {
+    const cases = [
+      ['foo<#--', 'Unclosed'],
+      ['foo<#-- ', 'Unclosed'],
+      ['foo<#--bar', 'Unclosed'],
+      ['foo\n<#--\n', 'Unclosed'],
+      ['foo<#noparse>', 'Unclosed'],
+      ['foo<#noparse> ', 'Unclosed'],
+      ['foo<#noparse>bar', 'Unclosed'],
+      ['foo\n<#noparse>\n', 'Unclosed'],
+    ];
+    for (const [tpl, part] of cases) {
+      throwsMatch(() => new Template('t.ftl', tpl, new Configuration()), ParseException, [part]);
+    }
+  });
+});
