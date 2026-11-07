@@ -1138,3 +1138,65 @@ describe('Upstream InterpretAndEvalTemplateNameTest (ported)', () => {
     });
   }
 });
+
+// Upstream InterpretSettingInheritanceTest (ported): the ?interpret-ed template
+// sees Configuration settings + its own <#ftl> header, never the outer
+// template's tag syntax / whitespace-stripping. All 26 cases are JVM-verified
+// byte-identical (Drv72 probe).
+describe('Upstream InterpretSettingInheritanceTest (ported)', () => {
+  const run = (src, cfg) => new Template('t', src, cfg).processToString({});
+  const mkCfg = (syn, ws) => {
+    const c = new Configuration();
+    if (syn !== null) c.setTagSyntax(syn);
+    if (ws !== null) c.setWhitespaceStripping(ws);
+    return c;
+  };
+  const A = '<#if true>a</#if>';
+  const Sq = '[#if true]s[/#if]';
+  const SQ_FIRST = (hdr) => (hdr === 'a'
+    ? `<#ftl><@'[#if true]s[/#if]<#if true>a</#if>'?interpret />`
+    : `[#ftl][@'[#if true]s[/#if]<#if true>a</#if>'?interpret /]`);
+  const AN_FIRST = (hdr) => (hdr === 'a'
+    ? `<#ftl><@'<#if true>a</#if>[#if true]s[/#if]'?interpret />`
+    : `[#ftl][@'<#if true>a</#if>[#if true]s[/#if]'?interpret /]`);
+  const syntaxMatrix = [
+    [1, [[SQ_FIRST('s'), `${Sq}a`], [AN_FIRST('s'), `a${Sq}`],
+      [SQ_FIRST('a'), `${Sq}a`], [AN_FIRST('a'), `a${Sq}`]]],
+    [2, [[SQ_FIRST('s'), `s${A}`], [AN_FIRST('s'), `${A}s`],
+      [SQ_FIRST('a'), `s${A}`], [AN_FIRST('a'), `${A}s`]]],
+    [0, [[SQ_FIRST('s'), `s${A}`], [AN_FIRST('s'), `a${Sq}`],
+      [SQ_FIRST('a'), `s${A}`], [AN_FIRST('a'), `a${Sq}`]]],
+  ];
+  it('[#ftl] inside interpret fixes square syntax only for the rest', async () => {
+    snapshot(await run("<@'[#ftl]x'?interpret />[#if true]y[/#if]", mkCfg(0, null)),
+      'x[#if true]y[/#if]');
+  });
+  const WS_SRC = [
+    ["<#assign x = 1>\nX<@'<#assign x = 1>\\nY'?interpret />", 'true'],
+    ["<#ftl stripWhitespace=false><#assign x = 1>\nX<@'<#assign x = 1>\\nY'?interpret />", 'true'],
+    ["<#assign x = 1>\nX<@'<#ftl stripWhitespace=false><#assign x = 1>\\nY'?interpret />", 'true'],
+    ["<#assign x = 1>\nX<@'<#assign x = 1>\\nY'?interpret />", 'false'],
+    ["<#ftl stripWhitespace=true><#assign x = 1>\nX<@'<#assign x = 1>\\nY'?interpret />", 'false'],
+    ["<#assign x = 1>\nX<@'<#ftl stripWhitespace=true><#assign x = 1>\\nY'?interpret />", 'false'],
+  ];
+  it('whitespace_stripping from Configuration or own header', async () => {
+    snapshot(await run(WS_SRC[0][0], mkCfg(1, true)), 'XY');
+    snapshot(await run(WS_SRC[1][0], mkCfg(1, true)), '\nXY');
+    snapshot(await run(WS_SRC[2][0], mkCfg(1, true)), 'X\nY');
+    snapshot(await run(WS_SRC[3][0], mkCfg(1, false)), '\nX\nY');
+    snapshot(await run(WS_SRC[4][0], mkCfg(1, false)), 'X\nY');
+    snapshot(await run(WS_SRC[5][0], mkCfg(1, false)), '\nXY');
+  });
+  it('via ?eval of "?interpret"', async () => {
+    const e1 = `<@'"[#if true]s[/#if]<#if true>a</#if>"?interpret'?eval />`;
+    const e2 = `[#ftl][@'"[#if true]s[/#if]<#if true>a</#if>"?interpret'?eval /]`;
+    snapshot(await run(e1, mkCfg(1, null)), `${Sq}a`);
+    snapshot(await run(e2, mkCfg(1, null)), `${Sq}a`);
+    snapshot(await run(e2, mkCfg(2, null)), `s<#if true>a</#if>`);
+    // JVM quirk (pinned via Drv72): under square syntax the inner ?interpret of
+    // the eval'ed string parses the square tags at EVAL time, and the result
+    // prints as the canonical form of the outer expression:
+    snapshot(await run(e1, mkCfg(2, null)),
+      `<@'"s<#if true>a</#if>"?interpret'?eval />`);
+  });
+});
