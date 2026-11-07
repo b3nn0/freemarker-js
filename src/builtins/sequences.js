@@ -291,8 +291,8 @@ registerBuiltIn('seq_contains', {
     if (items === null) throw nonSequenceError('seq_contains', target, env);
     return new BuiltinArgMethod('seq_contains', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
-      for (const it of items) {
-        if (yield* e.equals(it, needle)) return BooleanModel.TRUE;
+      for (let i = 0; i < items.length; i++) {
+        if (yield* lenientEquals(e, items[i], needle, i)) return BooleanModel.TRUE;
       }
       return BooleanModel.FALSE;
     });
@@ -313,12 +313,39 @@ registerBuiltIn('seq_index_of', {
     return new BuiltinArgMethod('seq_index_of', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
       for (let i = 0; i < items.length; i++) {
-        if (yield* e.equals(items[i], needle)) return new NumberModel(i);
+        if (yield* lenientEquals(e, items[i], needle, i)) return new NumberModel(i);
       }
       return null; // <- upstream returns null; outputting it needs an ! or ?if_exists
     });
   },
 });
+
+/**
+ * <- BuiltInsForSequences.seqContainsBI/seqIndexOfBI: EvalUtil.compare with
+ * typeMismatchMeansNotEqual and null-flags set, with comparison errors wrapped
+ * with the index context message.
+ * @param {import('../environment.js').Environment} e
+ * @param {Object} item
+ * @param {Object} needle
+ * @param {number} index
+ * @returns {Generator<unknown, boolean, unknown>}
+ */
+function* lenientEquals(e, item, needle, index) {
+  try {
+    return (yield* e.compare(item, needle, 'eq', null, {
+      typeMismatchMeansNotEqual: true,
+      leftNullReturnsFalse: true,
+      rightNullReturnsFalse: true,
+    })) === 0;
+  } catch (err) {
+    if (err instanceof TemplateException) {
+      err.prependMessage(
+        `This error has occurred when comparing sequence item at 0-based index ${index} `
+        + 'to the searched item:');
+    }
+    throw err;
+  }
+}
 
 registerBuiltIn('reverse', {
   acceptsMissing: true,

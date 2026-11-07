@@ -26,6 +26,7 @@ const CLOSE1_START = new Map(Object.entries({
   compress: [TT.COMPRESS, LEX.DEFAULT], comment: [TT.COMMENT, LEX.NO_PARSE], default: [TT.DEFAUL, LEX.DEFAULT],
   autoesc: [TT.AUTOESC, LEX.DEFAULT], autoEsc: [TT.AUTOESC, LEX.DEFAULT],
   noautoesc: [TT.NOAUTOESC, LEX.DEFAULT], noAutoEsc: [TT.NOAUTOESC, LEX.DEFAULT],
+  escape: [TT.ESCAPE, LEX.DEFAULT],
   noparse: [TT.NOPARSE, LEX.NO_PARSE], noParse: [TT.NOPARSE, LEX.NO_PARSE],
 }));
 

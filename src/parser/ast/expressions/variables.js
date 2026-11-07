@@ -34,6 +34,52 @@ function* applyZeroArgPolicy(env, t, label, v, argExprs) {
 }
 import { awaitOp, callOp } from '../../../async.js';
 
+// <- Blame.addBlameText / MessageUtil error wording (2.3.36).
+export const GENERAL_MISSING_TIP = 'Tip: If the failing expression is known to legally refer to '
+  + 'something that\'s sometimes null or missing, either specify a default value like '
+  + 'myOptionalVar!myDefault, or use <#if myOptionalVar??>when-present<#else>when-missing</#if>. '
+  + '(These only cover the last step of the expression; to cover the whole expression, '
+  + 'use parenthesis: (myOptionalVar.foo)!myDefault, (myOptionalVar.foo)??';
+const LAST_DOT_TIP = 'Tip: It\'s the step after the last dot that caused this error, '
+  + 'not those before it.';
+const FINAL_INDEX_TIP = 'Tip: It\'s the final [] step that caused this error, '
+  + 'not those before it.';
+
+/**
+ * @param {Expression} node - blamed node (carries location)
+ * @param {string} canonical - blamed expression canonical form
+ * @param {string[]} tips
+ * @returns {string}
+ */
+export function blameText(node, canonical, tips = []) {
+  let m = `The following has evaluated to null or missing:\n==> ${canonical}`;
+  if (node.beginLine >= 0) {
+    m += `  [in template "${node.templateName ?? 'Template'}" `
+      + `at line ${node.beginLine}, column ${node.beginColumn}]`;
+  }
+  for (const tip of tips) m += `\n\n----\n${tip}\n----`;
+  return m;
+}
+
+/**
+ * <- Blame for wrong-type operands: For "x" left-hand operand: Expected ...
+ * @param {string} what - e.g. `"." left-hand operand`
+ * @param {string} expected
+ * @param {string} foundDesc - e.g. `a string`
+ * @param {Expression} node
+ * @param {string[]} tips
+ * @returns {string}
+ */
+export function typeBlameText(what, expected, foundDesc, node, tips = []) {
+  let m = `For ${what}: Expected ${expected}, but this has evaluated to ${foundDesc}:`;
+  if (node && node.beginLine >= 0) {
+    m += `\n==> ${node.getCanonicalForm()}  [in template "${node.templateName ?? 'Template'}" `
+      + `at line ${node.beginLine}, column ${node.beginColumn}]`;
+  }
+  for (const tip of tips) m += `\n\n----\n${tip}\n----`;
+  return m;
+}
+
 /** Bare name <- Identifier. */
 export class Identifier extends Expression {
   /** @param {string} name */
@@ -54,8 +100,7 @@ export class Identifier extends Expression {
   * evaluate(env) {
     const v = yield* env.getVariable(this.name);
     if (v === null || v === undefined) {
-      const e = new UnassignedVariableException(
-        `The variable ${JSON.stringify(this.name)} is not in the data model.`);
+      const e = new UnassignedVariableException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
       // <- upstream carries the blamed expression's position on the exception
       e.templateName = this.templateName;
       e.beginLine = this.beginLine;
@@ -87,20 +132,16 @@ export class Dot extends Expression {
   * evaluate(env) {
     const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) {
-      throw new InvalidPropertyException(
-        `Can't read the ${JSON.stringify(this.key)} key: the parent expression `
-        + `${this.target.getCanonicalForm()} evaluated to null or missing.`);
+      throw new InvalidPropertyException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
     }
     if (!(t instanceof TemplateHashModel)) {
       throw new NonHashException(
-        `Can't read the ${JSON.stringify(this.key)} key: ${this.target.getCanonicalForm()} `
-        + `is not a hash (it is a ${env.typeLabel(t)}).`);
+        typeBlameText('"." left-hand operand', 'a hash', `a ${env.typeLabel(t)}`, this.target));
     }
     const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
     if (v === null || v === undefined) {
       throw new InvalidPropertyException(
-        `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
-        + 'has not been found (it is missing).');
+        blameText(this, this.getCanonicalForm(), [LAST_DOT_TIP, GENERAL_MISSING_TIP]));
     }
     // ZeroArgumentPolicy: property-like read of a 0-arg function <- get()/getBeforeMethodCall.
     const [m] = yield* applyZeroArgPolicy(env, t, this.key, v, null);
@@ -113,20 +154,16 @@ export class Dot extends Expression {
   * _evaluateForMethodCall(env, argExprs) {
     const t = yield* this.target.evaluate(env);
     if (t === null || t === undefined) {
-      throw new InvalidPropertyException(
-        `Can't read the ${JSON.stringify(this.key)} key: the parent expression `
-        + `${this.target.getCanonicalForm()} evaluated to null or missing.`);
+      throw new InvalidPropertyException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
     }
     if (!(t instanceof TemplateHashModel)) {
       throw new NonHashException(
-        `Can't read the ${JSON.stringify(this.key)} key: ${this.target.getCanonicalForm()} `
-        + `is not a hash (it is a ${env.typeLabel(t)}).`);
+        typeBlameText('"." left-hand operand', 'a hash', `a ${env.typeLabel(t)}`, this.target));
     }
     const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
     if (v === null || v === undefined) {
       throw new InvalidPropertyException(
-        `The ${JSON.stringify(this.key)} key of ${this.target.getCanonicalForm()} `
-        + 'has not been found (it is missing).');
+        blameText(this, this.getCanonicalForm(), [LAST_DOT_TIP, GENERAL_MISSING_TIP]));
     }
     return yield* applyZeroArgPolicy(env, t, this.key, v, argExprs);
   }
@@ -153,32 +190,43 @@ export class DynamicKeyName extends Expression {
    */
   * evaluate(env) {
     const t = yield* this.target.evaluate(env);
-    const empty = () => new InvalidPropertyException(
-      `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
-      + '(use the ! or ?? operator to define a default).');
-    if (t === null || t === undefined) throw empty();
-    if (this.key === null) throw empty();
+    const keyMissingBlame = () => this.key === null
+      ? new InvalidPropertyException(
+        blameText(this, this.getCanonicalForm(), ['Tip: Use the ! or ?? operator to define a default.']))
+      : new InvalidReferenceException(blameText(this.key, this.key.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+    if (t === null || t === undefined) {
+      throw new InvalidPropertyException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+    }
+    if (this.key === null) throw keyMissingBlame();
     let k;
     try {
       k = yield* this.key.evaluate(env);
     } catch (e) {
-      if (e instanceof InvalidReferenceException) throw empty();
+      if (e instanceof InvalidReferenceException) throw keyMissingBlame();
       throw e;
     }
-    if (k === null || k === undefined) throw empty();
+    if (k === null || k === undefined) throw keyMissingBlame();
     if (t instanceof TemplateSequenceModel) {
       const n = yield* env.toNumber(k, ' used as an index into a sequence');
-      return yield* callOp('sequence index', t, 'getByIndex', Math.trunc(n));
+      const v = yield* callOp('sequence index', t, 'getByIndex', Math.trunc(n));
+      if (v === null || v === undefined) {
+        throw new InvalidPropertyException(
+          blameText(this, this.getCanonicalForm(), [FINAL_INDEX_TIP, GENERAL_MISSING_TIP]));
+      }
+      return v;
     }
     if (t instanceof TemplateHashModel) {
       const s = yield* env.coerceToString(k, ' used as a hash key');
       const v = yield* callOp(`get "${s}"`, t, 'get', s);
+      if (v === null || v === undefined) {
+        throw new InvalidPropertyException(
+          blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+      }
       const [m] = yield* applyZeroArgPolicy(env, t, s, v, null);
       return m;
     }
     throw new NonHashException(
-      `Can't read: ${this.target.getCanonicalForm()} is a ${env.typeLabel(t)}, `
-      + 'not a hash or sequence.');
+      typeBlameText('"...[...]" left-hand operand', 'a hash or sequence', `a ${env.typeLabel(t)}`, this.target));
   }
 
   /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */

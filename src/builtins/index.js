@@ -4,3 +4,4 @@ import './strings.js';
 import './misc.js';
 import './encoding.js';
 import './date.js';
+import './extended.js';

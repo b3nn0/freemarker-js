@@ -155,8 +155,8 @@ export class NotExpression extends Expression {
   }
 }
 
-// Comparison semantics v1 (M16 refines date handling and natural string order):
-// both numbers -> numeric; both dates -> time; both booleans -> identity; else string form.
+// Comparison semantics: strict same-kind pairs only, per EvalUtil.compare (2.3.36);
+// see Environment.compare. Relational operators throw on strings/booleans.
 /** == != < <= > >= <- ComparisonExpression. */
 export class ComparisonExpression extends Expression {
   /** @param {Expression} left @param {Expression} right @param {string} opString */
@@ -179,7 +179,6 @@ export class ComparisonExpression extends Expression {
   * evaluate(env) {
     const l = yield* this.left.evaluate(env);
     const r = yield* this.right.evaluate(env);
-    const cmp = yield* env.compare(l, r);
     // Normalize the many operator spellings to a canonical comparator.
     const op = {
       '==': 'eq', '!=': 'neq',
@@ -188,6 +187,10 @@ export class ComparisonExpression extends Expression {
       '>': 'gt', 'gt': 'gt', '\\gt': 'gt', '&gt;': 'gt', '&gt': 'gt',
       '>=': 'gte', 'gte': 'gte', '\\gte': 'gte', '&gt;=': 'gte', '&gt=': 'gte',
     }[this.opString] ?? this.opString;
+    const cmp = yield* env.compare(l, r, op, this.opString, {
+      leftLabel: () => this.left.getCanonicalForm(),
+      rightLabel: () => this.right.getCanonicalForm(),
+    });
     switch (op) {
       case 'eq': return env.wrap(cmp === 0);
       case 'neq': return env.wrap(cmp !== 0);

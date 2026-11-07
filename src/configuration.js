@@ -50,9 +50,9 @@ export class Configuration {
     this._numberFormat = 'number';
     this._booleanFormat = 'true,false';
     this._cFormat = 'c';
-    this._dateFormat = 'M/d/yy';
-    this._timeFormat = 'H:mm:ss';
-    this._dateTimeFormat = 'M/d/yy H:mm:ss';
+    this._dateFormat = 'default';
+    this._timeFormat = 'default';
+    this._dateTimeFormat = 'default';
     this._locale = null;
     this._timeZone = null; // accepted but inert (browser-local times)
     this._outputEncoding = null; // inert in the browser

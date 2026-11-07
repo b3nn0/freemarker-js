@@ -4,7 +4,7 @@ import { describe, it, eq, throwsMatch, rejectsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
-  ParseException, InvalidSettingException, InvalidFormatStringException,
+  ParseException, InvalidSettingException, InvalidFormatStringException, TemplateException,
 } from '../../src/errors.js';
 
 function render(source, c = new Configuration(), model = null) {
@@ -57,7 +57,7 @@ describe('runtime: numeric interpolation #{...}', () => {
 
   it('canonical form keeps the #{} form with its bounds', () => {
     const t = new Template('m', '#{x;m2M4}', new Configuration());
-    eq(t.rootElement.getCanonicalForm(), '#{x;m2M4}');
+    eq(t.rootElement.getCanonicalForm(), '#{x ; m2M4}');
   });
 
   it('bad specifiers are parse errors', () => {
@@ -121,8 +121,8 @@ describe('runtime: date/time formatting', () => {
     return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
   };
 
-  it('default datetime/date/time settings (en_US-style)', async () => {
-    eq(await render('${d}', new Configuration(), { d: d() }), '1/2/20 10:30:15');
+  it('default datetime/date/time settings (medium en_US-style)', async () => {
+    eq(await render('${d}', new Configuration(), { d: d() }), 'Jan 2, 2020, 10:30:15 AM');
   });
 
   it('pattern subsets: yyyy-MM-dd, HH:mm, dddd', async () => {
@@ -146,11 +146,19 @@ describe('runtime: date/time formatting', () => {
       '10:30:15');
   });
 
-  it('?iso_date/?iso_time/?iso_datetime built-ins', async () => {
-    eq(await render('${d?iso_date}', new Configuration(), { d: d() }), '2020-01-02');
-    eq(await render('${d?iso_time}', new Configuration(), { d: d() }), '10:30:15');
-    const iso = await render('${d?iso_datetime}', new Configuration(), { d: d() });
+  it('iso built-in family (method-model; bare form errors on output)', async () => {
+    const iso = await render('${d?iso()}', new Configuration(), { d: d() });
     eq(iso.slice(0, 19), '2020-01-02T10:30:15');
+    eq(await render('${d?date?iso()}', new Configuration(), { d: d() }), '2020-01-02');
+    eq(await render('${d?time?iso_m()}', new Configuration(), { d: d() }), '10:30');
+    eq(await render('${d?date?iso_utc()}', new Configuration(), { d: d() }), '2020-01-02Z');
+    eq(await render('${d?date?iso_local()}', new Configuration(), { d: d() }), '2020-01-02');
+    // the bare form evaluates to a method, which can't be interpolated
+    await rejectsMatch(render('${d?iso}', new Configuration(), { d: d() }),
+      null, ['evaluated to a method']);
+    // 2.3.36 has no iso_date/iso_time/iso_datetime built-ins
+    await rejectsMatch(render('${d?iso_datetime}', new Configuration(), { d: d() }),
+      TemplateException, ['no such built-in']);
   });
 
   it('?string(fmt) overrides per call', async () => {

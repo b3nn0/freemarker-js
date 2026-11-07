@@ -4,7 +4,7 @@ import { describe, it, snapshot, throwsMatch, rejectsMatch } from '../harness.js
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import { ZeroArgumentPolicy as P } from '../../src/index.js';
-import { NonStringException, InvalidPropertyException } from '../../src/errors.js';
+import { NonStringException, NonStringOrTemplateOutputException, InvalidPropertyException } from '../../src/errors.js';
 
 function out(src, model, cfg) {
   return new Template('t.ftl', src, cfg ?? new Configuration()).processToString(model ?? {});
@@ -24,13 +24,13 @@ describe('ZeroArgumentPolicy: AUTO_INVOKE (default)', () => {
     snapshot(await out('${p.getV}', model), '1');
     snapshot(await out('${p.getV()}', model), '1');
     snapshot(await out('${p.isOn}', model), 'true');
-    await rejectsMatch(out('${p.v}', model), InvalidPropertyException, ['has not been found']);
+    await rejectsMatch(out('${p.v}', model), InvalidPropertyException, ['==> p.v']);
   });
   it('1-argument functions are not auto-invoked', async () => {
     const model = { p: { f(a) { return a + 1; } } };
     snapshot(await out('${p.f(2)}', model), '3');
     snapshot(await out('${p["f"](2)}', model), '3');
-    await rejectsMatch(out('${p.f}', model), NonStringException, ['method']);
+    await rejectsMatch(out('${p.f}', model), NonStringOrTemplateOutputException, ['evaluated to a method']);
   });
   it('class instances behave like plain objects', async () => {
     class Holder { m() { return 3; } m2(a) { return a * 2; } }
@@ -49,8 +49,8 @@ describe('ZeroArgumentPolicy: METHOD_ONLY', () => {
     const model = { p: { x() { return 5; } } };
     snapshot(await out('${p.x()}', model, cfg), '5');
     snapshot(await out('${p.x?is_method?then("m","v")}', model, cfg), 'm');
-    await rejectsMatch(out('${p.x}', model, cfg), NonStringException, ['method']);
-    await rejectsMatch(out('${p["x"]}', model, cfg), NonStringException, ['method']);
+    await rejectsMatch(out('${p.x}', model, cfg), NonStringOrTemplateOutputException, ['evaluated to a method']);
+    await rejectsMatch(out('${p["x"]}', model, cfg), NonStringOrTemplateOutputException, ['method']);
   });
   it('policy setter validates values', () => {
     throwsMatch(() => new Configuration().setZeroArgumentPolicy('NOPE'), TypeError);

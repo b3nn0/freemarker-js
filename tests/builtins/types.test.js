@@ -132,10 +132,13 @@ describe('Built-ins: multi-type, hashes, sequences, numbers, type checks', () =>
     snapshot(await out('${x?is_method}', { x: () => 1 }), 'true');
   });
 
-  it('?is_date on date models; kind built-ins deferred to M16', async () => {
+  it('?is_date and the date-kind built-ins', async () => {
     snapshot(await out('${d?is_date}', { d: new Date('2020-01-01T00:00:00Z') }), 'true');
-    await rejectsMatch(out('${d?is_time}', { d: new Date() }), TemplateException,
-      ['no such built-in']);
+    snapshot(await out('${d?is_time}', { d: new Date() }), 'false');
+    snapshot(await out('${d?is_datetime}', { d: new Date() }), 'true');
+    snapshot(await out('${d?is_date_only}', { d: new Date() }), 'false');
+    snapshot(await out('${d?is_date_like}', { d: new Date() }), 'true');
+    snapshot(await out('${d?is_date_like}', { d: 1 }), 'false');
   });
 
   it('zero-arg built-ins followed by (args) hit the method-call error', async () => {

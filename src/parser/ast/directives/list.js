@@ -67,11 +67,14 @@ export class IteratorBlock extends TemplateElement {
         ? { first: env.wrap(keys[i]), second: yield* callOp(`get "${keys[i]}"`, src, 'get', keys[i]) }
         : { first: yield* callOp('sequence index', src, 'getByIndex', i), second: null };
       env.pushScope();
+      // _iterStack drives both #items and the loop-variable built-ins (?counter,
+      // ?index, ...); entries carry position info for those.
+      item.index = i;
+      item.size = length;
+      env._iterStack.push(item);
       if (this.loopVar !== null) {
         env.setVariable(this.loopVar, item.first);
         if (this.loopVar2 !== null) env.setVariable(this.loopVar2, item.second);
-      } else {
-        env._iterStack.push(item); // for a nested #items
       }
       let broke = false;
       try {
@@ -86,7 +89,7 @@ export class IteratorBlock extends TemplateElement {
         if (e instanceof BreakInstructionException) broke = true;
         else if (!(e instanceof ContinueInstructionException)) throw e;
       } finally {
-        if (this.loopVar === null) env._iterStack.pop();
+        env._iterStack.pop();
         env.popScope();
       }
       if (broke) break;

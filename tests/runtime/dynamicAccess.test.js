@@ -28,14 +28,15 @@ describe('Dynamic keys', () => {
   });
   it('empty dynamic key', async () => {
     await rejectsMatch(out('${h[]}', { h: { k: 'v' } }), InvalidPropertyException,
-      ['dynamic key']);
-    await rejectsMatch(out('${h[m]}', { h: { k: 'v' }, m: null }), InvalidPropertyException,
-      ['dynamic key']);
+      ['==> h[]']);
+    // <- upstream blames the null key expression itself (the m identifier throws)
+    await rejectsMatch(out('${h[m]}', { h: { k: 'v' }, m: null }), InvalidReferenceException,
+      ['==> m']);
     snapshot(await out('${h[]!"d"}', { h: { k: 'v' } }), 'd');
     snapshot(await out('${h[m]??}', { h: { k: 'v' } }), 'false');
   });
   it('errors on wrong targets', async () => {
-    await rejectsMatch(out('${n[0]}', { n: 5 }), NonHashException, ['not a hash or sequence']);
+    await rejectsMatch(out('${n[0]}', { n: 5 }), NonHashException, ['Expected a hash or sequence']);
     await rejectsMatch(out('${a["x"]}', { a: [1] }), NonNumericalException, ['index']);
   });
   it('nested dynamic access', async () => {
@@ -63,8 +64,8 @@ describe('Method calls', () => {
     await rejectsMatch(out('${f()}', { f: () => [1] }), null, ['sequence']);
   });
   it('errors', async () => {
-    await rejectsMatch(out('${x(1)}', { x: 5 }), NonMethodException, ['not a method']);
-    await rejectsMatch(out('${o.zz()}', { o: {} }), InvalidPropertyException, ['has not been found']);
-    await rejectsMatch(out('${missing()}', {}), InvalidReferenceException, ['not in the data model']);
+    await rejectsMatch(out('${x(1)}', { x: 5 }), NonMethodException, ['number']);
+    await rejectsMatch(out('${o.zz()}', { o: {} }), InvalidPropertyException, ['==> o.zz']);
+    await rejectsMatch(out('${missing()}', {}), InvalidReferenceException, ['==> missing']);
   });
 });

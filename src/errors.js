@@ -40,6 +40,15 @@ export class TemplateException extends FreeMarkerException {
   }
 
   /**
+   * <- FMTException.prependMessage: adds a prefix line to the message.
+   * @param {string} message
+   * @returns {void}
+   */
+  prependMessage(message) {
+    this.message = `${message}\n${this.message}`;
+  }
+
+  /**
    * Attaches template location + FTL stack trace; chainable, built at throw sites.
    * @param {string|null} templateName
    * @param {number} beginLine
@@ -77,6 +86,9 @@ export class InvalidPropertyException extends InvalidReferenceException {}
 
 /** Expected string <- NonStringException. */
 export class NonStringException extends TemplateException {}
+
+/** <- freemarker.core.NonStringOrTemplateOutputException. */
+export class NonStringOrTemplateOutputException extends TemplateException {}
 /** Expected hash <- NonHashException. */
 export class NonHashException extends TemplateException {}
 /** Expected extended hash <- NonExtendedHashException. */

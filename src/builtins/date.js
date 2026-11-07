@@ -3,9 +3,11 @@
 // supported (no UTC/local/zone variants; see UPSTREAM.md).
 
 import { registerBuiltIn, getBuiltIn } from './registry.js';
-import { argCntError } from './common.js';
-import { StringModel, DateModel, HashModel } from '../model/models.js';
-import { UnsupportedFeatureException, NonDateException } from '../errors.js';
+import { argCntError, BuiltinArgMethod } from './common.js';
+import { StringModel, DateModel, HashModel, BooleanModel } from '../model/models.js';
+import {
+  UnsupportedFeatureException, NonDateException, InvalidFormatStringException,
+} from '../errors.js';
 import { formatIsoDate, DATE_TYPES } from '../format/dateFormat.js';
 import { callOp } from '../async.js';
 
@@ -18,8 +20,16 @@ registerBuiltIn('string', {
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
   * impl(target, argExprs, env) {
-    if (argExprs !== null && argExprs.length > 1) {
-      throw argCntError('string', argExprs.length, 0, 1);
+    const isBool = typeof target.getAsBoolean === 'function' && !(target instanceof DateModel);
+    const maxArgs = isBool ? 2 : 1;
+    if (argExprs !== null && argExprs.length > maxArgs) {
+      throw argCntError('string', argExprs.length, 0, maxArgs);
+    }
+    if (isBool && argExprs !== null && argExprs.length === 2) {
+      const yes = yield* env.coerceToString(yield* argExprs[0].evaluate(env), ' as ?string first argument');
+      const no = yield* env.coerceToString(yield* argExprs[1].evaluate(env), ' as ?string second argument');
+      const b = yield* callOp('getAsBoolean', target, 'getAsBoolean');
+      return new StringModel(b ? yes : no);
     }
     let fmt = null;
     if (argExprs !== null && argExprs.length > 0) {
@@ -136,13 +146,22 @@ asType('date', DATE_TYPES.DATE);
 asType('time', DATE_TYPES.TIME);
 asType('datetime', DATE_TYPES.DATE_TIME);
 
-// <- isoDateBI / isoTimeBI / isoDateTimeBI: ISO strings with the type fixed.
+// <- isoBI family (2.3.36): method-like; "?iso" bare evaluates to a method,
+// "?iso()" / "?iso(tzString)" format the date. Named time zones aren't ported
+// (offset-style strings only; see UPSTREAM.md).
+const ISO_NAMES = [
+  'iso', 'iso_h', 'iso_m', 'iso_ms', 'iso_nz', 'iso_h_nz', 'iso_m_nz', 'iso_ms_nz',
+  'iso_local', 'iso_local_h', 'iso_local_m', 'iso_local_ms',
+  'iso_local_nz', 'iso_local_h_nz', 'iso_local_m_nz', 'iso_local_ms_nz',
+  'iso_utc', 'iso_utc_h', 'iso_utc_m', 'iso_utc_ms',
+  'iso_utc_nz', 'iso_utc_h_nz', 'iso_utc_m_nz', 'iso_utc_ms_nz', 'iso_utc_fz',
+];
+
 /**
- * @param {string} name - built-in name
- * @param {number} dateType - DATE_TYPES member
+ * @param {string} name - built-in name (also the ISO format string)
  * @returns {void}
  */
-function isoAsType(name, dateType) {
+function registerIso(name) {
   registerBuiltIn(name, {
     /**
    * @param {import('../model/templateModel.js').TemplateModel} target
@@ -150,16 +169,92 @@ function isoAsType(name, dateType) {
    * @param {import('../environment.js').Environment} env
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
-  * impl(target, args, env) {
+    * impl(target, args, env) {
       if (!(target instanceof DateModel)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
       }
-      return new StringModel(formatIsoDate(target.getAsDate(), 'iso', dateType));
+      return new BuiltinArgMethod(name, 0, 1, function* (e, a) {
+        if (name.startsWith('iso_local') && a.length > 0 && a[0] !== null && a[0] !== undefined) {
+          throw new UnsupportedFeatureException(
+            `The "?${name}" built-in doesn't accept a time zone argument.`);
+        }
+        let tzMin = null;
+        const tzArg = a.length > 0 ? a[0] : null;
+        if (typeof tzArg === 'string') tzMin = parseZoneOffsetMinutes(tzArg, name);
+        else if (tzArg !== null && tzArg !== undefined) {
+          throw new UnsupportedFeatureException(
+            `The "?${name}" built-in only accepts offset-style time zone strings like "GMT+2" or "UTC-05:00".`);
+        }
+        const d = target.getAsDate();
+        const kind = target.dateType === DATE_TYPES.NONE ? DATE_TYPES.DATE_TIME : target.dateType;
+        return new StringModel(formatIsoDate(d, name, kind, tzMin));
+      });
     },
   });
 }
 
-isoAsType('iso_date', DATE_TYPES.DATE);
-isoAsType('iso_time', DATE_TYPES.TIME);
-isoAsType('iso_datetime', DATE_TYPES.DATE_TIME);
+/**
+ * @param {string} s - zone string; only "UTC"/"GMT"/"Z" and offset forms are ported
+ * @param {string} name - built-in name for the message
+ * @returns {number} minutes east of UTC
+ */
+function parseZoneOffsetMinutes(s, name) {
+  const m = /^(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$/.exec(s.trim())
+    || (s.trim() === 'UTC' || s.trim() === 'GMT' || s.trim() === 'Z' ? ['x', '+', '0', '0'] : null)
+    || (s.trim() === '' ? ['x', '+', '0', '0'] : null);
+  if (m === null) {
+    throw new UnsupportedFeatureException(
+      `The "?${name}" built-in doesn't support the time zone "${s}" `
+      + '(only offset-style strings like "GMT+2" or "UTC-05:00" are ported).');
+  }
+  const sign = m[1] === '-' ? -1 : 1;
+  const hh = parseInt(m[2], 10);
+  const mm = m[3] !== undefined ? parseInt(m[3], 10) : 0;
+  if (hh > 14 || mm > 59) {
+    throw new InvalidFormatStringException(`Invalid time zone offset "${s}".`);
+  }
+  return sign * (hh * 60 + mm);
+}
+
+for (const n of ISO_NAMES) registerIso(n);
+
+// <- BuiltInsForDates type-testing built-ins.
+const DATE_TYPE_TEST = {
+  is_date_like: (t) => t instanceof DateModel,
+  is_date_only: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.DATE,
+  is_time: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.TIME,
+  is_datetime: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.DATE_TIME,
+  is_unknown_date_like: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.NONE,
+};
+for (const [name, pred] of Object.entries(DATE_TYPE_TEST)) {
+  registerBuiltIn(name, {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+    * impl(target) {
+      return new BooleanModel(pred(target));
+    },
+  });
+}
+
+// *_if_unknown: fix UNKNOWN date kind; the port's dates always have a known
+// kind, so these are no-ops.
+for (const name of ['date_if_unknown', 'time_if_unknown', 'datetime_if_unknown']) {
+  registerBuiltIn(name, {
+    /**
+   * @param {import('../model/templateModel.js').TemplateModel} target
+   * @param {Array<Object>|null} args - unevaluated argument expressions
+   * @param {import('../environment.js').Environment} env
+   * @returns {import('../model/templateModel.js').TemplateModel}
+   */
+    * impl(target, args, env) {
+      if (!(target instanceof DateModel)) {
+        throw new NonDateException(
+          `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
+      }
+      return target;
+    },
+  });
+}

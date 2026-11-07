@@ -9,7 +9,7 @@ import {
 import { formatNumber } from './format/numberFormat.js';
 import { formatDate } from './format/dateFormat.js';
 import { StringModel, NumberModel, BooleanModel, DateModel } from './model/models.js';
-import { TemplateSequenceModel, TemplateHashModel, TemplateMethodModel } from './model/templateModel.js';
+import { TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel } from './model/templateModel.js';
 import { MethodModel } from './model/models.js';
 import { unwrap } from './model/unwrap.js';
 import { Template } from './template.js';
@@ -18,6 +18,30 @@ import { callOp, awaitOp } from './async.js';
 /**
  * @typedef {import('./model/templateModel.js').TemplateModel} TemplateModel
  */
+
+// <- TemplateDateModel.TYPE_NAMES, indexed by this port's DATE_TYPES numbering.
+const DATE_TYPE_NAMES = ['UNKNOWN', 'DATE', 'TIME', 'DATETIME', 'DATETIME'];
+
+// <- EvalUtil.cmpOpToString fallback names (when the operator wasn't written in source).
+const COMPARATOR_NAMES = { eq: 'equals', neq: 'not-equals', lt: 'less-than', gt: 'greater-than', lte: 'less-than-equals', gte: 'greater-than-equals' };
+
+/** FTL type description in comparison errors <- _DelayedFTLTypeDescription + _DelayedAOrAn. */
+function comparisonDescription(m) {
+  if (m instanceof NumberModel) return 'a number';
+  if (m instanceof StringModel) return 'a string';
+  if (m instanceof DateModel) return 'a date_or_time_or_datetime';
+  if (m instanceof BooleanModel) return 'a boolean';
+  if (m instanceof TemplateMethodModel) return 'a method';
+  if (m instanceof TemplateSequenceModel) return 'a sequence';
+  if (typeof m.keys === 'function') return 'an extended_hash';
+  if (m instanceof TemplateHashModel) return 'a hash';
+  return 'an unusual FTL value';
+}
+
+/** A blamed-expression label in a message may be given as a string or a lazy getter. */
+function label(v) {
+  return typeof v === 'function' ? v() : v;
+}
 /**
  * @typedef {Object} ProcessOptions
  * @property {Object} [out] - the character writer to output into
@@ -48,6 +72,7 @@ export class Environment {
     this._scopes = []; // loop/macro scopes; innermost wins on read
     this._nsScope = new Map(); // current template namespace <- #assign target
     this._iterStack = []; // innermost iterator item, for #list without "as" + #items
+    this._escapeValueStack = []; // active #escape target values (innermost last)
     this._macroCallStack = []; // active macro invocations: {boundary, bodyChildren, bodyParamNames}
     this.loadedLibs = new Map(); // imported-template namespaces <- Environment.loadedLibs
     // <- Environment.outputFormat (built-ins consult it; interpolations carry
@@ -138,10 +163,13 @@ export class Environment {
         || e instanceof ReturnInstructionException;
       if (!marker && e instanceof TemplateException && e.errorStackTrace === null) {
         const name = e.templateName ?? this.template.name;
+        const stack = this._errorStackTrace(element);
         e.withLocation(name,
           e.beginLine === -1 ? element.beginLine : e.beginLine,
           e.beginColumn === -1 ? element.beginColumn : e.beginColumn,
-          this._errorStackTrace(element));
+          stack);
+        // <- upstream getMessage() embeds the stack block in the message
+        e.message = `${e.message}\n\n----\n${stack}\n----`;
       }
       throw e;
     } finally {
@@ -162,7 +190,7 @@ export class Environment {
       const canon = el.getCanonicalForm().split('\n')[0];
       frames.push(`\t- ${frames.length === 0 ? 'Failed at' : 'Reached through'}: ${canon}`
         + `  [in template "${this.template.name ?? 'Template'}" `
-        + `in line ${el.beginLine}, column ${el.beginColumn}]`);
+        + `at line ${el.beginLine}, column ${el.beginColumn}]`);
     }
     return 'FTL stack trace ("~" means nesting-related):\n' + frames.join('\n');
   }
@@ -308,32 +336,85 @@ export class Environment {
    * @param {import('./model/templateModel.js').TemplateModel} r
    * @returns {Generator<unknown, number, unknown>} negative, zero or positive
    */
-  * compare(l, r) {
-    if (l && typeof l.getAsNumber === 'function' && r && typeof r.getAsNumber === 'function') {
+  // <- EvalUtil.compare (2.3.36): comparisons are only legal between same-kind pairs
+  // (number/number, string/string, date/date, boolean/boolean); relational operators
+  // are additionally illegal on strings and booleans. The long-standing v1
+  // string-coercion fallback was a divergence; fixed against real 2.3.36 output.
+  /**
+   * @param {TemplateModel|null} l
+   * @param {TemplateModel|null} r
+   * @param {'eq'|'neq'|'lt'|'lte'|'gt'|'gte'} [operator]
+   * @param {string|null} [operatorString] - operator as written, for relational error text
+   * @param {Object} [opts]
+   * @param {boolean} [opts.typeMismatchMeansNotEqual] - lenient: type mismatch -> not equal
+   * @param {boolean} [opts.leftNullReturnsFalse] - lenient: null left -> not equal
+   * @param {boolean} [opts.rightNullReturnsFalse] - lenient: null right -> not equal
+   * @param {string|null} [opts.leftLabel] - blamed canonical form of the left operand
+   * @param {string|null} [opts.rightLabel] - blamed canonical form of the right operand
+   * @returns {Generator<unknown, number, unknown>} sign of the comparison result
+   */
+  * compare(l, r, operator = 'eq', operatorString = null, opts = {}) {
+    const tmmne = opts.typeMismatchMeansNotEqual ?? false;
+    if (l === null || l === undefined) {
+      if (opts.leftNullReturnsFalse) return 1;
+      throw new InvalidReferenceException(
+        opts.leftLabel
+          ? `The following has evaluated to null or missing:\n==> ${label(opts.leftLabel)}`
+          : 'The left operand of the comparison was undefined or null.');
+    }
+    if (r === null || r === undefined) {
+      if (opts.rightNullReturnsFalse) return 1;
+      throw new InvalidReferenceException(
+        opts.rightLabel
+          ? `The following has evaluated to null or missing:\n==> ${label(opts.rightLabel)}`
+          : 'The right operand of the comparison was undefined or null.');
+    }
+    const opName = operatorString ?? COMPARATOR_NAMES[operator];
+    if (l instanceof NumberModel && r instanceof NumberModel) {
       const ln = yield* callOp('getAsNumber', l, 'getAsNumber');
       const rn = yield* callOp('getAsNumber', r, 'getAsNumber');
       return Math.sign(ln - rn);
     }
-    if (l && typeof l.getAsDate === 'function' && r && typeof r.getAsDate === 'function') {
+    if (l instanceof DateModel && r instanceof DateModel) {
+      if (l.dateType !== r.dateType) {
+        throw new TemplateException('Can\'t compare dates of different types. '
+          + `Left date type is ${DATE_TYPE_NAMES[l.dateType]}, right date type is ${DATE_TYPE_NAMES[r.dateType]}.`);
+      }
       const ld = yield* callOp('getAsDate', l, 'getAsDate');
       const rd = yield* callOp('getAsDate', r, 'getAsDate');
       return Math.sign(ld.getTime() - rd.getTime());
     }
-    if (l instanceof BooleanModel && r instanceof BooleanModel) {
-      return l.getAsBoolean() === r.getAsBoolean() ? 0 : (l.getAsBoolean() ? 1 : -1);
+    if (l instanceof StringModel && r instanceof StringModel) {
+      if (operator !== 'eq' && operator !== 'neq') {
+        throw new TemplateException(`Can't use operator "${opName}" on string values.`);
+      }
+      // <- 2.3.33+ equality is NFKC-normalized string content comparison.
+      const ls = (yield* callOp('getAsString', l, 'getAsString')).normalize('NFKC');
+      const rs = (yield* callOp('getAsString', r, 'getAsString')).normalize('NFKC');
+      return ls < rs ? -1 : ls > rs ? 1 : 0;
     }
-    const ls = yield* this.coerceToString(l);
-    const rs = yield* this.coerceToString(r);
-    return ls < rs ? -1 : ls > rs ? 1 : 0;
+    if (l instanceof BooleanModel && r instanceof BooleanModel) {
+      if (operator !== 'eq' && operator !== 'neq') {
+        throw new TemplateException(`Can't use operator "${opName}" on boolean values.`);
+      }
+      return (l.getAsBoolean() ? 1 : 0) - (r.getAsBoolean() ? 1 : 0);
+    }
+    if (tmmne && (operator === 'eq' || operator === 'neq')) return 1;
+    throw new TemplateException(
+      'Can\'t compare values of these types. '
+      + 'Allowed comparisons are between two numbers, two strings, two dates, or two booleans.\n'
+      + `Left hand operand is ${comparisonDescription(l)}.\n`
+      + `Right hand operand is ${comparisonDescription(r)}.`);
   }
 
   /**
-   * @param {import('./model/templateModel.js').TemplateModel} l
-   * @param {import('./model/templateModel.js').TemplateModel} r
+   * FTL `==` semantics (strict: incomparable types throw).
+   * @param {TemplateModel|null} l
+   * @param {TemplateModel|null} r
    * @returns {Generator<unknown, boolean, unknown>}
    */
   * equals(l, r) {
-    return (yield* this.compare(l, r)) === 0;
+    return (yield* this.compare(l, r, 'eq')) === 0;
   }
 
   /**
@@ -349,6 +430,7 @@ export class Environment {
     if (model instanceof DateModel) return 'date';
     if (model instanceof TemplateMethodModel) return 'method';
     if (model instanceof TemplateSequenceModel) return 'sequence';
+    if (model instanceof TemplateHashModelEx) return 'extended_hash';
     if (model instanceof TemplateHashModel) return 'hash';
     return 'unknown type';
   }

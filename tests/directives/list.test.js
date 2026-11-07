@@ -32,7 +32,7 @@ describe('Directive: #list', () => {
   });
   it('loop variables are scoped to the body', async () => {
     await rejectsMatch(out('<#list xs as x>${x}</#list>${x}', { xs: [1] }), UnassignedVariableException,
-      ['"x"']);
+      ['==> x']);
   });
   it('shadowing in nested lists', async () => {
     snapshot(await out('<#list xs as x><#list ys as x>${x}</#list>${x}</#list>',
@@ -41,7 +41,7 @@ describe('Directive: #list', () => {
   it('non-iterable source', async () => {
     await rejectsMatch(out('<#list n as x>${x}</#list>', { n: 5 }), NonSequenceOrCollectionException);
     await rejectsMatch(out('<#list h as x>${x}</#list>', { h: { a: 1 } }), NonSequenceOrCollectionException);
-    await rejectsMatch(out('<#list xs as x>${x}</#list>', {}), UnassignedVariableException, ['"xs"']);
+    await rejectsMatch(out('<#list xs as x>${x}</#list>', {}), UnassignedVariableException, ['==> xs']);
   });
   it('parse-time structural errors', () => {
     throwsMatch(() => parse('<#list xs>x</#list>'), ParseException, ['as loopVar', '#items']);
@@ -83,7 +83,7 @@ describe('Directive: #forEach', () => {
     snapshot(await out('<#forEach x in xs>${x}<#sep>;</#forEach>', { xs: ['a', 'b'] }), 'a;b');
   });
   it('forEach with missing source errors', async () => {
-    await rejectsMatch(out('<#forEach x in xs>${x}</#forEach>', {}), UnassignedVariableException, ['"xs"']);
+    await rejectsMatch(out('<#forEach x in xs>${x}</#forEach>', {}), UnassignedVariableException, ['==> xs']);
   });
   it('canonical round trip', () => {
     snapshot(parse('<#forEach x in xs>[${x}]</#forEach>').getCanonicalForm(),

@@ -39,6 +39,7 @@ import { IncludeDirective } from './ast/directives/include.js';
 import { ImportDirective } from './ast/directives/importDir.js';
 import { StopInstruction, FlushInstruction } from './ast/directives/stop.js';
 import { AutoEscBlock, NoAutoEscBlock } from './ast/directives/autoEsc.js';
+import { EscapeDirective, EscapeChain, EscapeVar, NoEscapeBlock } from './ast/directives/escape.js';
 import { OutputFormatBlock } from './ast/directives/outputFormat.js';
 import { PropertySetting, SETTING_NAMES, CAMEL_SETTING_NAMES } from './ast/directives/setting.js';
 import { BuiltinVariable } from './ast/expressions/builtIn.js';
@@ -119,6 +120,10 @@ export class Parser {
     this.outputFormat = configuration.getOutputFormat();
     this.autoEscapingPolicy = configuration.getAutoEscapingPolicy();
     this.autoEscaping = this._recalculateAutoEscaping();
+    // <- FTL.jj escapeDirectives (the #escape / #noescape stack)
+    this._escapeStack = [];
+    this._escapeSuspendIndex = -1; // set while parsing inside #noescape
+    this._escapeIdName = null; // name being replaced by placeholders in the as-expr
   }
 
   // <- FTL.jj recalculateAutoEscapingField()
@@ -420,7 +425,7 @@ export class Parser {
         }
         // <- DollarVariable captures the format/auto-escape state at parse time
         group.addChild(this._span(
-          new Interpolation(expression, this.outputFormat, this.autoEscaping, fracOpts), t, closer));
+          new Interpolation(this._applyEscape(expression), this.outputFormat, this.autoEscaping, fracOpts), t, closer));
         continue;
       }
 
@@ -580,6 +585,16 @@ export class Parser {
         case TT.AUTOESC:
         case TT.NOAUTOESC:
           group.addChild(this._parseAutoEsc(t));
+          continue;
+        case TT.ESCAPE:
+          group.addChild(this._parseEscape(t));
+          continue;
+        case TT.NOESCAPE:
+          if (this._escapeStack.length === 0) {
+            throw this._error('Unexpected "<#noescape>" (it can only appear inside a <#escape> block).', t);
+          }
+          this._next();
+          group.addChild(this._parseNoEscape(t));
           continue;
         case TT.OUTPUTFORMAT:
           group.addChild(this._parseOutputFormatBlock(t));
@@ -768,6 +783,70 @@ export class Parser {
       this.autoEscapingPolicy = savedPolicy;
       this.autoEscaping = savedAutoEscaping;
     }
+  }
+
+  /**
+   * <- FTL.jj EscapeDirective(): <#escape varName as expr> ... </#escape>
+   * @param {import('./token.js').Token} startTok @returns {EscapeDirective}
+   */
+  _parseEscape(startTok) {
+    this._next();
+    const name = this._assignName();
+    const asTok = this._peek();
+    if (asTok.type !== TT.AS) {
+      throw this._error(`Expected "as" after the "#escape" variable name, but got ${this._desc(asTok)}.`, asTok);
+    }
+    this._next();
+    const savedIdName = this._escapeIdName;
+    this._escapeIdName = name;
+    let expr;
+    try {
+      expr = this._parseExpression();
+    } finally {
+      this._escapeIdName = savedIdName;
+    }
+    const endTok = this._expect(TT.DIRECTIVE_END, '">"');
+    this._escapeStack.push({ name, expr });
+    try {
+      const children = this._parseMixedContent(new Set([TT.END_ESCAPE]));
+      const end = this._expect(TT.END_ESCAPE, '"</#escape>"');
+      return this._span(new EscapeDirective(name, expr, children.children), startTok, end);
+    } finally {
+      this._escapeStack.pop();
+    }
+  }
+
+  /**
+   * <- FTL.jj NoEscapeBlock(): <#noescape> ... </#noescape> inside an #escape
+   * @param {import('./token.js').Token} startTok @returns {import('./ast/templateElement.js').TemplateElement}
+   */
+  _parseNoEscape(startTok) {
+    // TT.NOESCAPE (CLOSE2 map) already carries its ">" closer.
+    const savedSuspend = this._escapeSuspendIndex;
+    this._escapeSuspendIndex = this._escapeStack.length;
+    try {
+      const children = this._parseMixedContent(new Set([TT.END_NOESCAPE]));
+      const end = this._expect(TT.END_NOESCAPE, '"</#noescape>"');
+      return this._span(new NoEscapeBlock(children.children), startTok, end);
+    } finally {
+      this._escapeSuspendIndex = savedSuspend;
+    }
+  }
+
+  /**
+   * <- FTL.jj escape-directive wrapping of simple-identifier interpolations
+   * @param {import('./ast/expressions/expression.js').Expression} expression
+   * @returns {import('./ast/expressions/expression.js').Expression}
+   */
+  _applyEscape(expression) {
+    if (this._escapeStack.length === 0 || !(expression instanceof Identifier)) return expression;
+    for (let i = this._escapeStack.length - 1; i >= 0; i--) {
+      const e = this._escapeStack[i];
+      if (e.name !== expression.name) continue;
+      if (this._escapeSuspendIndex >= 0 && i < this._escapeSuspendIndex) return expression;
+      return new EscapeChain(expression.name, e.expr);
+    }
+    return expression;
   }
 
   /** @param {import('./token.js').Token} startTok @returns {OutputFormatBlock} */
@@ -1406,12 +1485,18 @@ export class Parser {
     const cases = [];
     const ons = [];
     let hadDefault = false;
+    let hadCase = false;
+    let hadOn = false;
     this.breakableDepth++;
     try {
       for (;;) {
         const t = this._peek();
         if (t.type === TT.CASE) {
           this._next();
+          if (hadOn) {
+            throw this._error("You can't use both #on, and #case in a #switch block, and you already had an #on.", t);
+          }
+          hadCase = true;
           const cexp = this._parseExpression();
           this._expect(TT.DIRECTIVE_END, '">"');
           cases.push(new Case(cexp, this._parseMixedContent(caseStop).children));
@@ -1424,6 +1509,18 @@ export class Parser {
           cases.push(new Case(null, this._parseMixedContent(caseStop).children));
         } else if (t.type === TT.ON) {
           this._next();
+          if (hadCase) {
+            throw this._error("You can't use both #on, and #case in a #switch block, and you already had a #case.", t);
+          }
+          if (hadDefault) {
+            throw this._error("You can't use #on after #default in a #switch block; #default must come last.", t);
+          }
+          if (!hadOn) {
+            // <- FTL.jj: breakable nesting is left before On() is parsed, so #break
+            // inside an #on body fails as "outside breakable directive".
+            this.breakableDepth--;
+            hadOn = true;
+          }
           // <- FTL.jj On(): exps = PositionalArgs() -- no parens; commas optional
           const exps = this._parsePositionalArgs();
           this._expect(TT.DIRECTIVE_END, '">"');
@@ -1435,7 +1532,7 @@ export class Parser {
         }
       }
     } finally {
-      this.breakableDepth--;
+      if (!hadOn) this.breakableDepth--;
     }
     const endTok = this._expect(TT.END_SWITCH, '"</#switch>"');
     return this._span(new SwitchBlock(exp, cases, ons), startTok, endTok);
@@ -1834,6 +1931,9 @@ export class Parser {
       }
       case TT.ID:
         this._next();
+        if (this._escapeIdName !== null && t.image === this._escapeIdName) {
+          return this._span(new EscapeVar(t.image), t, t);
+        }
         return this._span(new Identifier(t.image), t, t);
       case TT.OPEN_PAREN: {
         this._next();

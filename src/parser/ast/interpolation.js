@@ -2,7 +2,11 @@
 
 import { TemplateElement } from './templateElement.js';
 import { MarkupModel, NumberModel } from '../../model/models.js';
-import { InvalidReferenceException, TemplateException } from '../../errors.js';
+import {
+  InvalidReferenceException, TemplateException, NonStringOrTemplateOutputException,
+} from '../../errors.js';
+import { TemplateMethodModel, TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx } from '../../model/templateModel.js';
+import { blameText, GENERAL_MISSING_TIP } from './expressions/variables.js';
 
 /** ${...} <- DollarVariable; with fracOpts set it is the legacy #{...} (NumericalOutput). */
 export class Interpolation extends TemplateElement {
@@ -30,8 +34,29 @@ export class Interpolation extends TemplateElement {
   * execute(env) {
     const value = yield* this.expression.evaluate(env);
     if (value === null || value === undefined) {
-      throw new InvalidReferenceException(
-        `The following has evaluated to null or missing: ==> ${this.expression.getCanonicalForm()}`);
+      const e = new InvalidReferenceException(
+        blameText(this.expression, this.expression.getCanonicalForm(), [GENERAL_MISSING_TIP]));
+      e.templateName = this.templateName ?? this.expression.templateName;
+      e.beginLine = this.expression.beginLine;
+      e.beginColumn = this.expression.beginColumn;
+      throw e;
+    }
+    if (value instanceof TemplateMethodModel || value instanceof TemplateSequenceModel
+      || value instanceof TemplateHashModel) {
+      // <- CoercionUtil message (wrapper text omitted; deviation)
+      const what = value instanceof TemplateMethodModel ? 'a method'
+        : value instanceof TemplateSequenceModel ? 'a sequence'
+          : (value instanceof TemplateHashModelEx) ? 'an extended_hash' : 'a hash';
+      const e = new NonStringOrTemplateOutputException(
+        'For "${...}" content: Expected a string or something automatically convertible to '
+        + `string (number, date or boolean), or "template output" , but this has evaluated to ${what}:`);
+      e.templateName = this.templateName ?? this.expression.templateName;
+      e.beginLine = this.expression.beginLine;
+      e.beginColumn = this.expression.beginColumn;
+      e.message += `\n==> ${this.expression.getCanonicalForm()}`
+        + `  [in template "${e.templateName ?? 'Template'}" at line ${e.beginLine}, `
+        + `column ${e.beginColumn}]`;
+      throw e;
     }
     if (this.fracOpts !== null && value instanceof NumberModel) {
       const s = env._formatNumber(value.getAsNumber(), this.fracOpts);
@@ -72,7 +97,7 @@ export class Interpolation extends TemplateElement {
   getCanonicalForm() {
     if (this.fracOpts !== null) {
       // <- NumericalOutput keeps the #{} form; m/M spell back the parsed bounds
-      return `#{${this.expression.getCanonicalForm()};m${this.fracOpts.minFrac}`
+      return `#{${this.expression.getCanonicalForm()} ; m${this.fracOpts.minFrac}`
         + `M${this.fracOpts.maxFrac}}`;
     }
     return `\${${this.expression.getCanonicalForm()}}`;

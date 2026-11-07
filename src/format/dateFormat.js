@@ -16,49 +16,96 @@ export function isIsoDateFormat(name) {
 }
 
 /**
- * Formats a date with an "iso" format string. Supported modifier suffixes:
- * _h, _m, _s (accuracy), _ms, _nz (hide zone offset), _fz (force zone offset).
- * Other upstream modifiers (utc, zoneless variants) are unsupported (deviation).
+ * Formats a date with an "iso" format string. Modifier tokens (each preceded by
+ * "_" or " ", any order): utc / local (zone shift), fz / nz (show/hide offset),
+ * h / m / s (accuracy), ms (accepted, rendered like s; fraction unsupported).
+ * <- ISOLikeTemplateDateFormat.
  * @param {Date} d
  * @param {string} formatString
  * @param {number} dateType - one of DATE_TYPES
+ * @param {number|null} [tzOffsetMinutes] - explicit zone shift; null = follow the token
  * @returns {string}
  */
-export function formatIsoDate(d, formatString, dateType) {
+export function formatIsoDate(d, formatString, dateType, tzOffsetMinutes = null) {
   const bad = () => new InvalidFormatStringException(
-    `Unsupported ISO date format modifier in "${formatString}" `
-    + '(the port supports "iso" with the modifiers _h, _m, _s, _ms, _nz, _fz).');
+    `Unsupported ISO date format modifier in "${formatString}".`);
   if (!isIsoDateFormat(formatString)) {
     throw bad();
   }
   let accuracy = 's'; // h | m | s (ms renders like s; fractional seconds unsupported)
-  let showOffset = dateType === DATE_TYPES.DATE_TIME ? true : false;
+  let showOffset = dateType === DATE_TYPES.DATE_TIME;
+  let zone = null; // 'utc' | 'local'
   let i = 3;
   while (i < formatString.length) {
     const sep = formatString[i];
     if (sep !== '_' && sep !== ' ') throw bad();
     i++;
-    const tok = formatString.slice(i).slice(0, 2);
-    if (tok === 'ms' || tok === 'nz' || tok === 'fz') {
-      if (tok === 'nz') showOffset = false;
-      else if (tok === 'fz') showOffset = true;
-      i += 2;
-    } else if (tok[0] === 'h' || tok[0] === 'm' || tok[0] === 's') {
-      accuracy = tok[0];
-      i += 1;
+    if (formatString.startsWith('utc', i) || formatString.startsWith('local', i)) {
+      zone = formatString.startsWith('utc', i) ? 'utc' : 'local';
+      i += zone.length;
     } else {
-      throw bad();
+      const tok = formatString.slice(i).slice(0, 2);
+      if (tok === 'ms' || tok === 'nz' || tok === 'fz') {
+        if (tok === 'nz') showOffset = false;
+        else if (tok === 'fz') showOffset = true;
+        i += 2;
+      } else if (tok[0] === 'h' || tok[0] === 'm' || tok[0] === 's') {
+        accuracy = tok[0];
+        i += 1;
+      } else {
+        throw bad();
+      }
     }
   }
-  const y = pad(d.getFullYear(), 4);
-  const mo = pad(d.getMonth() + 1, 2);
-  const day = pad(d.getDate(), 2);
-  if (dateType === DATE_TYPES.DATE) return `${y}-${mo}-${day}`;
-  let t = `${pad(d.getHours(), 2)}:${pad(d.getMinutes(), 2)}`;
-  if (accuracy !== 'h') t += `:${pad(d.getSeconds(), 2)}`;
-  if (dateType === DATE_TYPES.TIME) return t;
-  const off = showOffset ? zoneOffsetString(d) : '';
+  let view = d;
+  let offMin = null; // rendered zone offset, in minutes
+  if (tzOffsetMinutes !== null) {
+    offMin = tzOffsetMinutes;
+    view = shiftedDate(d, tzOffsetMinutes);
+  } else if (zone === 'utc') {
+    offMin = 0;
+    view = shiftedDate(d, 0);
+  } else if (zone === 'local') {
+    showOffset = false;
+  }
+  if (zone === 'utc' || tzOffsetMinutes !== null) showOffset = true;
+  if (showOffset && offMin === null) offMin = -view.getTimezoneOffset();
+  const y = pad(view.getFullYear(), 4);
+  const mo = pad(view.getMonth() + 1, 2);
+  const day = pad(view.getDate(), 2);
+  if (dateType === DATE_TYPES.DATE) {
+    return `${y}-${mo}-${day}${showOffset && offMin !== null ? offsetString(offMin) : ''}`;
+  }
+  let t = `${pad(view.getHours(), 2)}:${pad(view.getMinutes(), 2)}`;
+  if (accuracy === 's') t += `:${pad(view.getSeconds(), 2)}`;
+  if (dateType === DATE_TYPES.TIME) {
+    return t + (showOffset && offMin !== null ? offsetString(offMin) : '');
+  }
+  const off = showOffset && offMin !== null ? offsetString(offMin)
+    : showOffset ? zoneOffsetString(view) : '';
   return `${y}-${mo}-${day}T${t}${off}`;
+}
+
+/**
+ * Re-bases the wall-clock fields of d as if displayed in a zone whose offset
+ * (minutes) is targetMin; the current local offset of d is the baseline.
+ * @param {Date} d
+ * @param {number} targetMin
+ * @returns {Date}
+ */
+function shiftedDate(d, targetMin) {
+  return new Date(d.getTime() + (targetMin + d.getTimezoneOffset()) * 60000);
+}
+
+/**
+ * @param {number} off - minutes east of UTC
+ * @returns {string}
+ */
+function offsetString(off) {
+  if (off === 0) return 'Z';
+  const sign = off > 0 ? '+' : '-';
+  const abs = Math.abs(off);
+  return `${sign}${pad(Math.floor(abs / 60), 2)}:${pad(abs % 60, 2)}`;
 }
 
 /**
@@ -186,10 +233,11 @@ function formatField(c, width, d) {
     case 'S': return pad(d.getMilliseconds(), width);
     case 'E': return width >= 4 ? DAY_NAMES_FULL[d.getDay()] : DAY_NAMES[d.getDay()];
     case 'a': return d.getHours() < 12 ? 'AM' : 'PM';
+    case 'z': return width >= 4 ? 'Greenwich Mean Time' : 'GMT';
     default:
       throw new InvalidFormatStringException(
         `Unsupported letter "${c}" in date format pattern; `
-        + 'the port supports the subset y M d H h m s E a S.');
+        + 'the port supports the subset y M d H h m s E a S z.');
   }
 }
 
@@ -220,6 +268,32 @@ function pad(v, width) {
 }
 
 /**
+ * Named format-style names -> en_US CLDR patterns (JDK 17 output).
+ * <- getNamedTemplateFormatString. @type {Object<string, Object<number, string>>}
+ */
+export const NAMED_DATE_STYLES = {
+  default: { [DATE_TYPES.DATE]: 'MMM d, yyyy', [DATE_TYPES.TIME]: 'h:mm:ss a',
+    [DATE_TYPES.DATE_TIME]: 'MMM d, yyyy, h:mm:ss a', [DATE_TYPES.FULL]: 'MMM d, yyyy, h:mm:ss a' },
+  short: { [DATE_TYPES.DATE]: 'M/d/yy', [DATE_TYPES.TIME]: 'h:mm a',
+    [DATE_TYPES.DATE_TIME]: 'M/d/yy, h:mm a', [DATE_TYPES.FULL]: 'M/d/yy, h:mm a' },
+  medium: { [DATE_TYPES.DATE]: 'MMM d, yyyy', [DATE_TYPES.TIME]: 'h:mm:ss a',
+    [DATE_TYPES.DATE_TIME]: 'MMM d, yyyy, h:mm:ss a', [DATE_TYPES.FULL]: 'MMM d, yyyy, h:mm:ss a' },
+  long: { [DATE_TYPES.DATE]: 'MMMM d, yyyy', [DATE_TYPES.TIME]: 'h:mm:ss a z',
+    [DATE_TYPES.DATE_TIME]: "MMMM d, yyyy 'at' h:mm:ss a z", [DATE_TYPES.FULL]: "MMMM d, yyyy 'at' h:mm:ss a z" },
+  full: { [DATE_TYPES.DATE]: 'EEEE, MMMM d, yyyy', [DATE_TYPES.TIME]: 'h:mm:ss a zzzz',
+    [DATE_TYPES.DATE_TIME]: 'EEEE, MMMM d, yyyy \'at\' h:mm:ss a zzzz',
+    [DATE_TYPES.FULL]: 'EEEE, MMMM d, yyyy \'at\' h:mm:ss a zzzz' },
+};
+
+/**
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isNamedDateStyle(name) {
+  return Object.prototype.hasOwnProperty.call(NAMED_DATE_STYLES, name);
+}
+
+/**
  * Formats a date model value: resolves "iso"-prefixed and pattern formats,
  * choosing date_format/time_format/datetime_format when formatString is null.
  * <- Environment.formatDateFormatModel.
@@ -235,6 +309,9 @@ export function formatDate(d, formatString, dateType, defaults) {
     fmt = dateType === DATE_TYPES.DATE ? defaults.date
       : dateType === DATE_TYPES.TIME ? defaults.time
         : defaults.datetime;
+  }
+  if (isNamedDateStyle(fmt)) {
+    fmt = NAMED_DATE_STYLES[fmt][dateType] || NAMED_DATE_STYLES[fmt][DATE_TYPES.DATE_TIME];
   }
   if (isIsoDateFormat(fmt)) {
     return formatIsoDate(d, fmt, dateType);

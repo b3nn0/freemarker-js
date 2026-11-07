@@ -27,7 +27,7 @@ describe('Directive: #if', () => {
   });
   it('non-boolean condition', async () => {
     await rejectsMatch(out('<#if n>x</#if>', { n: 1 }), NonBooleanException, ['boolean', 'number']);
-    await rejectsMatch(out('<#if z>x</#if>', {}), UnassignedVariableException, ['"z"']);
+    await rejectsMatch(out('<#if z>x</#if>', {}), UnassignedVariableException, ['==> z']);
   });
   it('canonical round trip', () => {
     snapshot(parse('<#if x == 1>a<#else>b</#if>').getCanonicalForm(), '<#if x == 1>a<#else>b</#if>');
@@ -56,21 +56,22 @@ describe('Directive: #attempt/#recover', () => {
 });
 
 describe('Directive: #switch/#case/#default/#break/#on', () => {
-  it('case match and default', async () => {
+  it('case match and default (fall-through)', async () => {
     const t = '<#switch v><#case 1>one<#case 2>two<#default>other</#switch>';
-    snapshot(await out(t, { v: 1 }), 'one');
-    snapshot(await out(t, { v: 2 }), 'two');
+    snapshot(await out(t, { v: 1 }), 'onetwoother');
+    snapshot(await out(t, { v: 2 }), 'twoother');
     snapshot(await out(t, { v: 3 }), 'other');
-    snapshot(await out(t, { v: 'x' }), 'other');
+    // <- strict comparison: string switch-target vs number case errors
+    await rejectsMatch(out(t, { v: 'x' }), TemplateException, ['Can\'t compare values of these types']);
   });
   it('string case with natural comparison', async () => {
     snapshot(await out('<#switch s><#case "a">A<#case "b">B</#switch>', { s: 'b' }), 'B');
   });
-  it('#break stops the #switch body', async () => {
+  it('#break inside #case is swallowed by the #switch (upstream BC bug)', async () => {
     snapshot(await out('<#switch v><#case 1>before<#break>skipped<#case 2>x</#switch>', { v: 1 }), 'before');
   });
-  it('no fall-through: body ends at next #case', async () => {
-    snapshot(await out('<#switch v><#case 1>one<#case 2>two</#switch>', { v: 1 }), 'one');
+  it('fall-through: body continues to the next #case', async () => {
+    snapshot(await out('<#switch v><#case 1>one<#case 2>two</#switch>', { v: 1 }), 'onetwo');
   });
   it('#on takes a positional argument list (commas optional)', async () => {
     const t = '<#switch v><#on 1, 2>low<#default>other</#switch>';
@@ -89,6 +90,18 @@ describe('Directive: #switch/#case/#default/#break/#on', () => {
   it('two #default is a parse error', () => {
     throwsMatch(() => parse('<#switch v><#default>a<#default>b</#switch>'), ParseException,
       ['already had', '#default']);
+  });
+  it('#on and #case can\'t be mixed', () => {
+    throwsMatch(() => parse('<#switch v><#on 1>A<#case 2>B</#switch>'), ParseException,
+      ['can\'t use both #on, and #case']);
+  });
+  it('#on after #default is a parse error', () => {
+    throwsMatch(() => parse('<#switch v><#default>D<#on 1>A</#switch>'), ParseException,
+      ['can\'t use #on after #default', '#default must come last']);
+  });
+  it('#break inside #on is a parse error', () => {
+    throwsMatch(() => parse('<#switch v><#on 1>A<#break>B</#switch>'), ParseException,
+      ['#break']);
   });
   it('#case/#default body errors carry location', async () => {
     const e = await rejectsMatch(out('<#switch v><#case 1>${missing}</#switch>', { v: 1 }),

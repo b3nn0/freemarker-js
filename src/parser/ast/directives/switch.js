@@ -1,7 +1,7 @@
 // <- SwitchBlock / Case / On (#switch with #case/#default; #on keeps its expression list).
 
 import { TemplateElement } from '../templateElement.js';
-import { BreakInstructionException } from '../../../errors.js';
+import { BreakInstructionException, ContinueInstructionException } from '../../../errors.js';
 
 /** #case <- Case. */
 export class Case extends TemplateElement {
@@ -57,26 +57,49 @@ export class SwitchBlock extends TemplateElement {
    */
   * execute(env) {
     const v = yield* this.switchExp.evaluate(env);
-    function* visitMatched(el) {
-      try {
-        for (const c of el.children) yield* env.visit(c);
-      } catch (e) {
-        if (!(e instanceof BreakInstructionException)) throw e; // #break ends the #switch
-      }
-    }
-    for (const on of this.ons) {
-      for (const exp of on.exps) {
-        if ((yield* env.equals(v, yield* exp.evaluate(env)))) {
-          yield* visitMatched(on);
-          return null;
+    const defaultCase = this.cases.find((c) => c.condition === null) ?? null;
+    if (this.ons.length) {
+      // #on mode: #break inside is a parse error upstream, so it is not caught here.
+      let matched = false;
+      processOnDirectives: for (const on of this.ons) {
+        for (const exp of on.exps) {
+          if ((yield* env.compare(v, yield* exp.evaluate(env), 'eq', 'on==', {
+            leftLabel: () => this.switchExp.getCanonicalForm(),
+            rightLabel: () => exp.getCanonicalForm(),
+          })) === 0) {
+            for (const c of on.children) yield* env.visit(c);
+            matched = true;
+            break processOnDirectives;
+          }
         }
       }
-    }
-    for (const c of this.cases) {
-      if (c.condition === null || (yield* env.equals(v, yield* c.condition.evaluate(env)))) {
-        yield* visitMatched(c);
-        return null;
+      if (!matched && defaultCase) {
+        for (const ch of defaultCase.children) yield* env.visit(ch);
       }
+      return null;
+    }
+    // #case mode <- SwitchBlock.accept: fall-through once a case matched; the
+    // outer catch swallows #break AND (upstream BC bug) #continue.
+    try {
+      let processed = false;
+      for (const c of this.cases) {
+        let processCase = processed;
+        if (!processCase && c.condition !== null) {
+          processCase = (yield* env.compare(v, yield* c.condition.evaluate(env), 'eq', 'case==', {
+            leftLabel: () => this.switchExp.getCanonicalForm(),
+            rightLabel: () => c.condition.getCanonicalForm(),
+          })) === 0;
+        }
+        if (processCase) {
+          for (const ch of c.children) yield* env.visit(ch);
+          processed = true;
+        }
+      }
+      if (!processed && defaultCase) {
+        for (const ch of defaultCase.children) yield* env.visit(ch);
+      }
+    } catch (e) {
+      if (!(e instanceof BreakInstructionException) && !(e instanceof ContinueInstructionException)) throw e;
     }
     return null;
   }

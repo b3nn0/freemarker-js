@@ -3,7 +3,7 @@ import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import {
   UnassignedVariableException, InvalidPropertyException, InvalidReferenceException,
-  NonHashException, NonStringException, NonNumericalException, NonBooleanException,
+  NonHashException, NonStringOrTemplateOutputException, NonNumericalException, NonBooleanException,
   TemplateException,
 } from '../../src/errors.js';
 
@@ -23,28 +23,29 @@ describe('Interpolation: basic output', () => {
     snapshot(await out('${a.b.c}', { a: { b: { c: 'deep' } } }), 'deep');
     snapshot(await out('${m.k}', { m: new Map([['k', 'v']]) }), 'v');
   });
-  it('dates use the default en_US-style datetime format', async () => {
-    snapshot(await out('${d}', { d: new Date(2020, 0, 2, 10, 30) }), '1/2/20 10:30:00');
+  it('dates use the default medium (en_US-style) datetime format', async () => {
+    snapshot(await out('${d}', { d: new Date(2020, 0, 2, 10, 30) }), 'Jan 2, 2020, 10:30:00 AM');
   });
 });
 
 describe('Interpolation: missing values', () => {
   it('unassigned variable is a template exception with location', async () => {
     const e = await rejectsMatch(out('${x}', {}), UnassignedVariableException,
-      ['not in the data model', '"x"']);
+      ['The following has evaluated to null or missing', '==> x']);
     ok(e.beginLine === 1 && e.beginColumn === 3, `pos ${e.beginLine},${e.beginColumn}`);
     ok(e.templateName === 't.ftl', `templateName ${e.templateName}`);
     ok(e.errorStackTrace.includes('in template "t.ftl"'), 'errorStackTrace');
-    ok(e.errorStackTrace.includes('line 1, column 1'), 'stack frame position');
+    ok(e.errorStackTrace.includes('at line 1, column 1'), 'stack frame position');
   });
   it('missing property', async () => {
-    await rejectsMatch(out('${a.z}', { a: {} }), InvalidPropertyException, ['has not been found']);
+    await rejectsMatch(out('${a.z}', { a: {} }), InvalidPropertyException,
+      ['==> a.z', "step after the last dot"]);
   });
   it('dotted on non-hash', async () => {
-    await rejectsMatch(out('${n.k}', { n: 5 }), NonHashException, ['is not a hash', 'number']);
+    await rejectsMatch(out('${n.k}', { n: 5 }), NonHashException, ['Expected a hash', 'number']);
   });
   it('null model value reads as missing', async () => {
-    await rejectsMatch(out('${x}', { x: null }), UnassignedVariableException, ['"x"']);
+    await rejectsMatch(out('${x}', { x: null }), UnassignedVariableException, ['==> x']);
   });
 });
 
@@ -91,9 +92,12 @@ describe('Interpolation: operators', () => {
     snapshot(await out('${1 < 2}'), 'true');
     snapshot(await out('${2 gte 2}'), 'true');
     snapshot(await out('${(2 >= 2)}'), 'true'); // "gte" form needed outside parens (FTL.jj)
-    snapshot(await out('${"a" < "b"}'), 'true');
     snapshot(await out('${1 == 1}'), 'true');
     snapshot(await out('${1 != 2}'), 'true');
+    // <- 2.3: relational operators on strings are errors (only ==/!= allowed)
+    await rejectsMatch(out('${"a" < "b"}'), TemplateException, ['Can\'t use operator "<" on string values']);
+    // cross-type equality is an error too
+    await rejectsMatch(out('${1 == "a"}'), TemplateException, ['Can\'t compare values of these types']);
   });
   it('boolean operators short-circuit', async () => {
     snapshot(await out('${true && false}'), 'false');
@@ -106,9 +110,12 @@ describe('Interpolation: operators', () => {
 
 describe('Interpolation: coercion errors', () => {
   it('sequences and hashes have no string form', async () => {
-    await rejectsMatch(out('${h}', { h: [1, 2] }), NonStringException, ['sequence']);
-    await rejectsMatch(out('${h}', { h: { a: 1 } }), NonStringException, ['hash']);
-    await rejectsMatch(out('${f}', { f: () => 1 }), NonStringException, ['method']);
+    await rejectsMatch(out('${h}', { h: [1, 2] }), NonStringOrTemplateOutputException,
+      ['evaluated to a sequence']);
+    await rejectsMatch(out('${h}', { h: { a: 1 } }), NonStringOrTemplateOutputException,
+      ['evaluated to an extended_hash']);
+    await rejectsMatch(out('${f}', { f: () => 1 }), NonStringOrTemplateOutputException,
+      ['evaluated to a method']);
   });
   it('non-numerical in arithmetic', async () => {
     await rejectsMatch(out('${s * 2}', { s: 'a' }), NonNumericalException, ['string']);
