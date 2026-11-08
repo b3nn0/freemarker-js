@@ -1,0 +1,434 @@
+<!doctype html>
+<!-- Getting started 8: interactive sandbox -- edit the data model, the template and the
+     common Configuration settings; the page re-renders on every change.
+     Module scripts are fetched under CORS rules, so file:// won't load them: from the repo
+     root run `npx serve .` and open http://localhost:3000/examples/sandbox.html.
+     NOTE: the model field is evaluated with new Function on purpose (a local dev tool).
+     Never ship this page: it executes whatever is typed into it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>freemarker-js sandbox</title>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 1.2rem; color: #181a1c; }
+  h1 { font-size: 1.15rem; margin: 0 0 .2rem; }
+  .meta { color: #5a6470; margin: 0 0 1rem; }
+  main { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); gap: 1rem; }
+  section { display: flex; flex-direction: column; gap: .6rem; }
+  textarea { width: 100%; min-height: 15rem; font: 12.5px/1.4 ui-monospace, Menlo, Consolas, monospace;
+             padding: .5rem; border: 1px solid #b9c1cb; border-radius: 4px; box-sizing: border-box; }
+  pre { font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap;
+        margin: 0; padding: .5rem; border: 1px solid #b9c1cb; border-radius: 4px;
+        background: #fbfcfd; min-height: 6rem; overflow: auto; }
+  #err { border-color: #c94b4b; background: #fff4f4; color: #8c1f1f; }
+  #code { background: #f4f6f8; color: #374151; }
+  fieldset { border: 1px solid #b9c1cb; border-radius: 4px; padding: .5rem .7rem; }
+  legend { font-weight: 600; padding: 0 .3rem; }
+  .grid { display: grid; grid-template-columns: auto 1fr; gap: .35rem .6rem; align-items: center; }
+  .grid label { color: #374151; }
+  input, select { font: inherit; padding: .15rem .3rem; border: 1px solid #b9c1cb; border-radius: 3px; }
+  .grid input[type="text"] { width: 11rem; }
+  .row { display: flex; gap: .6rem; align-items: center; }
+  button { font: inherit; padding: .3rem .8rem; border: 1px solid #6b7480; border-radius: 4px;
+           background: #eef1f5; cursor: pointer; }
+  .status { color: #5a6470; }
+  .note { color: #5a6470; font-size: .85rem; margin: .5rem 0 0; }
+  code { font: .92em ui-monospace, Menlo, Consolas, monospace; }
+</style>
+</head>
+<body>
+<h1>freemarker-js <span id="version"></span> sandbox</h1>
+<p class="meta">
+  Renders with <code>await processToString(model)</code> (async mode: model values may be
+  Promises). Dates print in the <code>time_zone</code> setting, or in the host zone --
+  this host is <span id="hostzone"></span>.
+</p>
+
+<main>
+  <section>
+    <div class="row">
+      <label for="model"><strong>Data model</strong></label>
+      <span class="status" id="modelMode"></span>
+    </div>
+    <textarea id="model" spellcheck="false"></textarea>
+
+    <fieldset>
+      <legend>Configuration</legend>
+      <div class="grid">
+        <label for="outputFormat">outputFormat</label>
+        <select id="outputFormat">
+          <option>undefined</option>
+          <option>plainText</option>
+          <option>HTML</option>
+          <option>XHTML</option>
+          <option>XML</option>
+        </select>
+
+        <label for="autoEscapingPolicy">autoEscapingPolicy</label>
+        <select id="autoEscapingPolicy">
+          <option>enableIfDefault</option>
+          <option>disable</option>
+          <option>enableIfSupported</option>
+          <option>force</option>
+        </select>
+
+        <label for="numberFormat">numberFormat</label>
+        <input id="numberFormat" type="text" list="dl-number">
+        <datalist id="dl-number">
+          <option>number</option><option>computer</option><option>currency</option>
+          <option>percent</option><option>0.00</option><option>#,##0.00</option>
+        </datalist>
+
+        <label for="datetimeFormat">datetimeFormat</label>
+        <input id="datetimeFormat" type="text" list="dl-dt">
+        <datalist id="dl-dt">
+          <option>default</option><option>iso</option><option>yyyy-MM-dd HH:mm:ss</option>
+          <option>EEEE d MMMM yyyy HH:mm</option>
+        </datalist>
+
+        <label for="dateFormat">dateFormat</label>
+        <input id="dateFormat" type="text" list="dl-d">
+        <datalist id="dl-d">
+          <option>default</option><option>iso</option><option>yyyy-MM-dd</option>
+          <option>EEEE d MMMM yyyy</option>
+        </datalist>
+
+        <label for="timeFormat">timeFormat</label>
+        <input id="timeFormat" type="text" list="dl-t">
+        <datalist id="dl-t">
+          <option>default</option><option>iso</option><option>HH:mm:ss</option><option>h:mm a</option>
+        </datalist>
+
+        <label for="booleanFormat">booleanFormat</label>
+        <input id="booleanFormat" type="text" list="dl-b">
+        <datalist id="dl-b">
+          <option>y,n</option><option>c</option><option>yes,no</option><option>true,false</option>
+        </datalist>
+
+        <label for="timeZone">timeZone</label>
+        <input id="timeZone" type="text" list="dl-tz" placeholder="(host zone)">
+        <datalist id="dl-tz">
+          <option>UTC</option><option>Europe/Berlin</option><option>America/New_York</option>
+          <option>Asia/Tokyo</option><option>Asia/Kolkata</option><option>GMT+2</option>
+        </datalist>
+
+        <label for="tagSyntax">tagSyntax</label>
+        <select id="tagSyntax">
+          <option value="1">ANGLE_BRACKET</option>
+          <option value="2">SQUARE_BRACKET</option>
+          <option value="0">AUTO_DETECT</option>
+        </select>
+
+        <label for="interpolationSyntax">interpolationSyntax</label>
+        <select id="interpolationSyntax">
+          <option value="21">DOLLAR</option>
+          <option value="20">LEGACY</option>
+          <option value="22">SQUARE_BRACKET</option>
+        </select>
+
+        <label for="zeroArgumentPolicy">zeroArgumentPolicy</label>
+        <select id="zeroArgumentPolicy">
+          <option>AUTO_INVOKE</option>
+          <option>METHOD_ONLY</option>
+        </select>
+
+        <label for="renderMode">render call</label>
+        <select id="renderMode">
+          <option value="async">await processToString(...)</option>
+          <option value="sync">processToStringSync(...)</option>
+        </select>
+
+        <label for="whitespaceStripping">whitespaceStripping</label>
+        <input id="whitespaceStripping" type="checkbox" checked>
+
+        <label for="fallbackOnNullLoopVariable">fallbackOnNullLoopVariable</label>
+        <input id="fallbackOnNullLoopVariable" type="checkbox" checked>
+      </div>
+      <p class="note">
+        <code>booleanFormat</code> caveat (upstream, not a port quirk): the value
+        <code>true,false</code> is treated as "format not set", even when you set it explicitly, so
+        auto-printing a boolean throws. Print it as <code>?string("yes","no")</code> or
+        <code>?c</code>, or set <code>y,n</code> / <code>c</code> here.
+      </p>
+    </fieldset>
+
+    <div class="row">
+      <button id="rerender" type="button">Render</button>
+      <button id="sampleBeans" type="button">Sample: bean model</button>
+      <button id="sampleJson" type="button">Sample: JSON model</button>
+      <button id="defaults" type="button">Settings: port defaults</button>
+    </div>
+  </section>
+
+  <section>
+    <label for="template"><strong>Template</strong></label>
+    <textarea id="template" spellcheck="false"></textarea>
+    <label><strong>Output</strong></label>
+    <pre id="out"></pre>
+    <pre id="err" hidden></pre>
+    <label><strong>Same call in code</strong></label>
+    <pre id="code"></pre>
+  </section>
+</main>
+
+<!-- The prefilled samples live here as raw text (a non-JS type is never executed), so
+     FTL interpolations need no backslash-escaping inside a JavaScript string. -->
+<script type="text/plain" id="sample-beans-model">
+// JSON is accepted too (a bare {...} or [...]); this form shows model beans.
+// The port recognizes a model object by its method shape -- the JS analogue of a
+// Java class implementing TemplateScalarModel / TemplateNumberModel / and friends.
+class Money {
+  constructor(cents) { this.cents = cents; }
+  getAsNumber() { return this.cents / 100; }                    // math, comparisons
+  getAsString() { return '$' + (this.cents / 100).toFixed(2); } // printing
+}
+class LineTotal {                                               // TemplateMethodModel
+  // Built-in calls arrive as plain JS values; the return may be a raw bean.
+  exec(env, args) { return new Money(Math.round(args[0] * args[1] * 100)); }
+}
+class Countdown {                                               // TemplateSequenceModel
+  getByIndex(i) { return ['3', '2', '1'][i]; }
+  size() { return 3; }
+}
+
+// A script's last statement returns the model (assigning "model" works too).
+return {
+  customer: {
+    name: '<b>Ada</b> Lovelace',   // switch outputFormat to see it escaped or not
+    since: new Date(Date.UTC(2015, 8, 6, 12, 0, 0)),
+    vip: true,
+  },
+  lines: [
+    { title: 'boomerang', unit: 12.34, qty: 2 },
+    { title: 'inner tube', unit: 8.99, qty: 1 },
+  ],
+  price: new Money(1234),
+  lineTotal: new LineTotal(),
+  countdown: new Countdown(),
+  tracking: Promise.resolve('in transit'),  // async deviation: values may be Promises
+  nothing: null,
+};
+</script>
+
+<script type="text/plain" id="sample-beans-template">
+Customer: ${customer.name}
+Since:    ${customer.since?string('yyyy')}
+Status:   <#if customer.vip>VIP<#else>standard</#if>
+Nickname: ${customer.nickname!"(not set)"}
+
+<#list lines as line>
+  ${line.title?cap_first?right_pad(12)} ${lineTotal(line.unit, line.qty)}  (x${line.qty})
+</#list>
+
+Beans and built-ins
+  scalar+number bean:  ${price}   math: ${price * 3}
+  sequence bean:       <#list countdown as n>[${n}]</#list> size ${countdown?size}
+  Promise value:       ${tracking}
+  null handling:       ${nothing!"(default)"} / <#if nothing??>set<#else>unset</#if>
+  boolean, safe forms: ${customer.vip?string('yes','no')} / ${customer.vip?c} / ${customer.vip?then('Y','N')}
+  escaping:            ${customer.name}   -- markup formats escape it, plainText/undefined do not
+
+<#-- ?no_esc / ?esc are deliberately absent from this sample: both are bound to a markup
+     output format, so they are a parse error under plainText and undefined -->
+</script>
+
+<script type="text/plain" id="sample-json-model">
+{
+  "customer": { "name": "<b>Ada</b> Lovelace", "vip": true },
+  "lines": [
+    { "title": "boomerang", "unit": 12.34, "qty": 2 },
+    { "title": "inner tube", "unit": 8.99, "qty": 1 }
+  ],
+  "total": 33.67,
+  "tracking": "in transit"
+}
+</script>
+
+<script type="text/plain" id="sample-json-template">
+Total (${lines?size} items): ${total?string("currency")}
+<#list lines as line>
+  ${line.title?cap_first?right_pad(12)} x${line.qty}
+</#list>
+Status: <#if customer.vip>VIP<#else>standard</#if>, ${tracking}
+VIP as text: ${customer.vip?string('yes','no')} / ${customer.vip?c}   -- a bare boolean needs booleanFormat y,n or c
+Name: ${customer.name}   -- escaped by HTML/XML/XHTML, left alone by plainText/undefined
+</script>
+
+<script type="module">
+  import { Configuration, Template, VERSION, ZeroArgumentPolicy } from '../src/index.js';
+
+  const el = (id) => document.getElementById(id);
+
+  /** @returns {string} the raw text of a sample block, as textarea content. */
+  const sampleText = (id) => el(id).textContent.replace(/^\r?\n/, '').replace(/\s+$/, '');
+
+  // Port defaults (<- Configurable/Configuration defaults), used by the reset buttons.
+  const DEFAULTS = {
+    outputFormat: 'undefined', autoEscapingPolicy: 'enableIfDefault',
+    numberFormat: 'number', datetimeFormat: 'default', dateFormat: 'default',
+    timeFormat: 'default', booleanFormat: 'true,false', timeZone: '',
+    tagSyntax: '1', interpolationSyntax: '21', zeroArgumentPolicy: 'AUTO_INVOKE',
+    renderMode: 'async', whitespaceStripping: true, fallbackOnNullLoopVariable: true,
+  };
+
+  // The settings the panel exposes, in display order: id -> how the value lands on
+  // the Configuration, and how the echoed code spells it (null = skip the line).
+  const SETTING_FIELDS = [
+    ['outputFormat', (c, v) => c.setOutputFormat(v), (id) => `setOutputFormat('${valueOf(id)}')`],
+    ['autoEscapingPolicy', (c, v) => c.setAutoEscapingPolicy(v), (id) => `setAutoEscapingPolicy('${valueOf(id)}')`],
+    ['numberFormat', (c, v) => c.setNumberFormat(v), (id) => `setNumberFormat('${valueOf(id)}')`],
+    ['datetimeFormat', (c, v) => c.setDateTimeFormat(v), (id) => `setDateTimeFormat('${valueOf(id)}')`],
+    ['dateFormat', (c, v) => c.setDateFormat(v), (id) => `setDateFormat('${valueOf(id)}')`],
+    ['timeFormat', (c, v) => c.setTimeFormat(v), (id) => `setTimeFormat('${valueOf(id)}')`],
+    ['booleanFormat', (c, v) => c.setBooleanFormat(v), (id) => `setBooleanFormat('${valueOf(id)}')`],
+    ['timeZone', (c, v) => { if (v) c.setTimeZone(v); }, (id) => (valueOf(id) ? `setTimeZone('${valueOf(id)}')` : null)],
+    ['tagSyntax', (c, v) => c.setTagSyntax(Number(v)), (id) => `setTagSyntax(Configuration.${labelOf(id)}_TAG_SYNTAX)`],
+    ['interpolationSyntax', (c, v) => c.setInterpolationSyntax(Number(v)), (id) => `setInterpolationSyntax(Configuration.${labelOf(id)}_INTERPOLATION_SYNTAX)`],
+    ['zeroArgumentPolicy', (c, v) => c.setZeroArgumentPolicy(ZeroArgumentPolicy[v]), (id) => `setZeroArgumentPolicy(ZeroArgumentPolicy.${valueOf(id)})`],
+    ['whitespaceStripping', (c, v) => c.setWhitespaceStripping(v), (id) => `setWhitespaceStripping(${valueOf(id)})`],
+    ['fallbackOnNullLoopVariable', (c, v) => c.setFallbackOnNullLoopVariable(v), (id) => `setFallbackOnNullLoopVariable(${valueOf(id)})`],
+  ];
+
+  /** @returns {string} the control's current value */
+  function valueOf(id) {
+    const node = el(id);
+    return node.type === 'checkbox' ? node.checked : node.value;
+  }
+
+  /** @returns {string} the selected option's label (the Configuration constant name). */
+  function labelOf(id) {
+    return el(id).selectedOptions[0].textContent;
+  }
+
+  /**
+   * Builds the Configuration from the panel; settings errors (an unknown output
+   * format or auto-escaping policy) surface to the caller.
+   * @returns {Configuration}
+   */
+  function buildConfiguration() {
+    const cfg = new Configuration();
+    for (const [id, apply] of SETTING_FIELDS) apply(cfg, valueOf(id));
+    return cfg;
+  }
+
+  /**
+   * Turns the model field into a data model: JSON first (quoted-key literals never
+   * reach eval), then a JS expression, then JS statements whose last statement
+   * returns the model ('model = {...}' also works).
+   * @returns {{ model: Object, how: string }}
+   */
+  function readModel() {
+    const src = el('model').value;
+    const trimmed = src.trim();
+    if (!trimmed) return { model: {}, how: 'empty model' };
+    let jsonError = null;
+    if (/^[{[]/.test(trimmed)) {
+      try { return { model: JSON.parse(trimmed), how: 'JSON' }; }
+      catch (e) { jsonError = e; } // unquoted keys and such are still valid JavaScript
+    }
+    let fn;
+    try {
+      fn = new Function('"use strict";\nreturn (\n' + src + '\n);');
+    } catch (exprError) {
+      try {
+        fn = new Function('"use strict";\n' + src + '\nreturn typeof model === "undefined" ? undefined : model;');
+      } catch (stmtError) {
+        throw new SyntaxError(jsonError
+          ? `not JSON (${jsonError.message}), and not JavaScript (${stmtError.message})`
+          : stmtError.message);
+      }
+    }
+    const model = fn();
+    if (model === null || model === undefined) {
+      throw new SyntaxError('the script produced no model: end it with "return { ... };" or assign "model"');
+    }
+    return { model, how: 'JavaScript' };
+  }
+
+  /** Echoes the panel as the equivalent JavaScript. */
+  function echoCode() {
+    const lines = ["import { Configuration, Template } from 'freemarker-js';", '', 'const cfg = new Configuration();'];
+    for (const [id, , code] of SETTING_FIELDS) {
+      const call = code(id);
+      if (call) lines.push(`cfg.${call};`);
+    }
+    lines.push('', "const t = new Template('sandbox-input', source, cfg);");
+    if (valueOf('renderMode') === 'async') lines.push('const out = await t.processToString(model);');
+    else lines.push('const out = t.processToStringSync(model);');
+    el('code').textContent = lines.join('\n');
+  }
+
+  // Renders are async; a keystroke during a slow render must not let the older
+  // result land afterwards. Only the newest render paints the panes.
+  let renderSeq = 0;
+
+  /** Parses, renders and paints the output; every failure lands in the error pane. */
+  async function render() {
+    const seq = ++renderSeq;
+    const errBox = el('err');
+    errBox.hidden = true;
+    errBox.textContent = '';
+    try {
+      const { model, how } = readModel();
+      if (seq !== renderSeq) return;
+      el('modelMode').textContent = 'model read as ' + how;
+      const t = new Template('sandbox-input', el('template').value, buildConfiguration());
+      const out = valueOf('renderMode') === 'async'
+        ? await t.processToString(model)
+        : t.processToStringSync(model);
+      if (seq !== renderSeq) return;
+      el('out').textContent = out;
+    } catch (e) {
+      if (seq !== renderSeq) return;
+      // The engine's message already carries the FTL stack trace and the tips.
+      const kind = e && e.constructor ? e.constructor.name : 'Error';
+      el('out').textContent = '';
+      errBox.hidden = false;
+      errBox.textContent = `${kind}: ${e && e.message ? e.message : e}`;
+    }
+    echoCode();
+  }
+
+  /** Puts every setting control back to the port's default. */
+  function resetSettings() {
+    for (const [id, def] of Object.entries(DEFAULTS)) {
+      const node = el(id);
+      if (node.type === 'checkbox') node.checked = def;
+      else node.value = def;
+    }
+  }
+
+  /**
+   * Loads a sample model/template; settings go to the port defaults unless the
+   * sample says otherwise (the first load shows HTML auto-escaping on purpose).
+   * @param {string} modelSrc @param {string} templateSrc @param {Object} [settings]
+   */
+  function loadSample(modelSrc, templateSrc, settings = null) {
+    el('model').value = modelSrc;
+    el('template').value = templateSrc;
+    resetSettings();
+    for (const [id, v] of Object.entries(settings || {})) el(id).value = v;
+    render();
+  }
+
+  // The sample settings: a markup format, so auto-escaping is on out of the box.
+  const SAMPLE_SETTINGS = {
+    outputFormat: 'HTML', datetimeFormat: 'yyyy-MM-dd HH:mm:ss',
+    dateFormat: 'yyyy-MM-dd', timeFormat: 'HH:mm:ss',
+  };
+
+  el('version').textContent = VERSION;
+  el('hostzone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  for (const node of document.querySelectorAll('textarea, select, input')) {
+    node.addEventListener('input', render);
+  }
+  el('rerender').addEventListener('click', render);
+  const beans = () => [sampleText('sample-beans-model'), sampleText('sample-beans-template')];
+  const json = () => [sampleText('sample-json-model'), sampleText('sample-json-template')];
+  el('sampleBeans').addEventListener('click', () => loadSample(...beans(), SAMPLE_SETTINGS));
+  el('sampleJson').addEventListener('click', () => loadSample(...json(), SAMPLE_SETTINGS));
+  el('defaults').addEventListener('click', () => { resetSettings(); render(); });
+  loadSample(...beans(), SAMPLE_SETTINGS);
+</script>
+</body>
+</html>

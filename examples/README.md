@@ -9,11 +9,22 @@ Getting-started examples, each standalone under Node (no install, no build):
     node examples/async.mjs       # Promise-valued model data, methods and resolvers
     node examples/beans.mjs       # custom model objects via capability contracts
     node examples/demo.mjs        # all of it in one template
-    python3 -m http.server 8000   # then open http://localhost:8000/examples/browser.html
 
-`browser.html` is the same engine in the browser as one `<script type="module">`; browsers
-fetch module scripts under CORS rules, so `file://` won't load them - serve the repo root
-with any static server (this also serves `tests/index.html`, the same suite in a page).
+Two pages need a browser instead. Module scripts are fetched under CORS rules, so `file://`
+won't load them -- serve the repo root:
+
+    npx serve .    # then open http://localhost:3000/examples/sandbox.html
+
+- `sandbox.html` - the interactive one: edit the data model (JSON, or JavaScript whose last
+  statement returns the model - model beans included), the template, and the common
+  `Configuration` settings; it re-renders on every change and echoes the equivalent
+  JavaScript. The prefilled samples sit in `<script type="text/plain">` blocks at the bottom
+  of the file, so their FTL `${...}` needs no escaping. The model field is evaluated with
+  `new Function` on purpose: keep it a local tool, never a shipped page.
+- `browser.html` - the smallest embedding: one module script, one `Configuration`, one
+  template, one render.
+
+The same server also carries the test suite as a page: `http://localhost:3000/tests/`.
 
 Sync rendering uses `processToStringSync` / `process` (upstream-style, throws at any
 async step); async rendering uses `await processToString(...)`.

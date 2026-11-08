@@ -53,9 +53,36 @@ cfg.setOutputFormat('HTML'); // #ftl output_format=... works per template too
 ```
 
 Runnable examples in `examples/` (see `examples/README.md`): `basics.mjs`, `autoescape.mjs`,
-`directives.mjs`, `includes.mjs`, `async.mjs`, plus `demo.mjs` (all of it in one template)
-and `browser.html`. Run: `node examples/basics.mjs`.
+`directives.mjs`, `includes.mjs`, `async.mjs`, `beans.mjs`, plus `demo.mjs` (all of it in one
+template). Run: `node examples/basics.mjs`.
 Run the test suite: `node tests/cli.mjs`.
+
+## Sandbox and test run in the browser
+
+The sources are plain ESM with no build step, but a browser only fetches module scripts over an
+http origin (`file://` is refused), so serve the repo root from a terminal:
+
+```sh
+npx serve .
+```
+
+then open:
+
+- **`http://localhost:3000/examples/sandbox.html`** - the interactive sandbox: paste a data model
+  (JSON, or JavaScript whose last statement returns the model, model beans included), edit an FTL
+  template, and change the common `Configuration` settings - output format and auto-escaping
+  policy, number/date/time/boolean formats, time zone, tag and interpolation syntax,
+  `zeroArgumentPolicy`, whitespace stripping - while the page re-renders and echoes the
+  equivalent JavaScript. Prefilled with a working sample; the model field is evaluated with
+  `new Function`, so keep it a local tool.
+- **`http://localhost:3000/tests/`** - the whole unit-test suite in a browser tab (same tests as
+  `node tests/cli.mjs`, run through the same harness; also useful for catching host-environment
+  differences such as the host time zone).
+- **`http://localhost:3000/examples/browser.html`** - the smallest browser embedding: one module
+  script, one `Configuration`, one template, one render.
+
+`npx serve` listens on port 3000 by default (`npx serve -l 4000 .` for another port); any static
+server rooted at the repo works, e.g. `python3 -m http.server 8000`.
 
 ## What's missing or different vs upstream FTL
 
