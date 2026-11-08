@@ -117,7 +117,10 @@ describe('Interpolation: coercion errors', () => {
       ['evaluated to a sequence']);
     await rejectsMatch(out('${h}', { h: { a: 1 } }), NonStringOrTemplateOutputException,
       ['evaluated to an extended_hash']);
-    await rejectsMatch(out('${f}', { f: () => 1 }), NonStringOrTemplateOutputException,
+    // A 0-argument model function is auto-invoked under AUTO_INVOKE (see
+    // runtime/zeroArgPolicy.test.js), so the policy-neutral case is a method that
+    // takes arguments: it stays a method value under either policy.
+    await rejectsMatch(out('${f}', { f: (a) => a }), NonStringOrTemplateOutputException,
       ['evaluated to a method']);
   });
   it('non-numerical in arithmetic', async () => {

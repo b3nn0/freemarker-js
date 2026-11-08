@@ -4,7 +4,9 @@ import { describe, it, snapshot, throwsMatch, rejectsMatch } from '../harness.js
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
 import { ZeroArgumentPolicy as P } from '../../src/index.js';
-import { NonStringException, NonStringOrTemplateOutputException, InvalidPropertyException } from '../../src/errors.js';
+import {
+  NonStringException, NonStringOrTemplateOutputException, InvalidPropertyException, NonMethodException,
+} from '../../src/errors.js';
 
 function out(src, model, cfg) {
   return new Template('t.ftl', src, cfg ?? new Configuration()).processToString(model ?? {});
@@ -54,5 +56,59 @@ describe('ZeroArgumentPolicy: METHOD_ONLY', () => {
   });
   it('policy setter validates values', () => {
     throwsMatch(() => new Configuration().setZeroArgumentPolicy('NOPE'), TypeError);
+  });
+});
+
+// Root-scope identifiers. Upstream applies the policy inside the object wrapper's
+// get(), and that same get() serves root variables (JVM, root data model = the bean:
+// ${bare} -> "bare-yes" under BOTH_METHOD_AND_PROPERTY_/PROPERTY_ONLY_, and a
+// method+sequence error under the default METHOD_ONLY).
+describe('ZeroArgumentPolicy at root scope (data-model variables)', () => {
+  const model = () => ({ x() { return 5; }, s() { return 'str'; }, one(a) { return a + 1; } });
+
+  it('AUTO_INVOKE: bare root reads auto-invoke, ${f()} still calls', async () => {
+    snapshot(await out('${x}', model()), '5');
+    snapshot(await out('${x()}', model()), '5');
+    snapshot(await out('${x + 1}', model()), '6');
+    snapshot(await out('${x?? ?c}', model()), 'true');
+    snapshot(await out('${x?string}', model()), '5');
+    snapshot(await out('[${s}][${x}]', model()), '[str][5]');
+    snapshot(await out('${one(4)}', model()), '5');
+    snapshot(await out('${one?with_args([9])()}', model()), '10');
+  });
+
+  it('AUTO_INVOKE: argument-taking functions stay method values (JVM-pinned)', async () => {
+    snapshot(await out('${one?is_method?c}', model()), 'true');
+    await rejectsMatch(out('${one}', model()), NonStringOrTemplateOutputException, ['evaluated to a method']);
+    // JVM-pinned: an auto-invoking upstream policy also reports the 0-arg method as a
+    // value (${cust.bare?is_method?c} -> false under BOTH_METHOD_AND_PROPERTY_...).
+    snapshot(await out('${x?is_method?c}', model()), 'false');
+    await rejectsMatch(out('${x?with_args([])()}', model()), NonMethodException,
+      ['Expected a macro, function, directive, or method']);
+  });
+
+  it('METHOD_ONLY: bare root reads give the method; calls still work', async () => {
+    const cfg = new Configuration();
+    cfg.setZeroArgumentPolicy(P.METHOD_ONLY);
+    snapshot(await out('${x()}', model(), cfg), '5');
+    snapshot(await out('${x?is_method?c}', model(), cfg), 'true');
+    await rejectsMatch(out('${x}', model(), cfg), NonStringOrTemplateOutputException, ['evaluated to a method']);
+  });
+
+  it('template-set variables, macros and functions are not data-model reads', async () => {
+    snapshot(await out('<#function g><#return 7></#function>${g?is_method?c}/${g()}', {}), 'true/7');
+    snapshot(await out('<#macro m>x</#macro>${m?is_macro?c}/${m?is_method?c}', {}), 'true/false');
+    snapshot(await out('<#assign h = one>${h(3)}/${h?is_method?c}', model()), '4/true');
+    const cfg = new Configuration();
+    cfg.setZeroArgumentPolicy(P.METHOD_ONLY);
+    snapshot(await out('<#assign h = x>${h?is_method?c}/${h()}', model(), cfg), 'true/5');
+    snapshot(await out('<#list [x] as v>${v?is_method?c}</#list>', model(), cfg), 'true');
+  });
+
+  it('#global writes into the data model, so its reads are policy reads', async () => {
+    snapshot(await out('<#global g = s>${g}', model()), 'str');
+    const cfg = new Configuration();
+    cfg.setZeroArgumentPolicy(P.METHOD_ONLY);
+    snapshot(await out('<#global g = x>${g?is_method?c}/${g()}', model(), cfg), 'true/5');
   });
 });

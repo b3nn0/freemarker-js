@@ -74,6 +74,13 @@ with this section, this section wins (interim statements were superseded).
   (closer to the JDK Collator than code-point order, but not byte-identical).
 - JS `Date` model values wrap as DATE_TIME and render; upstream wraps `java.util.Date`
   as an UNKNOWN date type whose plain interpolation throws.
+- `ZeroArgumentPolicy` is applied to data-model reads at every nesting level, root-scope
+  identifiers included (upstream runs the policy inside the object wrapper's `get()`,
+  which serves root variables too; JVM: `${bare}` -> `"bare-yes"` with the bean as the
+  root model under its auto-invoking policies). The BeforeMethodCall escape hatch is
+  likewise open on a bare identifier, so `${x()}` keeps calling the function; upstream
+  has no `VariableBeforeMethodCall` node, so under its auto-invoking policies root-scope
+  `${bare()}` fails with `NonMethodException`.
 - `?filter`/`?map` return lazy sequences (element-wise lambda calls during iteration;
   `?map`'s `size()` is the source size, like `LazyMappedList`), materialized when an
   eager-context operation takes them (e.g. `#assign`). Parentheses are required
@@ -104,7 +111,8 @@ with this section, this section wins (interim statements were superseded).
 - Interim output formats until M16: numbers use plain decimal (`String(n)`), dates use the ISO form (`Date.toISOString()`, UTC); no locale.
 - Comparison v1 (M16 refines): both numbers -> numeric, both dates -> by time, both booleans -> identity, otherwise both sides are string-coerced (so `1 == "1"` is true); relational string order is code-point, not locale "natural" order.
 - M6/M19 mapping (revised): upstream's ZeroArgumentNonVoidMethodPolicy (3 values, record-vs-class split, getFoo/isFoo carve-out) is simplified to ONE knob, `ZeroArgumentPolicy`: AUTO_INVOKE (default) auto-invokes 0-arg function properties on bare reads for every model source uniformly; METHOD_ONLY keeps them as callable values (upstream's non-record default). Rationale: "record" was already only a heuristic here (a plain object literal), the 3-way enum had a dead value (BOTH == PROPERTY_ONLY without bean introspection), and getFoo/isFoo naming is a Java-bean artifact meaningless in JS. `fn.length !== 0` still marks a value method-only, matching upstream's "non-void zero-argument" gating. Default flips for class instances (was METHOD_ONLY) and for getX/isX names on plain objects (were carve-out): both now auto-invoke. History: M6 originally ported the full 3-value API (see PLAN.md).
-- `BeforeMethodCall` is a runtime hook (`_evaluateForMethodCall` on Dot/DynamicKeyName reached from MethodCall) instead of upstream's parse-time node pre-creation -- same observable semantics.
+- M19 follow-up (root scope): the policy also covers bare root-scope identifiers of the data model (`${x}` where the root model holds a 0-arg function). Upstream applies the policy inside the wrapper's `get()` (`BeanModel.get`), which is what also serves root variable lookups (JVM: root model = bean, `${bare}` -> value under BOTH_/PROPERTY_ONLY_, method value under METHOD_ONLY); the port had applied it only after `.`/`[...]`. `Environment.getVariableWithSource` now reports the data-model origin so `Identifier` applies the policy only to data-model values - template-set variables, `#function`/`#macro` values and loop/lambda parameters are not wrapper reads upstream either.
+- `BeforeMethodCall` is a runtime hook (`_evaluateForMethodCall` on Dot/DynamicKeyName/Identifier reached from MethodCall) instead of upstream's parse-time node pre-creation -- same observable semantics on Dot/DynamicKeyName (upstream `DotBeforeMethodCall`/`DynamicKeyNameBeforeMethodCall`). On a bare identifier it is a port addition: upstream has no `VariableBeforeMethodCall`, so with an auto-invoking policy its root-scope `${bare()}` fails (`NonMethodException`), while the port still calls the function.
 - Class (non-record) objects: HashModel.get walks the prototype chain but stops at `Object.prototype`, so class methods are members while `toString` etc. never leak.
 - M7: reproduced upstream quirks -- no `</#else>`/`</#elseif>` end tags (bodies end at the next sibling/parent end tag); `>` right after a tag expression closes the tag (so `gt`/parens required inside `<#if a gt b>`); `#attempt` catches `TemplateException`s but never the internal `#break`/`#continue` markers; whitespace before the first `#case` is dropped.
 - M8: single-child templates: the lone child *is* the root element (<- FTL.jj `Root()` / `TemplateElements.asSingleElement()`); evaluation errors are blamed at the failing expression's own line/column (<- upstream `InvalidReferenceException(bean)`); the FTL stack prints `- Failed at:` for frame 0 and `- Reached through:` for outer frames -- the `~` nesting-related frames (upstream `BodyInstruction`) are not emitted yet; `#assign x in ns` was deferred to the `#import` milestone and is now implemented (see the seventh fidelity round).
@@ -380,3 +388,26 @@ Eighth fidelity round (JVM-pinned; corpus unchanged, suite 664 green):
   CoercionUtil order); bean methods may return raw JS values, which are
   wrapped at access sites. Pinned by probe Drv125 (17 rows, incl. multi-kind
   bean, custom date bean default format, custom transform via getWriter).
+
+Ninth fidelity round (JVM-pinned; corpus unchanged, suite 669 green):
+- ZeroArgumentPolicy at root scope, pinned with JVM probes over the built
+  2.3.36-SNAPSHOT classes (root data model = the bean; wrapper policies
+  METHOD_ONLY / BOTH_METHOD_AND_PROPERTY_UNLESS_BEAN_PROPERTY_READ_METHOD /
+  PROPERTY_ONLY_UNLESS_BEAN_PROPERTY_READ_METHOD): under the auto-invoking
+  policies `${bare}` -> "bare-yes", `${bare()}` -> NonMethodException,
+  `${bare?is_method?c}` -> false, `${bare?with_args([])()}` -> type error,
+  `${(bare)!"fb"}` -> the value; under upstream's default METHOD_ONLY the same
+  three reads stay method-valued. The port now matches the bare-read side: root
+  identifiers of the data model take the policy (Environment.getVariableWithSource
+  reports the origin; Identifier applies applyZeroArgPolicy). Its
+  Identifier-level _evaluateForMethodCall keeps `${f()}` callable, which upstream
+  cannot do at root scope -- recorded as a deviation in the canonical list.
+- Argument-taking methods are method-valued under both policies on both sides
+  (`cust.cat`, varargs `cust.catVar`: `?is_method` true, `?with_args([...])()`
+  works), which the `?with_args` tests now pin with METHOD_ONLY -- the JS twin of
+  a Java varargs method, a rest-parameter function, reports `fn.length === 0` and
+  would otherwise be property-invoked by AUTO_INVOKE.
+- Template-set variables, #function/#macro values, #local, loop and lambda
+  parameters keep the previous behavior (they are not wrapper reads upstream
+  either): pinned for #assign/#global both ways, `<#global g = x>` writing into
+  the data model being the one case that does take the policy.

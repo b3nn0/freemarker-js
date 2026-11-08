@@ -109,7 +109,10 @@ Honest summary; details and rationale in `UPSTREAM.md`.
 - RTF/CSS/JSON output formats and nested `{outer{inner}}` format expressions.
 - Java-bean concepts without a JS analogue: getter naming (`getFoo`/`isFoo`) is not magic, and
   the three-value zero-arg-method policy is collapsed to one knob,
-  `ZeroArgumentPolicy.AUTO_INVOKE` (default) / `METHOD_ONLY`.
+  `ZeroArgumentPolicy.AUTO_INVOKE` (default) / `METHOD_ONLY`. AUTO_INVOKE turns a
+  0-argument function in the data model into its return value on a bare read at any
+  nesting, root-scope variables included (`${x}` == `${x()}`); METHOD_ONLY keeps it as
+  a callable value (`?is_method` stays true).
 
 **Deliberate deviations:**
 

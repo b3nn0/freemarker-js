@@ -362,13 +362,26 @@ export class Environment {
    * @returns {Generator<unknown, import('./model/templateModel.js').TemplateModel|null, unknown>}
    */
   * getVariable(name) {
+    return (yield* this.getVariableWithSource(name))[0];
+  }
+
+  /**
+   * Same lookup, also reporting whether the value came from the root data model.
+   * The ZeroArgumentPolicy belongs to the data-model read (upstream runs it inside
+   * the object wrapper's get(), which is the root hash), never to template-set
+   * variables, macros or functions, which are not wrapper reads.
+   * <- Environment.getVariable
+   * @param {string} name
+   * @returns {Generator<unknown, [import('./model/templateModel.js').TemplateModel|null, boolean], unknown>}
+   */
+  * getVariableWithSource(name) {
     for (let i = this._scopes.length - 1; i >= 0; i--) {
-      if (this._scopes[i].has(name)) return this._scopes[i].get(name);
+      if (this._scopes[i].has(name)) return [this._scopes[i].get(name), false];
     }
-    if (this._nsScope.has(name)) return this._nsScope.get(name);
-    if (!this.dataModel) return null;
+    if (this._nsScope.has(name)) return [this._nsScope.get(name), false];
+    if (!this.dataModel) return [null, false];
     const v = yield* callOp(`data-model variable "${name}"`, this.dataModel, 'get', name);
-    return v === null || v === undefined || v instanceof Object ? v : this.wrap(v);
+    return [v === null || v === undefined || v instanceof Object ? v : this.wrap(v), true];
   }
 
   /**

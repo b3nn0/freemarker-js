@@ -101,11 +101,13 @@ export class Identifier extends Expression {
     return backslashEscapeIdentifier(this.name);
   }
   /**
+   * Resolves the name through the scope chain; throws when it is missing.
    * @param {import('../../../environment.js').Environment} env - rendering environment
-   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   * @returns {Generator<unknown, [import('../../../model/templateModel.js').TemplateModel, boolean], unknown>}
+   *   the model, plus whether it came from the root data model
    */
-  * evaluate(env) {
-    const v = yield* env.getVariable(this.name);
+  * _resolve(env) {
+    const [v, fromDataModel] = yield* env.getVariableWithSource(this.name);
     if (v === null || v === undefined) {
       const e = new UnassignedVariableException(blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
       e.blamedExpression = this.getCanonicalForm();
@@ -115,7 +117,33 @@ export class Identifier extends Expression {
       e.beginColumn = this.beginColumn;
       throw e;
     }
+    return [v, fromDataModel];
+  }
+
+  /**
+   * @param {import('../../../environment.js').Environment} env - rendering environment
+   * @returns {import('../../../model/templateModel.js').TemplateModel|null}
+   */
+  * evaluate(env) {
+    const [v, fromDataModel] = yield* this._resolve(env);
+    // ZeroArgumentPolicy at root scope: upstream runs the policy inside the object
+    // wrapper's get(), and that same get() serves root identifiers.
+    if (fromDataModel) {
+      const [m] = yield* applyZeroArgPolicy(env, env.dataModel, this.name, v, null);
+      return m;
+    }
     return v;
+  }
+
+  // <- the port's counterpart of the Dot/DynamicKeyName BeforeMethodCall trick for a
+  // root name: ${f()} keeps calling the function instead of pre-invoking it. Upstream
+  // has no VariableBeforeMethodCall node, so ${f()} fails at root scope under its
+  // auto-invoking policies (deviation, see UPSTREAM.md).
+  /** @param {import('../../../environment.js').Environment} env @param {Expression[]|null} argExprs @returns {import('../../../model/templateModel.js').TemplateModel} */
+  * _evaluateForMethodCall(env, argExprs) {
+    const [v, fromDataModel] = yield* this._resolve(env);
+    if (!fromDataModel) return [v, false]; // #function/#macro/#assign values: the MethodCall path decides
+    return yield* applyZeroArgPolicy(env, env.dataModel, this.name, v, argExprs);
   }
 }
 

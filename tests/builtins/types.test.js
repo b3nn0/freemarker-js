@@ -1,6 +1,7 @@
 import { describe, it, snapshot, rejectsMatch, throwsMatch } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
+import { ZeroArgumentPolicy } from '../../src/index.js';
 import {
   TemplateException, InvalidReferenceException, NonBooleanException, NonStringException, ParseException,
 } from '../../src/errors.js';
@@ -132,7 +133,15 @@ describe('Built-ins: multi-type, hashes, sequences, numbers, type checks', () =>
     snapshot(await out(
       '<#function f><#return 1></#function>${f?is_method?c}/${f?is_macro?c}'),
     'true/false');
-    snapshot(await out('${x?is_method?c}', { x: () => 1 }), 'true');
+    snapshot(await out('${x?is_method?c}', { x: (a) => a }), 'true');
+    // A 0-argument model function is property-like under AUTO_INVOKE, so the read
+    // yields its return value (JVM-pinned: under an auto-invoking upstream policy
+    // ${cust.bare?is_method?c} is false too); under upstream's default METHOD_ONLY
+    // it stays a method model.
+    snapshot(await out('${x?is_method?c}', { x: () => 1 }), 'false');
+    const cfg = new Configuration();
+    cfg.setZeroArgumentPolicy(ZeroArgumentPolicy.METHOD_ONLY);
+    snapshot(await new Template('t.ftl', '${x?is_method?c}', cfg).processToString({ x: () => 1 }), 'true');
   });
 
   it('?is_date and the date-kind built-ins', async () => {

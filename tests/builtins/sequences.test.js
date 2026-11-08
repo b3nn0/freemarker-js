@@ -1,6 +1,7 @@
 import { describe, it, snapshot, throwsMatch, rejectsMatch, ok } from '../harness.js';
 import { Template } from '../../src/template.js';
 import { Configuration } from '../../src/configuration.js';
+import { ZeroArgumentPolicy } from '../../src/index.js';
 import {
   ParseException, TemplateException, UnsupportedFeatureException,
   NonSequenceOrCollectionException, NonMethodException,
@@ -119,17 +120,24 @@ describe('Lambda expressions and ?filter/?map/?sort/?sort_by', () => {
   });
 
   it('?with_args / ?with_args_last <- BuiltInsForCallables (JVM-pinned)', async () => {
+    // These built-ins need the callable *as a value*. Upstream reaches them with its
+    // default METHOD_ONLY wrapper policy (a varargs Java method is not zero-argument).
+    // The JS twin, a rest-parameter function, reports fn.length === 0, so the port's
+    // AUTO_INVOKE would property-invoke it instead -> METHOD_ONLY here.
+    const cfg = new Configuration();
+    cfg.setZeroArgumentPolicy(ZeroArgumentPolicy.METHOD_ONLY);
     const fn = (...a) => a.join('|');
-    snapshot(await out('${fn?with_args([1, 2])()}', { fn }), '1|2');
-    snapshot(await out('${fn?with_args([1])(2)}', { fn }), '1|2');
-    snapshot(await out('${fn?with_args_last([2])(1)}', { fn }), '1|2');
-    await rejectsMatch(out('${fn?with_args(1)}', { fn }), TemplateException,
+    const outWith = (src) => new Template('t.ftl', src, cfg).processToString({ fn });
+    snapshot(await outWith('${fn?with_args([1, 2])()}'), '1|2');
+    snapshot(await outWith('${fn?with_args([1])(2)}'), '1|2');
+    snapshot(await outWith('${fn?with_args_last([2])(1)}'), '1|2');
+    await rejectsMatch(outWith('${fn?with_args(1)}'), TemplateException,
       ['extended hash or sequence as argument #1', 'number']);
-    await rejectsMatch(out('${fn?with_args()()}', { fn }), TemplateException,
+    await rejectsMatch(outWith('${fn?with_args()()}'), TemplateException,
       ['expects 1 argument but has received none']);
-    await rejectsMatch(out('${fn?with_args(1, 2)()}', { fn }), TemplateException,
+    await rejectsMatch(outWith('${fn?with_args(1, 2)()}'), TemplateException,
       ['expects 1 argument but has received 2']);
-    await rejectsMatch(out('${fn?with_args({"a": 1})()}', { fn }), TemplateException,
+    await rejectsMatch(outWith('${fn?with_args({"a": 1})()}'), TemplateException,
       ["can't have a hash argument. Use a sequence argument"]);
     await rejectsMatch(out('${1?with_args([1])}', {}), NonMethodException,
       ['Expected a macro, function, directive, or method']);
