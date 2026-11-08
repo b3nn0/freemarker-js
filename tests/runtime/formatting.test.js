@@ -147,15 +147,18 @@ describe('runtime: date/time formatting', () => {
   });
 
   it('iso built-in family (method vs plain-string shapes)', async () => {
-    const iso = await render('${d?iso("GMT")}', new Configuration(), { d: d() });
+    // Explicit-zone shapes need a pinned instant: d() is a local wall clock, so
+    // its GMT/UTC reading depends on the host zone. du() is 10:30:15 GMT itself.
+    const du = () => new Date(Date.UTC(2020, 0, 2, 10, 30, 15));
+    const iso = await render('${d?iso("GMT")}', new Configuration(), { d: du() });
     eq(iso.slice(0, 19), '2020-01-02T10:30:15');
-    eq(await render('${d?iso_nz("GMT")}', new Configuration(), { d: d() }), '2020-01-02T10:30:15');
-    eq(await render('${d?date?iso("GMT+2")}', new Configuration(), { d: d() }), '2020-01-02'); // <- upstream: DATE never shows an offset
-    eq(await render('${d?date?iso_utc}', new Configuration(), { d: d() }), '2020-01-02');
+    eq(await render('${d?iso_nz("GMT")}', new Configuration(), { d: du() }), '2020-01-02T10:30:15');
+    eq(await render('${d?date?iso("GMT+2")}', new Configuration(), { d: du() }), '2020-01-02'); // <- upstream: DATE never shows an offset
+    eq(await render('${d?date?iso_utc}', new Configuration(), { d: du() }), '2020-01-02');
     eq(await render('${d?date?iso_local}', new Configuration(), { d: d() }), '2020-01-02');
-    eq(await render('${d?datetime?iso_utc}', new Configuration(), { d: d() }),
-      `2020-01-02T10:30:15${isoSuffix()}`);
-    eq(await render('${d?time?iso_utc_h}', new Configuration(), { d: d() }), `10${isoSuffix()}`);
+    eq(await render('${d?datetime?iso_utc}', new Configuration(), { d: du() }),
+      '2020-01-02T10:30:15Z'); // <- utc_* shapes are the instant in UTC, suffix Z
+    eq(await render('${d?time?iso_utc_h}', new Configuration(), { d: du() }), '10Z');
     // the utc/local variants are plain strings: calling them fails
     await rejectsMatch(render('${d?date?iso_utc()}', new Configuration(), { d: d() }),
       null, ['not a method']);

@@ -19,6 +19,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Test suite (zero dependencies, no install step)
         run: npm test
+      - name: Test suite under non-UTC host zones (the runner is UTC; browsers are not)
+        run: |
+          for tz in Europe/Berlin Etc/GMT+5 Etc/GMT-2 Pacific/Kiritimati; do
+            echo "::group::TZ=$tz"
+            TZ=$tz npm test
+            echo "::endgroup::"
+          done
       - name: JSDoc typecheck (npx typescript)
         run: npm run typecheck
       - name: Audit - no eval/new Function in src/

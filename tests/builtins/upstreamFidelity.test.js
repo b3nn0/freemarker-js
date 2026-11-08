@@ -1997,7 +1997,10 @@ describe('Upstream CoercionToTextualTest (ported)', () => {
   // upstream uses test-local custom format factories (@G printf-markup numbers,
   // @HI HTML-ISO dates) -- custom formats are out of port scope, so the portable
   // subset is mirrored with standard formats (verified against live 2.3.36).
-  const T = new Date(1441540800000);
+  // Host-local wall clock (Sep 6 2015, noon), not a pinned epoch: with no
+  // time_zone set the port formats in the host zone (like upstream's JVM
+  // default), so a UTC instant only prints 12:00:00 on a UTC host.
+  const T = new Date(2015, 8, 6, 12, 0, 0);
   const root = () => ({
     s: 'abc', n: 1500, dt: T, b: true,
     m: new MarkupModel(null, getStandardOutputFormat('HTML'), '<p>M</p>'),
