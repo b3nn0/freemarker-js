@@ -350,3 +350,20 @@ suite 646 green, corpus unchanged):
   `.getOptionalTemplate` argument-error texts and transform callee-error texts
   differ from upstream's wording; every case above has its behavior class,
   position and payload pinned by JVM probes and the ported suites.
+
+Eighth fidelity round (JVM-pinned; corpus unchanged, suite 652 green):
+- Auto-escaping policy family pinned via probes Drv110-124: the legacy escaping
+  built-ins (`?html`/`?xhtml`/`?xml`/`?rtf`/`?web_safe`) and the `#escape`
+  directive are rejected at parse time when auto-escaping is on with a markup
+  output format (`#noautoesc` restores them); `?esc`/`?no_esc` are bound to a
+  markup output format (parse error under undefined/plainText); `?no_esc`,
+  `<#noautoesc>`, `#ftl auto_esc=false` and switching to a non-markup format
+  via `#outputformat` are rejected under the force policy, and a non-markup
+  format under force invalidates the whole template right after the header
+  (raw IllegalArgumentException equivalent).
+- Output format names: "plainText" (lowercase p, PlainTextOutputFormat.getName())
+  is the registered name; plainText disallows markup mixing and escapes nothing.
+- `#attempt` buffers the body output and drops it when `#recover` runs
+  (Environment.visitAttemptRecover); flushes on success; flow-control signals
+  propagate (2.3.36 FlowControlException is a RuntimeException, not a
+  TemplateException) -- JVM-pinned.
