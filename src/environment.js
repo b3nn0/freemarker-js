@@ -9,9 +9,12 @@ import {
 import { formatNumber } from './format/numberFormat.js';
 import { formatDate } from './format/dateFormat.js';
 import { Decimal } from './format/decimal.js';
-import { StringModel, NumberModel, BooleanModel, DateModel, MarkupModel } from './model/models.js';
-import { TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel } from './model/templateModel.js';
-import { MethodModel } from './model/models.js';
+import { DateModel, MarkupModel } from './model/models.js';
+import { TemplateHashModel } from './model/templateModel.js';
+import {
+  isScalarModel, isNumberModel, isBooleanModel, isDateModel,
+  isSequenceModel, isHashModel, isHashModelEx, isMethodModel, isTransformModel,
+} from './model/capabilities.js';
 import { unwrap } from './model/unwrap.js';
 import { ImportDirective, normalizePath } from './parser/ast/directives/importDir.js';
 import { IncludeDirective } from './parser/ast/directives/include.js';
@@ -31,16 +34,16 @@ const COMPARATOR_NAMES = { eq: 'equals', neq: 'not-equals', lt: 'less-than', gt:
 
 /** FTL type description in comparison errors <- _DelayedFTLTypeDescription + _DelayedAOrAn. */
 function comparisonDescription(m) {
-  if (m instanceof NumberModel) return 'a number';
   if (m instanceof MarkupModel) return 'a markup_output';
-  if (m instanceof StringModel) return 'a string';
-  if (m instanceof DateModel) return 'a date_or_time_or_datetime';
-  if (m instanceof BooleanModel) return 'a boolean';
-  if (m instanceof TemplateMethodModel) return 'a method';
-  if (m instanceof TemplateSequenceModel) return 'a sequence';
-  if (m && m.isTransform) return 'a transform';
-  if (typeof m.keys === 'function') return 'an extended_hash';
-  if (m instanceof TemplateHashModel) return 'a hash';
+  if (isNumberModel(m)) return 'a number';
+  if (isScalarModel(m)) return 'a string';
+  if (isDateModel(m)) return 'a date_or_time_or_datetime';
+  if (isBooleanModel(m)) return 'a boolean';
+  if (isMethodModel(m)) return 'a method';
+  if (isSequenceModel(m)) return 'a sequence';
+  if (isTransformModel(m)) return 'a transform';
+  if (isHashModelEx(m)) return 'an extended_hash';
+  if (isHashModel(m)) return 'a hash';
   return 'an unusual FTL value';
 }
 
@@ -363,7 +366,9 @@ export class Environment {
       if (this._scopes[i].has(name)) return this._scopes[i].get(name);
     }
     if (this._nsScope.has(name)) return this._nsScope.get(name);
-    return this.dataModel ? yield* callOp(`data-model variable "${name}"`, this.dataModel, 'get', name) : null;
+    if (!this.dataModel) return null;
+    const v = yield* callOp(`data-model variable "${name}"`, this.dataModel, 'get', name);
+    return v === null || v === undefined || v instanceof Object ? v : this.wrap(v);
   }
 
   /**
@@ -442,21 +447,21 @@ export class Environment {
           : 'The right operand of the comparison was undefined or null.');
     }
     const opName = operatorString ?? COMPARATOR_NAMES[operator];
-    if (l instanceof NumberModel && r instanceof NumberModel) {
+    if (isNumberModel(l) && isNumberModel(r)) {
       const ln = yield* callOp('getAsNumber', l, 'getAsNumber');
       const rn = yield* callOp('getAsNumber', r, 'getAsNumber');
       // <- BigDecimalEngine.compareNumbers: exact when both have BigDecimal forms
       if (Number.isFinite(ln) && Number.isFinite(rn)) {
-        const dl = l.getAsDecimal();
-        const dr = r.getAsDecimal();
+        const dl = typeof l.getAsDecimal === 'function' ? l.getAsDecimal() : null;
+        const dr = typeof r.getAsDecimal === 'function' ? r.getAsDecimal() : null;
         if (dl !== null && dr !== null) return dl.cmp(dr);
         if (dl !== null) return dl.cmp(Decimal.fromNumber(rn));
         if (dr !== null) return Decimal.fromNumber(ln).cmp(dr);
       }
       return Math.sign(ln - rn);
     }
-    if (l instanceof DateModel && r instanceof DateModel) {
-      if (l.dateType !== r.dateType) {
+    if (isDateModel(l) && isDateModel(r)) {
+      if (l.dateType !== undefined && r.dateType !== undefined && l.dateType !== r.dateType) {
         throw new TemplateException('Can\'t compare dates of different types. '
           + `Left date type is ${DATE_TYPE_NAMES[l.dateType]}, right date type is ${DATE_TYPE_NAMES[r.dateType]}.`);
       }
@@ -464,7 +469,7 @@ export class Environment {
       const rd = yield* callOp('getAsDate', r, 'getAsDate');
       return Math.sign(ld.getTime() - rd.getTime());
     }
-    if (l instanceof StringModel && r instanceof StringModel) {
+    if (isScalarModel(l) && isScalarModel(r)) {
       if (operator !== 'eq' && operator !== 'neq') {
         throw new TemplateException(`Can't use operator "${opName}" on string values.`);
       }
@@ -473,11 +478,13 @@ export class Environment {
       const rs = (yield* callOp('getAsString', r, 'getAsString')).normalize('NFKC');
       return ls < rs ? -1 : ls > rs ? 1 : 0;
     }
-    if (l instanceof BooleanModel && r instanceof BooleanModel) {
+    if (isBooleanModel(l) && isBooleanModel(r)) {
       if (operator !== 'eq' && operator !== 'neq') {
         throw new TemplateException(`Can't use operator "${opName}" on boolean values.`);
       }
-      return (l.getAsBoolean() ? 1 : 0) - (r.getAsBoolean() ? 1 : 0);
+      const lb = yield* callOp('getAsBoolean', l, 'getAsBoolean');
+      const rb = yield* callOp('getAsBoolean', r, 'getAsBoolean');
+      return (lb ? 1 : 0) - (rb ? 1 : 0);
     }
     if (tmmne && (operator === 'eq' || operator === 'neq')) return 1;
     throw new TemplateException(
@@ -505,15 +512,15 @@ export class Environment {
   typeLabel(model) {
     if (model === null || model === undefined) return 'null or missing';
     if (model instanceof MarkupModel) return 'a markup_output';
-    if (model instanceof StringModel) return 'string';
-    if (model instanceof NumberModel) return 'number';
-    if (model instanceof BooleanModel) return 'boolean';
-    if (model instanceof DateModel) return 'date';
-    if (model instanceof TemplateMethodModel) return 'method';
-    if (model !== null && model !== undefined && model.isTransform) return 'transform';
-    if (model instanceof TemplateSequenceModel) return 'sequence';
-    if (model instanceof TemplateHashModelEx) return 'extended_hash';
-    if (model instanceof TemplateHashModel) return 'hash';
+    if (isScalarModel(model)) return 'string';
+    if (isNumberModel(model)) return 'number';
+    if (isBooleanModel(model)) return 'boolean';
+    if (isDateModel(model)) return 'date';
+    if (isMethodModel(model)) return 'method';
+    if (isTransformModel(model)) return 'transform';
+    if (isSequenceModel(model)) return 'sequence';
+    if (isHashModelEx(model)) return 'extended_hash';
+    if (isHashModel(model)) return 'hash';
     return 'unknown type';
   }
 
@@ -524,7 +531,7 @@ export class Environment {
    * @returns {Generator<unknown, boolean, unknown>}
    */
   * toBoolean(model, context = '') {
-    if (model instanceof BooleanModel) return model.getAsBoolean();
+    if (isBooleanModel(model)) return yield* callOp('getAsBoolean', model, 'getAsBoolean');
     throw new NonBooleanException(`Expected a boolean, but the value was a ${this.typeLabel(model)}${context}.`);
   }
 
@@ -535,7 +542,7 @@ export class Environment {
    * @returns {Generator<unknown, number, unknown>}
    */
   * toNumber(model, context = '') {
-    if (model instanceof NumberModel) return model.getAsNumber();
+    if (isNumberModel(model)) return yield* callOp('getAsNumber', model, 'getAsNumber');
     throw new NonNumericalException(`Expected a number, but the value was a ${this.typeLabel(model)}${context}.`);
   }
 
@@ -547,12 +554,19 @@ export class Environment {
    * @returns {Generator<unknown, string, unknown>}
    */
   * coerceToString(model, context = '') {
-    if (model instanceof StringModel) return model.getAsString();
-    if (model instanceof NumberModel) {
-      return this._formatNumber(model.getAsNumber(), undefined, null, model.getAsDecimal());
+    if (isScalarModel(model)) return yield* callOp('getAsString', model, 'getAsString');
+    if (isNumberModel(model)) {
+      const n = yield* callOp('getAsNumber', model, 'getAsNumber');
+      const dec = typeof model.getAsDecimal === 'function' ? model.getAsDecimal() : null;
+      return this._formatNumber(n, undefined, null, dec);
     }
-    if (model instanceof BooleanModel) return this._autoFormatBoolean(model.getAsBoolean());
-    if (model instanceof DateModel) return this._formatDate(model.getAsDate(), model.dateType);
+    if (isBooleanModel(model)) {
+      return this._autoFormatBoolean(yield* callOp('getAsBoolean', model, 'getAsBoolean'));
+    }
+    if (isDateModel(model)) {
+      return this._formatDate(yield* callOp('getAsDate', model, 'getAsDate'),
+        model.dateType === undefined ? DateModel.DATE_TIME : model.dateType);
+    }
     // <- CoercionUtil: same core message as the "${...}" content coercion
     throw new NonStringOrTemplateOutputException(
       `Expected a string or something automatically convertible to string `

@@ -866,7 +866,7 @@ describe('Upstream TagSyntaxVariationsTest (ported subset)', () => {
     // user definition shadows the core name; the body is then an ordinary macro body:
     snapshot(await out('<#macro compress>H</#macro><@compress>x</@>'), 'H');
     // non-directive shadow fails at runtime with a type error:
-    rejectsMatch(() => out('<#assign compress = 1><@compress>x</@>'),
+    await rejectsMatch(() => out('<#assign compress = 1><@compress>x</@>'),
       InvalidReferenceException, ['can\'t be called']);
     // end tag name may be omitted for named calls:
     snapshot(await out('<#macro m>x</#macro><@m>a</@>'), 'x');
@@ -1023,7 +1023,7 @@ describe('Upstream ListErrorsTest (ported subset)', () => {
     }
   });
   it('testInvalidItemsRuntime', async () => {
-    rejectsMatch(() => out('<#list 1..1><#items as x></#items><#items as x></#items></#list>'),
+    await rejectsMatch(() => out('<#list 1..1><#items as x></#items><#items as x></#items></#list>'),
       TemplateException, ['#items', 'already entered earlier']);
     throwsMatch(() => new Template('t.ftl',
       '<#list 1..1><#items as x><#items as y>${x}/${y}</#items></#items></#list>',
@@ -1056,9 +1056,9 @@ describe('Upstream ListErrorsTest (ported subset)', () => {
       ParseException, ['key', 'value', 'both', 'foo']);
   });
   it('testCollectionVersusHash', async () => {
-    rejectsMatch(() => out('<#list {} as i></#list>'),
+    await rejectsMatch(() => out('<#list {} as i></#list>'),
       NonSequenceOrCollectionException, ['as k, v']);
-    rejectsMatch(() => out('<#list [] as k, v></#list>'),
+    await rejectsMatch(() => out('<#list [] as k, v></#list>'),
       NonSequenceOrCollectionException, ['only one loop variable']);
   });
 });
@@ -1235,7 +1235,7 @@ describe('Upstream ArgsSpecialVariableTest (ported)', () => {
       + '<@m a=11 />; <@m a=11 c=33 />', {}),
     'a=11, b=22, c=33, d=44; a=11, b=22; a=11, b=2; a=11, b=2, c=33');
     snapshot(await out(md + '<@m 1, 2 />', {}), 'a=1, b=2');
-    rejectsMatch(() => out(md + '<@m 1, 2, 3 />', {}),
+    await rejectsMatch(() => out(md + '<@m 1, 2, 3 />', {}),
       TemplateException, ['.args', 'catch-all']);
   });
   it('.args in functions (sequence of values)', async () => {
@@ -1254,10 +1254,10 @@ describe('Upstream ArgsSpecialVariableTest (ported)', () => {
     snapshot(await out(fd4 + '${f(11, 22, 33, 44)}; ${f(11, 22)}; ${f(11)}; '
       + '${f(11, null, 33)}', {}), '11, 22, 33, 44; 11, 22; 11, 2; 11, 2, 33');
   });
-  it('.args in wrong context', () => {
+  it('.args in wrong context', async () => {
     throwsMatch(() => new Template('t.ftl', '${.args}', new Configuration()),
       ParseException, ['args', 'macro', 'function']);
-    rejectsMatch(() => out("<#macro m>${'.args'?eval}</#macro><@m />", {}),
+    await rejectsMatch(() => out("<#macro m>${'.args'?eval}</#macro><@m />", {}),
       TemplateException, ['args', 'macro', 'function']);
   });
 });
@@ -2492,5 +2492,99 @@ describe('Legacy escaping and auto-escaping parse bans (JVM-pinned)', () => {
     snapshot(await outcome("<#ftl output_format='PlainText'>${v}"),
       'ERR[ParseException] Syntax error in template "t" in line 1, column 21:');
     snapshot(await outcome("<#ftl output_format='HTML'><#outputformat 'plainText'>${v}</#outputformat>"), 'OK[<b>]');
+  });
+});
+
+// <- JVM Drv125: beans extending their own base class and implementing the
+// TemplateXxxModel contracts by method presence (JS has no interfaces).
+describe('Custom model beans via capability contracts (JVM-pinned, Drv125)', () => {
+  class OwnBase { tag() { return 'own'; } }
+  class BBool extends OwnBase { getAsBoolean() { return true; } }
+  class BScalar extends OwnBase { getAsString() { return 'scal'; } }
+  class BNum extends OwnBase { getAsNumber() { return 12.5; } }
+  class BBoth extends OwnBase {
+    getAsBoolean() { return false; }
+    getAsString() { return 'both'; }
+  }
+  class BSeq extends OwnBase {
+    getByIndex(i) { return 'e' + i; }
+    size() { return 3; }
+  }
+  class BHash extends OwnBase {
+    get(k) { return k === 'k1' ? 'v1' : null; }
+    keys() { return ['k1']; }
+    values() { return ['v1']; }
+    size() { return 1; }
+  }
+  class BMeth extends OwnBase { exec(env, args) { return 'called:' + args[0]; } }
+  class BDate extends OwnBase { getAsDate() { return new Date(2020, 0, 2, 3, 4, 5); } }
+  class BTf extends OwnBase {
+    getWriter(out, args) {
+      return { write(s) { out.write('TF[' + s + ']'); }, close() {} };
+    }
+  }
+  const model = () => ({
+    b: new BBool(), s: new BScalar(), n: new BNum(), both: new BBoth(),
+    seq: new BSeq(), h: new BHash(), m: new BMeth(), d: new BDate(), tf: new BTf(),
+  });
+  const outcome = async (src, m = model()) => {
+    try { return 'OK[' + (await new Template('t', src, new Configuration()).processToString(m)) + ']'; }
+    catch (e) { return 'ERR[' + e.constructor.name + '] ' + e.message.split('\n')[0]; }
+  };
+
+  it('boolean bean: #if and ?c work, printing uses the boolean_format rule', async () => {
+    snapshot(await outcome('[${b}]'),
+      'ERR[TemplateException] Can\'t convert boolean to string automatically, because the "boolean_format" setting was "true,false", which is the legacy deprecated default, and we treat it as if no format was set. This is the default configuration; you should provide the format explicitly for each place where you print a boolean.');
+    snapshot(await outcome('<#if b>yes<#else>no</#if>'), 'OK[yes]');
+    snapshot(await outcome('${b?c}', model()), 'OK[true]');
+    snapshot(await outcome('${b?is_boolean?then(\'B\',\'-\')}${b?is_hash?then(\'H\',\'-\')}'), 'OK[B-]');
+  });
+  it('scalar bean: prints, string built-ins and comparisons apply', async () => {
+    snapshot(await outcome('[${s}] ${s?upper_case}'), 'OK[[scal] SCAL]');
+    snapshot(await outcome("[${(s == 'scal')?then('T','F')}] ${s?is_string?then('S','-')}"), 'OK[[T] S]');
+  });
+  it('number bean: formatting, arithmetic and comparison apply', async () => {
+    snapshot(await outcome('[${n}] [${n + 1}] [${(n?string(\'0.00\'))}]'), 'OK[[12.5] [13.5] [12.50]]');
+    snapshot(await outcome("[${(n < 20)?then('T','F')}] ${n?is_number?then('N','-')}"), 'OK[[T] N]');
+  });
+  it('a bean can implement several contracts (scalar wins for printing)', async () => {
+    snapshot(await outcome('[${both}]'), 'OK[[both]]');
+    snapshot(await outcome('<#if both>Y<#else>N</#if>'), 'OK[N]');
+    snapshot(await outcome('${both?then(\'t\',\'f\')}'), 'OK[f]');
+  });
+  it('sequence bean: #list, ?size, index, ?first, ?map, ?join', async () => {
+    snapshot(await outcome('<#list seq as x>[${x}]</#list> ${seq?size} [${seq[1]}]'),
+      'OK[[e0][e1][e2] 3 [e1]]');
+    snapshot(await outcome("${seq?first}-${seq?map(x -> x?upper_case)?join('-')}"), 'OK[e0-E0-E1-E2]');
+    snapshot(await outcome('[${seq + seq}]'),
+      'ERR[NonStringOrTemplateOutputException] For "${...}" content: Expected a string or something automatically convertible to string (number, date or boolean), or "template output" , but this has evaluated to a sequence:');
+  });
+  it('hash bean: dot access, ?size, ?keys, two-variable #list', async () => {
+    snapshot(await outcome("[${h.k1}] ${h?size} ${h?keys?join('-')} <#list h as k,v>${k}=${v}</#list>"),
+      'OK[[v1] 1 k1 k1=v1]');
+    snapshot(await outcome('${h?is_hash_ex?then(\'H\',\'-\')}${h?has_content?string(\'y\',\'n\')}'), 'OK[Hy]');
+  });
+  it('method bean: called with plain unwrapped arguments', async () => {
+    snapshot(await outcome("[${m('arg')}] ${m?is_method?then('M','-')}"), 'OK[[called:arg] M]');
+  });
+  it('date bean: printed with the default datetime format', async () => {
+    snapshot(await outcome('[${d}] ${d?is_date_like?then(\'D\',\'-\')}'), 'OK[[Jan 2, 2020, 3:04:05 AM] D]');
+  });
+  it('transform bean: #transform/getWriter body capture', async () => {
+    snapshot(await outcome('<@tf>body</@tf> ${tf?is_transform?then(\'T\',\'-\')}'), 'OK[TF[body] T]');
+  });
+  it('plain (non-class) duck objects and duck data-model roots work too', async () => {
+    snapshot(await outcome('<#if o>Y<#else>N</#if>', { o: { getAsBoolean() { return true; } } }), 'OK[Y]');
+    snapshot(await outcome('[${k1}]', new BHash()), 'OK[[v1]]');
+  });
+  it('async bean methods are awaited like every other model call', async () => {
+    class BAsyncSeq extends OwnBase {
+      async getByIndex(i) { await new Promise((r) => setTimeout(r, 1)); return 'a' + i; }
+      size() { return 2; }
+    }
+    snapshot(await outcome('<#list q as x>[${x}]</#list>', { q: new BAsyncSeq() }), 'OK[[a0][a1]]');
+  });
+  it('plain objects are still wrapped as hashes (get-alone is not a contract)', async () => {
+    snapshot(await outcome('${o.x} ${o.get()}', { o: { x: 2, get() { return 'gm'; } } }), 'OK[2 gm]');
   });
 });

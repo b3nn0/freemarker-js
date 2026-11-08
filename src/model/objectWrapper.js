@@ -2,6 +2,7 @@
 // WeakMap identity cache <- the IntrospectionCache analogue: one model per wrapped object.
 
 import { TemplateModel } from './templateModel.js';
+import { isModelLike } from './capabilities.js';
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';
 
 /**
@@ -29,6 +30,11 @@ export class SimpleObjectWrapper {
       default: break;
     }
     if (value instanceof Date) return new DateModel(value);
+    // <- capability duck: a bean implementing a model contract (its required
+    // methods) passes through unwrapped, like the JVM's "instanceof
+    // TemplateXxxModel" rule. Map/Set are excluded: their get/keys/values are
+    // built-ins, not model contracts.
+    if (isModelLike(value) && !(value instanceof Map) && !(value instanceof Set)) return value;
     const cached = this._cache.get(value);
     if (cached) return cached;
     let model;

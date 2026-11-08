@@ -81,11 +81,13 @@ export class MacroModel extends TemplateModel {
     const used = new Set();
     const extras = [];
     const kind = def.isFunction ? 'Function' : 'Macro';
-    // <- parameter-count check runs before the unknown-name check (JVM-pinned
-    // order; Drv75/76). The catch-all relaxes both.
+    // <- JVM-pinned order: positional overflow errors before unknown named
+    // parameters; all-named calls with an unknown name error before the
+    // total-count check (named args map by name, so overflow alone is not
+    // what fails there). The catch-all relaxes all of them.
     if (def.catchAllName === null) {
       const given = positionalArgs.length + namedArgs.size;
-      if (given > def.params.length) {
+      if (positionalArgs.length > def.params.length) {
         throw new InvalidReferenceException(
           `${kind} "${def.name}" only accepts ${def.params.length} parameters, but got ${given}.`);
       }
@@ -95,6 +97,10 @@ export class MacroModel extends TemplateModel {
             `${kind} "${def.name}" has no parameter with name "${k}". `
             + `Valid parameter names are: ${def.params.map((p) => p.name).join(', ')}`);
         }
+      }
+      if (given > def.params.length) {
+        throw new InvalidReferenceException(
+          `${kind} "${def.name}" only accepts ${def.params.length} parameters, but got ${given}.`);
       }
     } else if (!def.isFunction && def.argsNeeded
       && positionalArgs.length > def.params.length) {

@@ -47,10 +47,10 @@ describe('Directive: #macro / #function / <@call>', () => {
     snapshot(await out(
       '<#macro m a b others...><#list .args as k, v>${k}=${v}<#sep>, </#list></#macro>'
       + '<@m a=1 b=2 c=3 />'), 'a=1, b=2, c=3');
-    rejectsMatch(() => out('<#macro m>total=${.args.total}</#macro><@m total=7/>'),
+    await rejectsMatch(() => out('<#macro m>total=${.args.total}</#macro><@m total=7/>'),
       InvalidReferenceException, ['has no parameter with name', 'total']);
-    rejectsMatch(() => out('<#macro m a>given=${.args.a}</#macro><@m a=1 e=2/>'),
-      InvalidReferenceException, ['only accepts 1 parameters, but got 2']);
+    await rejectsMatch(() => out('<#macro m a>given=${.args.a}</#macro><@m a=1 e=2/>'),
+      InvalidReferenceException, ['has no parameter with name', 'e']);
   });
   it('.args outside a macro/function is a parse error', () => {
     const e = throwsMatch(() => parse('${.args}'), ParseException);

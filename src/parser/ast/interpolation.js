@@ -1,12 +1,15 @@
 // ${...} (and [=...], canonicalized to ${...}). <- freemarker.core.DollarVariable (Interpolation).
 
 import { TemplateElement } from './templateElement.js';
-import { MarkupModel, NumberModel } from '../../model/models.js';
+import { MarkupModel } from '../../model/models.js';
 import {
   InvalidReferenceException, TemplateException, NonStringOrTemplateOutputException,
 } from '../../errors.js';
-import { TemplateMethodModel, TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx } from '../../model/templateModel.js';
+import {
+  isMethodModel, isSequenceModel, isHashModel, isHashModelEx, isNumberModel, isScalarModel,
+} from '../../model/capabilities.js';
 import { blameText, GENERAL_MISSING_TIP } from './expressions/variables.js';
+import { callOp } from '../../async.js';
 
 /** ${...} <- DollarVariable; with fracOpts set it is the legacy #{...} (NumericalOutput). */
 export class Interpolation extends TemplateElement {
@@ -41,12 +44,12 @@ export class Interpolation extends TemplateElement {
       e.beginColumn = this.expression.beginColumn;
       throw e;
     }
-    if (value instanceof TemplateMethodModel || value instanceof TemplateSequenceModel
-      || value instanceof TemplateHashModel) {
+    if (!isScalarModel(value) && (isMethodModel(value) || isSequenceModel(value)
+      || isHashModel(value))) {
       // <- CoercionUtil message (wrapper text omitted; deviation)
-      const what = value instanceof TemplateMethodModel ? 'a method'
-        : value instanceof TemplateSequenceModel ? 'a sequence'
-          : (value instanceof TemplateHashModelEx) ? 'an extended_hash' : 'a hash';
+      const what = isMethodModel(value) ? 'a method'
+        : isSequenceModel(value) ? 'a sequence'
+          : (isHashModelEx(value)) ? 'an extended_hash' : 'a hash';
       const e = new NonStringOrTemplateOutputException(
         'For "${...}" content: Expected a string or something automatically convertible to '
         + `string (number, date or boolean), or "template output" , but this has evaluated to ${what}:`);
@@ -58,9 +61,9 @@ export class Interpolation extends TemplateElement {
         + `column ${e.beginColumn}]`;
       throw e;
     }
-    if (this.fracOpts !== null && value instanceof NumberModel) {
+    if (this.fracOpts !== null && isNumberModel(value)) {
       const s = env._formatNumber(
-        value.getAsNumber(), this.fracOpts, null,
+        yield* callOp('getAsNumber', value, 'getAsNumber'), this.fracOpts, null,
         typeof value.getAsDecimal === 'function' ? value.getAsDecimal() : null);
       env.output.write(
         this.autoEscape && this.outputFormat !== null && this.outputFormat.isMarkup

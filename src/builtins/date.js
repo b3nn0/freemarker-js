@@ -4,7 +4,10 @@
 
 import { registerBuiltIn, getBuiltIn } from './registry.js';
 import { argCntError, BuiltinArgMethod } from './common.js';
-import { StringModel, DateModel, HashModel, BooleanModel } from '../model/models.js';
+import { StringModel, DateModel, BooleanModel } from '../model/models.js';
+import {
+  isScalarModel, isDateModel, isHashModel, isBooleanModel,
+} from '../model/capabilities.js';
 import {
   UnsupportedFeatureException, NonDateException, NonStringException,
   NonNumericalException, TemplateException, InvalidFormatStringException,
@@ -21,7 +24,7 @@ registerBuiltIn('string', {
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
   * impl(target, argExprs, env) {
-    const isBool = typeof target.getAsBoolean === 'function' && !(target instanceof DateModel);
+    const isBool = isBooleanModel(target) && !isDateModel(target);
     const maxArgs = isBool ? 2 : 1;
     if (argExprs !== null && argExprs.length > maxArgs) {
       throw argCntError('string', argExprs.length, 0, maxArgs);
@@ -35,20 +38,22 @@ registerBuiltIn('string', {
     let fmt = null;
     if (argExprs !== null && argExprs.length > 0) {
       const arg = yield* argExprs[0].evaluate(env);
-      if (arg instanceof StringModel) {
-        fmt = arg.value;
-      } else if (arg instanceof HashModel) {
+      if (isScalarModel(arg)) {
+        fmt = yield* callOp('getAsString', arg, 'getAsString');
+      } else if (isHashModel(arg)) {
         return yield* formatWithHash(target, arg, env);
       } else {
         throw new UnsupportedFeatureException(
           'The ?string(...) argument must be a format string or a hash of format strings.');
       }
     }
-    if (target instanceof DateModel) {
-      return new StringModel(env._formatDate(target.getAsDate(), target.dateType, fmt));
+    if (isDateModel(target)) {
+      return new StringModel(env._formatDate(
+        yield* callOp('getAsDate', target, 'getAsDate'),
+        target.dateType === undefined ? DateModel.DATE_TIME : target.dateType, fmt));
     }
     if (fmt !== null && fmt !== '') {
-      if (target instanceof StringModel) {
+      if (isScalarModel(target)) {
         const bi = getBuiltIn(fmt);
         if (bi === null) throw new UnsupportedFeatureException(`Unknown string format built-in: "${fmt}".`);
         return yield* bi.impl(target, null, env);
@@ -87,13 +92,18 @@ registerBuiltIn('string', {
 function* formatWithHash(target, hash, env) {
   function* pick(k) {
     const v = yield* callOp(`get "${k}"`, hash, 'get', k);
-    return v instanceof StringModel ? v.value : null;
+    return v === null || v === undefined ? null : (isScalarModel(v)
+      ? (v instanceof StringModel ? v.value : yield* callOp('getAsString', v, 'getAsString'))
+      : null);
   }
-  if (target instanceof DateModel) {
-    const fmt = target.dateType === DATE_TYPES.DATE ? yield* pick('date_format')
-      : target.dateType === DATE_TYPES.TIME ? yield* pick('time_format')
+  if (isDateModel(target)) {
+    const dt = target.dateType === undefined ? DATE_TYPES.NONE : target.dateType;
+    const fmt = dt === DATE_TYPES.DATE ? yield* pick('date_format')
+      : dt === DATE_TYPES.TIME ? yield* pick('time_format')
         : yield* pick('datetime_format');
-    if (fmt !== null) return new StringModel(env._formatDate(target.getAsDate(), target.dateType, fmt));
+    if (fmt !== null) return new StringModel(env._formatDate(
+      yield* callOp('getAsDate', target, 'getAsDate'),
+      target.dateType === undefined ? DateModel.DATE_TIME : target.dateType, fmt));
     return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   }
   if (target && typeof target.getAsNumber === 'function') {
@@ -111,7 +121,7 @@ function* formatWithHash(target, hash, env) {
     }
     return new StringModel(yield* env.coerceToString(target, ' with ?string'));
   }
-  if (target instanceof StringModel) {
+  if (isScalarModel(target)) {
     const fmt = yield* pick('string_format');
     if (fmt !== null) {
       const bi = getBuiltIn(fmt);
@@ -139,11 +149,11 @@ function asType(name, dateType) {
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
   * impl(target, args, env) {
-      if (!(target instanceof DateModel)) {
+      if (!isDateModel(target)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
       }
-      return new DateModel(target.getAsDate(), dateType);
+      return new DateModel(yield* callOp('getAsDate', target, 'getAsDate'), dateType);
     },
   });
 }
@@ -172,11 +182,12 @@ const ISO_STRING_NAMES = [
  * @returns {number} the effective date-type
  */
 function isoKind(target, env, name) {
-  if (!(target instanceof DateModel)) {
+  if (!isDateModel(target)) {
     throw new NonDateException(
       `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
   }
-  return target.dateType === DATE_TYPES.NONE ? DATE_TYPES.DATE_TIME : target.dateType;
+  const dt = target.dateType === undefined ? DATE_TYPES.NONE : target.dateType;
+  return dt === DATE_TYPES.NONE ? DATE_TYPES.DATE_TIME : dt;
 }
 
 /**
@@ -288,11 +299,12 @@ for (const n of ISO_STRING_NAMES) registerIsoString(n);
 
 // <- BuiltInsForDates type-testing built-ins.
 const DATE_TYPE_TEST = {
-  is_date_like: (t) => t instanceof DateModel,
-  is_date_only: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.DATE,
-  is_time: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.TIME,
-  is_datetime: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.DATE_TIME,
-  is_unknown_date_like: (t) => t instanceof DateModel && t.dateType === DATE_TYPES.NONE,
+  is_date_like: (t) => isDateModel(t),
+  is_date_only: (t) => isDateModel(t) && t.dateType === DATE_TYPES.DATE,
+  is_time: (t) => isDateModel(t) && t.dateType === DATE_TYPES.TIME,
+  is_datetime: (t) => isDateModel(t) && t.dateType === DATE_TYPES.DATE_TIME,
+  is_unknown_date_like: (t) => isDateModel(t)
+    && (t.dateType === undefined || t.dateType === DATE_TYPES.NONE),
 };
 for (const [name, pred] of Object.entries(DATE_TYPE_TEST)) {
   registerBuiltIn(name, {
@@ -317,7 +329,7 @@ for (const name of ['date_if_unknown', 'time_if_unknown', 'datetime_if_unknown']
    * @returns {import('../model/templateModel.js').TemplateModel}
    */
     * impl(target, args, env) {
-      if (!(target instanceof DateModel)) {
+      if (!isDateModel(target)) {
         throw new NonDateException(
           `Can't apply the ?${name} built-in to a value of type ${env.typeLabel(target)}`);
       }

@@ -21,8 +21,7 @@ import {
  * @returns {Generator<unknown, null, unknown>}
  */
 export function* runTransform(env, model, calleeText, args, children) {
-  if (model === null || model === undefined
-    || model.isTransform !== true || typeof model.getWriter !== 'function') {
+  if (model === null || model === undefined || typeof model.getWriter !== 'function') {
     throw new TemplateException(
       `For the transform call "${calleeText}": Expected a transform, but this has `
       + `evaluated to ${env.typeLabel(model)}.`);

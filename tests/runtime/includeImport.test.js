@@ -129,8 +129,8 @@ describe('syntax: include/import/stop/flush canonical forms', () => {
     eq(await t.processToString(null, { includeResolver: (n) => `[${n}]` }), '[x.ftl]');
   });
 
-  it('missing resolver: clear error', () => {
-    rejectsMatch(new Template('m.ftl', '<#include "x">').processToString(), TemplateException,
+  it('missing resolver: clear error', async () => {
+    await rejectsMatch(new Template('m.ftl', '<#include "x">').processToString(), TemplateException,
       ['Could not find the included template "x"', 'includeResolver']);
   });
 });

@@ -10,8 +10,9 @@ import {
   StringModel, NumberModel, BooleanModel, DateModel, HashModel, SequenceModel,
 } from '../model/models.js';
 import {
-  TemplateSequenceModel, TemplateHashModel, TemplateHashModelEx, TemplateMethodModel,
-} from '../model/templateModel.js';
+  isScalarModel, isNumberModel, isBooleanModel, isDateModel, isSequenceModel,
+  isHashModel, isHashModelEx, isMethodModel, isTransformModel,
+} from '../model/capabilities.js';
 import {
   InvalidReferenceException, NonExtendedHashException, NonNumericalException, TemplateException,
 } from '../errors.js';
@@ -34,10 +35,10 @@ const BoolFalse = BooleanModel.FALSE;
  */
 function* isEmpty(model, env) {
   if (model === null || model === undefined) return true;
-  if (model instanceof TemplateSequenceModel) return (yield* awaitOp('size', model.size())) === 0;
+  if (isSequenceModel(model)) return (yield* awaitOp('size', model.size())) === 0;
   if (typeof model.getAsString === 'function') return (yield* callOp('getAsString', model, 'getAsString')) === '';
-  if (model instanceof TemplateHashModelEx) return (yield* awaitOp('size', model.size())) === 0;
-  if (model instanceof NumberModel || model instanceof DateModel || model instanceof BooleanModel) {
+  if (isHashModelEx(model)) return (yield* awaitOp('size', model.size())) === 0;
+  if (isNumberModel(model) || isDateModel(model) || isBooleanModel(model)) {
     return false;
   }
   if (typeof model.size === 'function') return (yield* awaitOp('size', model.size())) === 0;
@@ -250,8 +251,8 @@ registerBuiltIn('size', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    if (target instanceof TemplateSequenceModel) return new NumberModel(yield* awaitOp('size', target.size()));
-    if (target instanceof TemplateHashModelEx) return new NumberModel(yield* awaitOp('size', target.size()));
+    if (isSequenceModel(target)) return new NumberModel(yield* awaitOp('size', target.size()));
+    if (isHashModelEx(target)) return new NumberModel(yield* awaitOp('size', target.size()));
     throw new TemplateException(
       'Expected an extended-hash or sequence value, but the target of the "?size" built-in '
       + `is a ${env.typeLabel(target)} instead.`);
@@ -269,9 +270,10 @@ registerBuiltIn('first', {
   * impl(target, args, env) {
     if (target && typeof target.getByIndex === 'function') {
       // <- lazy: only the first element is materialized.
-      return yield* callOp('getByIndex', target, 'getByIndex', 0);
+      const v = yield* callOp('getByIndex', target, 'getByIndex', 0);
+      return v instanceof Object ? v : env.wrap(v);
     }
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('first', target, env);
     return items.length === 0 ? null : items[0];
   },
@@ -286,7 +288,7 @@ registerBuiltIn('last', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('last', target, env);
     return items.length === 0 ? null : items[items.length - 1];
   },
@@ -315,7 +317,7 @@ registerBuiltIn('keys', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('keys', target, env);
+    if (!isHashModelEx(target)) throw keysValuesError('keys', target, env);
     // raw keys are wrapped lazily (a null hash key must stay null, not stringify)
     return new SequenceModel(yield* awaitOp('hash keys', target.keys()), env.configuration.getObjectWrapper());
   },
@@ -330,7 +332,7 @@ registerBuiltIn('values', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    if (!(target instanceof TemplateHashModelEx)) throw keysValuesError('values', target, env);
+    if (!isHashModelEx(target)) throw keysValuesError('values', target, env);
     // raw values are wrapped lazily by the sequence model (async-capable raw values)
     return new SequenceModel(yield* awaitOp('hash values', target.values()), env.configuration.getObjectWrapper());
   },
@@ -410,7 +412,7 @@ registerBuiltIn('absolute_template_name', {
  * @returns {number}
  */
 function numberTarget(target, env, key) {
-  if (target instanceof NumberModel) return target.getAsNumber();
+  if (isNumberModel(target)) return target.getAsNumber();
   throw new NonNumericalException(
     `Expected a number, but the target of the "?${key}" built-in is a `
     + `${env.typeLabel(target)}.`);
@@ -472,33 +474,33 @@ registerBuiltIn('round', {
 
 registerBuiltIn('is_string', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof StringModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return isScalarModel(target) ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_number', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof NumberModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return isNumberModel(target) ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_boolean', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof BooleanModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return isBooleanModel(target) ? BoolTrue : BoolFalse; },
 });
 // Date kind (date-only/time/datetime) is not modeled until M16; ?is_date covers
 // every date-like value (deviation noted in UPSTREAM.md).
 registerBuiltIn('is_date', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof DateModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return isDateModel(target) ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_hash', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof TemplateHashModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return isHashModel(target) ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_hash_ex', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof TemplateHashModelEx ? BoolTrue : BoolFalse; },
+  * impl(target) { return isHashModelEx(target) ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_sequence', {
   acceptsMissing: true,
-  * impl(target) { return target instanceof TemplateSequenceModel ? BoolTrue : BoolFalse; },
+  * impl(target) { return isSequenceModel(target) ? BoolTrue : BoolFalse; },
 });
 registerBuiltIn('is_method', {
   acceptsMissing: true,
@@ -508,7 +510,7 @@ registerBuiltIn('is_method', {
      */
   * impl(target) {
     if (target === null || target === undefined) return BoolFalse;
-    return (target instanceof TemplateMethodModel || target.isFunctionModel === true)
+    return (isMethodModel(target) || target.isFunctionModel === true)
       ? BoolTrue : BoolFalse;
   },
 });
@@ -533,5 +535,5 @@ registerBuiltIn('is_node', {
 });
 registerBuiltIn('is_transform', {
   acceptsMissing: true,
-  * impl(target) { return target && target.isTransform === true ? BoolTrue : BoolFalse; },
+  * impl(target) { return isTransformModel(target) ? BoolTrue : BoolFalse; },
 });

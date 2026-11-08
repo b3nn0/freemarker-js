@@ -6,8 +6,8 @@ import {
   UnassignedVariableException, InvalidPropertyException, NonHashException, InvalidReferenceException,
   NonNumericalException, TemplateException,
 } from '../../../errors.js';
-import { TemplateHashModel, TemplateSequenceModel } from '../../../model/templateModel.js';
-import { HashModel, RangeModel, SequenceModel, StringModel, NumberModel } from '../../../model/models.js';
+import { HashModel, RangeModel, SequenceModel, StringModel } from '../../../model/models.js';
+import { isHashModel, isSequenceModel, isScalarModel, isNumberModel } from '../../../model/capabilities.js';
 import { unwrap } from '../../../model/unwrap.js';
 import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
 
@@ -145,11 +145,11 @@ export class Dot extends Expression {
         new InvalidPropertyException(blameText(this, this.target.getCanonicalForm(), [GENERAL_MISSING_TIP])),
         this.target.getCanonicalForm());
     }
-    if (!(t instanceof TemplateHashModel)) {
+    if (!isHashModel(t)) {
       throw new NonHashException(
         typeBlameText('"." left-hand operand', 'a hash', `a ${env.typeLabel(t)}`, this.target));
     }
-    const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
+    const v = env.wrap(yield* callOp(`get "${this.key}"`, t, 'get', this.key));
     if (v === null || v === undefined) {
       throw markBlame(
         new InvalidPropertyException(
@@ -171,11 +171,11 @@ export class Dot extends Expression {
         new InvalidPropertyException(blameText(this, this.target.getCanonicalForm(), [GENERAL_MISSING_TIP])),
         this.target.getCanonicalForm());
     }
-    if (!(t instanceof TemplateHashModel)) {
+    if (!isHashModel(t)) {
       throw new NonHashException(
         typeBlameText('"." left-hand operand', 'a hash', `a ${env.typeLabel(t)}`, this.target));
     }
-    const v = yield* callOp(`get "${this.key}"`, t, 'get', this.key);
+    const v = env.wrap(yield* callOp(`get "${this.key}"`, t, 'get', this.key));
     if (v === null || v === undefined) {
       throw markBlame(
         new InvalidPropertyException(
@@ -223,7 +223,7 @@ export class DynamicKeyName extends Expression {
       throw e;
     }
     if (k === null || k === undefined) throw keyMissingBlame();
-    if (t instanceof TemplateSequenceModel) {
+    if (isSequenceModel(t)) {
       if (k instanceof RangeModel) {
         // <- upstream: numeric Range key over a sequence = the sliced sublist
         if (k.sizeValue === null) {
@@ -241,11 +241,11 @@ export class DynamicKeyName extends Expression {
         throw new InvalidPropertyException(
           blameText(this, this.getCanonicalForm(), [FINAL_INDEX_TIP, GENERAL_MISSING_TIP]));
       }
-      return v;
+      return env.wrap(v);
     }
-    if (t instanceof TemplateHashModel) {
+    if (isHashModel(t)) {
       const s = yield* env.coerceToString(k, ' used as a hash key');
-      const v = yield* callOp(`get "${s}"`, t, 'get', s);
+      const v = env.wrap(yield* callOp(`get "${s}"`, t, 'get', s));
       if (v === null || v === undefined) {
         throw new InvalidPropertyException(
           blameText(this, this.getCanonicalForm(), [GENERAL_MISSING_TIP]));
@@ -253,12 +253,12 @@ export class DynamicKeyName extends Expression {
       const [m] = yield* applyZeroArgPolicy(env, t, s, v, null);
       return m;
     }
-    if (t instanceof StringModel || t instanceof NumberModel) {
+    if (isScalarModel(t) || isNumberModel(t)) {
       // <- upstream DynamicKeyName: string-coercible targets fall back to
       // per-character indexing (and substring lists for range keys)
       let s;
-      if (t instanceof NumberModel) {
-        s = String(t.getAsNumber()); // plain-text coercion of a number
+      if (isNumberModel(t)) {
+        s = String(yield* callOp('getAsNumber', t, 'getAsNumber')); // plain-text coercion of a number
       } else {
         s = yield* callOp('getAsString', t, 'getAsString');
       }
@@ -294,9 +294,9 @@ export class DynamicKeyName extends Expression {
       `The dynamic key expression of ${this.getCanonicalForm()} evaluated to null or missing `
       + '(use the ! or ?? operator to define a default).');
     const k = yield* this.key.evaluate(env);
-    if (t instanceof TemplateHashModel && k !== null && k !== undefined) {
+    if (isHashModel(t) && k !== null && k !== undefined) {
       const s = yield* env.coerceToString(k, ' used as a hash key');
-      const v = yield* callOp(`get "${s}"`, t, 'get', s);
+      const v = env.wrap(yield* callOp(`get "${s}"`, t, 'get', s));
       if (v !== null && v !== undefined) {
         const [m, auto] = yield* applyZeroArgPolicy(env, t, s, v, argExprs);
         return [m, auto];

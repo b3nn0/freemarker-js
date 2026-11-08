@@ -2,6 +2,7 @@
 // <- freemarker.core.UnifiedCall / BodyInstruction / FallbackInstruction
 
 import { TemplateElement } from '../templateElement.js';
+import { isTransformModel } from '../../../model/capabilities.js';
 import { InvalidReferenceException, UnsupportedFeatureException } from '../../../errors.js';
 import { Identifier } from '../expressions/variables.js';
 import { CompressedBlock } from './compress.js';
@@ -59,7 +60,7 @@ export class UnifiedCall extends TemplateElement {
         `The expression ${this.target.getCanonicalForm()} is a #function; call it inside `
         + '${...} instead of with <@...>.');
     }
-    if (!model.isMacroLike && !model.isTransform) {
+    if (!model.isMacroLike && !isTransformModel(model)) {
       throw new InvalidReferenceException(
         `The expression ${this.target.getCanonicalForm()} evaluated to a `
         + `${env.typeLabel(model)}, and can't be called with <@...>.`);
@@ -72,7 +73,7 @@ export class UnifiedCall extends TemplateElement {
     if (this.namedArgs !== null) {
       for (const [k, exp] of this.namedArgs) named.set(k, yield* exp.evaluate(env));
     }
-    if (model.isTransform === true && typeof model.getWriter === 'function') {
+    if (typeof model.getWriter === 'function') {
       // <- UnifiedCall fallback: the callee is a transform, not a macro
       yield* runTransform(env, model, this.target.getCanonicalForm(), named,
         this.bodyChildren === null ? [] : this.bodyChildren);

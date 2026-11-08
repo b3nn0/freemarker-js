@@ -94,6 +94,14 @@ Honest summary; details and rationale in `UPSTREAM.md`.
 - Parse-error wording is simplified to human sentences (positions and PARSE-vs-runtime
   classes match); unknown built-ins are rejected at parse time against the full
   2.3.36 name list.
+- Model kinds are recognized by duck-typed capability contracts instead of JVM
+  base classes: `getAsString` (scalar), `getAsNumber`, `getAsBoolean`, `getAsDate`,
+  `getByIndex` + `size` (sequence), `get` (hash), `get` + `keys` + `values`
+  (extended hash), `exec` (method), `getWriter`/`isTransform` (transform). Plain
+  objects or user classes implementing these contracts work like the built-in
+  model types without subclassing anything; a bean matching several contracts is
+  printed/coerced as a scalar first (JVM coercion order), and raw JS values
+  returned from bean methods are wrapped as models on access.
 - Comparison operators compare strings by code point (`1 == "1"` is true);
   `?sort`/`?sort_by` use `Intl.Collator` for order-sensitive sorting.
 - `?sort_by` is 2.3.36-style (string key paths only, no lambdas); `?map`/`?filter`

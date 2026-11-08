@@ -351,7 +351,7 @@ suite 646 green, corpus unchanged):
   differ from upstream's wording; every case above has its behavior class,
   position and payload pinned by JVM probes and the ported suites.
 
-Eighth fidelity round (JVM-pinned; corpus unchanged, suite 652 green):
+Eighth fidelity round (JVM-pinned; corpus unchanged, suite 664 green):
 - Auto-escaping policy family pinned via probes Drv110-124: the legacy escaping
   built-ins (`?html`/`?xhtml`/`?xml`/`?rtf`/`?web_safe`) and the `#escape`
   directive are rejected at parse time when auto-escaping is on with a markup
@@ -367,3 +367,16 @@ Eighth fidelity round (JVM-pinned; corpus unchanged, suite 652 green):
   (Environment.visitAttemptRecover); flushes on success; flow-control signals
   propagate (2.3.36 FlowControlException is a RuntimeException, not a
   TemplateException) -- JVM-pinned.
+- Model-kind discrimination switched from `instanceof` on the concrete port
+  classes to capability contracts (src/model/capabilities.js): getAsString /
+  getAsNumber / getAsBoolean / getAsDate / getByIndex+size / get /
+  get+keys+values / exec / getWriter-or-isTransform. Beans that merely
+  *implement* these methods (the JS analogue of the Template*Model interfaces)
+  now work end to end: printing, coercion, comparison, #if/#list/#transform,
+  ?is_* tests, ?size/?keys/?values, dot access on duck hashes and duck
+  data-model roots; a `get`-only shape is deliberately not model-like so plain
+  data objects (and Maps/Sets, which have get/keys/values) still wrap as
+  hashes/sequences. Multi-contract beans print/coerce as scalar first (JVM
+  CoercionUtil order); bean methods may return raw JS values, which are
+  wrapped at access sites. Pinned by probe Drv125 (17 rows, incl. multi-kind
+  bean, custom date bean default format, custom transform via getWriter).

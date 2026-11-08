@@ -5,7 +5,9 @@
 // is a documented deviation).
 
 import { Expression } from './expression.js';
-import { StringModel, NumberModel } from '../../../model/models.js';
+import { StringModel } from '../../../model/models.js';
+import { isNumberModel } from '../../../model/capabilities.js';
+import { callOp } from '../../../async.js';
 import { InvalidReferenceException } from '../../../errors.js';
 import { blameText, GENERAL_MISSING_TIP } from './variables.js';
 
@@ -36,9 +38,9 @@ export class InterpolatedStringExpression extends Expression {
         e.beginColumn = part.expression.beginColumn;
         throw e;
       }
-      if (part.fracOpts !== null && value instanceof NumberModel) {
+      if (part.fracOpts !== null && isNumberModel(value)) {
         s += env._formatNumber(
-          value.getAsNumber(), part.fracOpts, null,
+          yield* callOp('getAsNumber', value, 'getAsNumber'), part.fracOpts, null,
           typeof value.getAsDecimal === 'function' ? value.getAsDecimal() : null);
       } else {
         s += yield* env.coerceToString(value, ' (interpolation inside a string literal)');

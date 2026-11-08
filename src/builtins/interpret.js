@@ -4,9 +4,11 @@
 
 import { registerBuiltIn } from './registry.js';
 import { StringModel } from '../model/models.js';
-import { TemplateSequenceModel } from '../model/templateModel.js';
+import {
+  isScalarModel, isSequenceModel,
+} from '../model/capabilities.js';
 import { NonStringException, NonStringOrTemplateOutputException, ParseException, TemplateException } from '../errors.js';
-import { awaitOp } from '../async.js';
+import { awaitOp, callOp } from '../async.js';
 
 /** A parsed ?interpret body <- Interpret.TemplateProcessorModel. */
 export class InterpretModel {
@@ -63,9 +65,9 @@ registerBuiltIn('interpret', {
   * impl(target, args, env) {
     let src;
     let explicitName = null;
-    if (target instanceof StringModel) {
-      src = target.getAsString();
-    } else if (target instanceof TemplateSequenceModel) {
+    if (isScalarModel(target)) {
+      src = yield* callOp('getAsString', target, 'getAsString');
+    } else if (isSequenceModel(target)) {
       const n = yield* awaitOp('size', target.size());
       if (n < 1 || n > 2) {
         throw new NonStringOrTemplateOutputException(
@@ -73,20 +75,20 @@ registerBuiltIn('interpret', {
           + `(source[, name]), but the sequence has ${n} items.`);
       }
       const first = yield* awaitOp('getByIndex', target.getByIndex(0));
-      if (!(first instanceof StringModel)) {
+      if (!isScalarModel(first)) {
         throw new NonStringOrTemplateOutputException(
           'For "?interpret" left-hand operand: Expected the first sequence item to be '
           + `a string, but it's a ${env.typeLabel(first)}.`);
       }
-      src = first.getAsString();
+      src = yield* callOp('getAsString', first, 'getAsString');
       if (n === 2) {
         const second = yield* awaitOp('getByIndex', target.getByIndex(1));
-        if (!(second instanceof StringModel)) {
+        if (!isScalarModel(second)) {
           throw new NonStringOrTemplateOutputException(
             'For "?interpret" left-hand operand: Expected the second sequence item to '
             + `be a string, but it's a ${env.typeLabel(second)}.`);
         }
-        explicitName = second.getAsString();
+        explicitName = yield* callOp('getAsString', second, 'getAsString');
       }
     } else {
       throw new NonStringOrTemplateOutputException(
@@ -96,11 +98,11 @@ registerBuiltIn('interpret', {
     let cbName = null;
     if (args !== null && args.length > 0) {
       const m = env.wrap(yield* args[0].evaluate(env));
-      if (!(m instanceof StringModel)) {
+      if (!isScalarModel(m)) {
         throw new NonStringException(
           `Expected a string argument, but the argument is a ${env.typeLabel(m)}.`);
       }
-      cbName = m.getAsString();
+      cbName = yield* callOp('getAsString', m, 'getAsString');
     }
     return new InterpretModel(parseInterpretation(env, src, explicitName), cbName);
   },

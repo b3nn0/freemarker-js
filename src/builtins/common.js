@@ -84,13 +84,17 @@ export function stringMethodArg(v, env) {
  * Materializes the elements through getByIndex so raw data-model values become models.
  * Generator form: user sequence models can be async (see async.js).
  * @param {Object} target
+ * @param {import('../environment.js').Environment} [env] - wraps raw bean returns
  * @returns {Generator<unknown, Object[]|null, unknown>} the element models, or null when not a sequence
  */
-export function* sequenceItems(target) {
+export function* sequenceItems(target, env = null) {
   if (target && typeof target.getByIndex === 'function' && typeof target.size === 'function') {
     const n = yield* awaitOp('sequence size', target.size());
     const out = new Array(n);
-    for (let i = 0; i < n; i++) out[i] = yield* callOp(`sequence element ${i}`, target, 'getByIndex', i);
+    for (let i = 0; i < n; i++) {
+      const v = yield* callOp(`sequence element ${i}`, target, 'getByIndex', i);
+      out[i] = env && !(v instanceof Object) ? env.wrap(v) : v;
+    }
     return out;
   }
   return null;

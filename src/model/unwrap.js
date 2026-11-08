@@ -2,6 +2,10 @@
 // used when handing arguments to JS functions).
 
 import { StringModel, NumberModel, BooleanModel, DateModel, SequenceModel, HashModel, MethodModel } from './models.js';
+import {
+  isScalarModel, isNumberModel, isBooleanModel, isDateModel,
+  isSequenceModel, isHashModelEx,
+} from './capabilities.js';
 
 /**
  * Recursively converts models back to plain JS values (for handing arguments to JS
@@ -26,6 +30,22 @@ export function unwrap(model) {
     const out = {};
     for (const k of Object.keys(model.source)) out[k] = unwrap(model.source[k]);
     return out;
+  }
+  // <- duck beans: plain (sync) getters, like BeansWrapper unwrapping beans
+  if (isScalarModel(model)) return model.getAsString();
+  if (isNumberModel(model)) return model.getAsNumber();
+  if (isBooleanModel(model)) return model.getAsBoolean();
+  if (isDateModel(model)) return model.getAsDate();
+  if (isSequenceModel(model)) {
+    const arr = [];
+    const n = model.size();
+    for (let i = 0; i < n; i++) arr.push(unwrap(model.getByIndex(i)));
+    return arr;
+  }
+  if (isHashModelEx(model)) {
+    const map = new Map();
+    for (const k of model.keys()) map.set(k, unwrap(model.get(k)));
+    return map;
   }
   return model;
 }

@@ -11,6 +11,7 @@ import {
   TemplateException, InvalidReferenceException, NonStringException, NonNumericalException,
 } from '../errors.js';
 import { callOp } from '../async.js';
+import { isScalarModel, isNumberModel, isBooleanModel } from '../model/capabilities.js';
 import { cNumberFormat, cStringLiteral } from '../format/cFormat.js';
 import { Decimal } from '../format/decimal.js';
 
@@ -568,7 +569,7 @@ registerBuiltIn('seq_last_index_of', {
    * @returns {Object}
    */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('seq_last_index_of', target, env);
     return new BuiltinArgMethod('seq_last_index_of', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
@@ -607,7 +608,7 @@ registerBuiltIn('chunk', {
    * @returns {Object}
    */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('chunk', target, env);
     return new BuiltinArgMethod('chunk', 1, 1, function* (e, a) {
       if (typeof a[0] !== 'number' || !Number.isFinite(a[0]) || a[0] < 1) {
@@ -635,7 +636,7 @@ for (const name of ['min', 'max']) {
    * @returns {Object}
    */
     * impl(target, argExprs, env) {
-      const items = yield* sequenceItems(target);
+      const items = yield* sequenceItems(target, env);
       if (items === null) throw nonSequenceError(name, target, env);
       let best = null;
       for (let i = 0; i < items.length; i++) {
@@ -709,11 +710,11 @@ registerBuiltIn('item_cycle', {
     const c = loopInfo(env, 'item_cycle');
     const arg = yield* argExprs[0].evaluate(env);
     let items = null;
-    if (arg instanceof StringModel) {
+    if (isScalarModel(arg)) {
       items = (yield* callOp('getAsString', arg, 'getAsString')).split('')
         .map((ch) => new StringModel(ch));
     } else {
-      items = yield* sequenceItems(arg);
+      items = yield* sequenceItems(arg, env);
     }
     if (items === null || items.length === 0) {
       throw new TemplateException('The ?item_cycle argument must be a non-empty sequence (or string).');
@@ -811,10 +812,11 @@ registerBuiltIn('number', {
    * @returns {Object}
    */
   * impl(target, args, env) {
-    if (target instanceof NumberModel) return target;
-    if (target instanceof BooleanModel) {
+    if (isNumberModel(target)) return target;
+    if (isBooleanModel(target)) {
       // <- auto stringification of a boolean (legacy boolean_format error)
-      return yield* this.impl(new StringModel(env._autoFormatBoolean(target.value)), args, env);
+      return yield* this.impl(new StringModel(
+        env._autoFormatBoolean(yield* callOp('getAsBoolean', target, 'getAsBoolean'))), args, env);
     }
     if (typeof target.getAsString === 'function') {
       // <- NumberBI: no trimming; special NaN/INF tokens are accepted (with or
@@ -843,7 +845,7 @@ registerBuiltIn('boolean', {
    * @returns {Object}
    */
   * impl(target, args, env) {
-    if (target instanceof BooleanModel) return target;
+    if (isBooleanModel(target)) return target;
     if (typeof target.getAsString === 'function') {
       const s = yield* callOp('getAsString', target, 'getAsString');
       if (s === 'true') return BooleanModel.TRUE;

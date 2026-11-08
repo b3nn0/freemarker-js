@@ -6,7 +6,11 @@ import { BuiltinArgMethod, sequenceItems, nonSequenceError } from './common.js';
 import {
   SequenceModel, StringModel, NumberModel, BooleanModel, DateModel, HashModel,
 } from '../model/models.js';
-import { TemplateMethodModel, TemplateHashModel, TemplateSequenceModel } from '../model/templateModel.js';
+import { TemplateSequenceModel, TemplateMethodModel } from '../model/templateModel.js';
+import {
+  isScalarModel, isNumberModel, isBooleanModel, isDateModel, isSequenceModel,
+  isHashModel, isHashModelEx, isMethodModel,
+} from '../model/capabilities.js';
 import { LocalLambdaExpression } from '../parser/ast/expressions/lambda.js';
 import { InvalidReferenceException, TemplateException, NonMethodException } from '../errors.js';
 import { unwrap } from '../model/unwrap.js';
@@ -14,10 +18,10 @@ import { awaitOp, callOp, isGenerator } from '../async.js';
 
 /** @param {Object} key - a key model @returns {string[]|null} [singular, plural] labels; null = unsortable type */
 function keyTypeName(key) {
-  if (key instanceof StringModel) return ['string', 'strings'];
-  if (key instanceof NumberModel) return ['number', 'numbers'];
-  if (key instanceof DateModel) return ['date/time', 'date/times'];
-  if (key instanceof BooleanModel) return ['boolean', 'booleans'];
+  if (isScalarModel(key)) return ['string', 'strings'];
+  if (isNumberModel(key)) return ['number', 'numbers'];
+  if (isDateModel(key)) return ['date/time', 'date/times'];
+  if (isBooleanModel(key)) return ['boolean', 'booleans'];
   return null;
 }
 
@@ -89,7 +93,7 @@ registerBuiltIn('sort', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('sort', target, env);
     function* keyOf(it) { return it; }
     return yield* sortItems(items, keyOf, env, '?sort', 'value', 'values');
@@ -136,7 +140,7 @@ class SortByMethodModel extends TemplateMethodModel {
     function* keyOf(item, i, startError) {
       let cur = item;
       for (let ki = 0; ki < subvars.length; ki++) {
-        if (!(cur instanceof HashModel)) {
+        if (!isHashModel(cur)) {
           if (ki === 0) {
             throw new TemplateException(
               startError(i) + 'Sequence items must be hashes when using ?sort_by.');
@@ -166,7 +170,7 @@ registerBuiltIn('sort_by', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('sort_by', target, env);
     return new SortByMethodModel(items);
   },
@@ -196,7 +200,7 @@ function* makeTransformer(argExp, env, key) {
         { positionalArgs: [element], namedArgs: new Map() });
     };
   }
-  if (model instanceof TemplateMethodModel) {
+  if (isMethodModel(model)) {
     return function* (element) {
       return yield* callOp('method call', model, 'exec', env, [unwrap(element)]);
     };
@@ -238,22 +242,23 @@ export class LazySequence extends TemplateSequenceModel {
       this.limit = isGenerator(raw) ? Infinity : yield* awaitOp('size', raw);
     }
     if (this.si >= this.limit) { this.exhausted = true; return; }
-    const el = yield* callOp('getByIndex', this.target, 'getByIndex', this.si++);
+    let el = yield* callOp('getByIndex', this.target, 'getByIndex', this.si++);
     if ((el === null || el === undefined) && this.limit === Infinity) {
       this.exhausted = true; return;
     }
+    if (!(el instanceof Object)) el = this.env.wrap(el);
     const v = yield* this.transform(el);
     if (this.mode === 'filter') {
       if (v === null || v === undefined) {
         throw new TemplateException(
           'The filter expression has returned no value (has returned null), rather than a boolean.');
       }
-      if (!(v instanceof BooleanModel)) {
+      if (!isBooleanModel(v)) {
         throw new TemplateException(
           'The filter expression had to return a boolean value, but it returned a '
           + `${this.env.typeLabel(v)} instead.`);
       }
-      if (v.value) this.cache.push(el);
+      if (yield* callOp('getAsBoolean', v, 'getAsBoolean')) this.cache.push(el);
     } else {
       if (v === null || v === undefined) {
         throw new TemplateException(
@@ -315,7 +320,7 @@ for (const name of ['take_while', 'drop_while']) {
    * @returns {import('../model/models.js').SequenceModel}
    */
     * impl(target, argExprs, env) {
-      if (!(target instanceof TemplateSequenceModel)) throw nonSequenceError(name, target, env);
+      if (!isSequenceModel(target)) throw nonSequenceError(name, target, env);
       const transform = yield* makeTransformer(argExprs[0], env, name);
       const out = [];
       let dropping = false;
@@ -325,8 +330,9 @@ for (const name of ['take_while', 'drop_while']) {
       const size = yield* awaitOp('size', target.size());
       const items = [];
       for (let i = 0; i < size; i++) {
-        const el = yield* awaitOp('getByIndex', target.getByIndex(i));
+        let el = yield* awaitOp('getByIndex', target.getByIndex(i));
         if (el === null || el === undefined) break;
+        if (!(el instanceof Object)) el = env.wrap(el);
         if (name === 'take_while') {
           const ok0 = yield* transform(el);
           if (ok0 === null || ok0 === undefined) {
@@ -334,12 +340,12 @@ for (const name of ['take_while', 'drop_while']) {
               `The ${name} expression has returned no value (has returned null), `
               + 'rather than a boolean.');
           }
-          if (!(ok0 instanceof BooleanModel)) {
+          if (!isBooleanModel(ok0)) {
             throw new TemplateException(
               `The ${name} expression had to return a boolean value, but it returned a `
               + `${env.typeLabel(ok0)} instead.`);
           }
-          if (ok0 !== BooleanModel.TRUE) break;
+          if (!(yield* callOp('getAsBoolean', ok0, 'getAsBoolean'))) break;
           out.push(el);
         } else {
           items.push(el);
@@ -353,12 +359,12 @@ for (const name of ['take_while', 'drop_while']) {
             `The ${name} expression has returned no value (has returned null), `
             + 'rather than a boolean.');
         }
-        if (!(ok instanceof BooleanModel)) {
+        if (!isBooleanModel(ok)) {
           throw new TemplateException(
             `The ${name} expression had to return a boolean value, but it returned a `
             + `${env.typeLabel(ok)} instead.`);
         }
-        const match = ok === BooleanModel.TRUE;
+        const match = yield* callOp('getAsBoolean', ok, 'getAsBoolean');
         if (name === 'take_while') {
           if (!match) break;
           out.push(el);
@@ -405,7 +411,7 @@ registerBuiltIn('join', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('join', target, env);
     return new BuiltinArgMethod('join', 1, 1, function* (e, a) {
       const sep = typeof a[0] === 'string'
@@ -434,8 +440,9 @@ registerBuiltIn('seq_contains', {
       const needle = e.wrap(a[0]);
       // <- lazy: pull elements one by one, stop at the first match.
       for (let i = 0; ; i++) {
-        const item = yield* callOp('getByIndex', target, 'getByIndex', i);
-        if (item === null || item === undefined) break;
+        const itemR = yield* callOp('getByIndex', target, 'getByIndex', i);
+        if (itemR === null || itemR === undefined) break;
+        const item = itemR instanceof Object ? itemR : e.wrap(itemR);
         if (yield* lenientEquals(e, item, needle, i)) return BooleanModel.TRUE;
       }
       return BooleanModel.FALSE;
@@ -452,7 +459,7 @@ registerBuiltIn('seq_index_of', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    if (!(target instanceof TemplateSequenceModel)) throw nonSequenceError('seq_index_of', target, env);
+    if (!isSequenceModel(target)) throw nonSequenceError('seq_index_of', target, env);
     return new BuiltinArgMethod('seq_index_of', 1, 1, function* (e, a) {
       const needle = e.wrap(a[0]);
       // <- upstream iterates by index (lazily), which keeps unbounded ranges
@@ -462,8 +469,9 @@ registerBuiltIn('seq_index_of', {
       const rawSize = target.size();
       const size = isGenerator(rawSize) ? Infinity : yield* awaitOp('size', rawSize);
       for (let i = 0; i < size; i++) {
-        const item = yield* awaitOp('getByIndex', target.getByIndex(i));
+        let item = yield* awaitOp('getByIndex', target.getByIndex(i));
         if (item === null || item === undefined) break;
+        if (!(item instanceof Object)) item = e.wrap(item);
         if (yield* lenientEquals(e, item, needle, i)) return new NumberModel(i);
       }
       return new NumberModel(-1); // <- upstream: -1 when absent (2.3.36)
@@ -502,7 +510,7 @@ registerBuiltIn('reverse', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, argExprs, env) {
-    const items = yield* sequenceItems(target);
+    const items = yield* sequenceItems(target, env);
     if (items === null) throw nonSequenceError('reverse', target, env);
     return new SequenceModel([...items].reverse());
   },
@@ -585,12 +593,15 @@ class WithArgsMethod extends TemplateMethodModel {
     if (!this.bound) {
       if (pos.length !== 1) throw this._countError(pos.length === 0 ? 'none' : pos.length);
       const a = pos[0];
-      if (a instanceof TemplateSequenceModel) {
+      if (isSequenceModel(a)) {
         const bound = [];
         const size = yield* callOp('size', a, 'size');
-        for (let i = 0; i < size; i++) bound.push(yield* callOp('index', a, 'getByIndex', i));
+        for (let i = 0; i < size; i++) {
+          const v = yield* callOp('index', a, 'getByIndex', i);
+          bound.push(v instanceof Object ? v : env.wrap(v));
+        }
         this.boundPos = bound;
-      } else if (a instanceof TemplateHashModel) {
+      } else if (isHashModelEx(a)) {
         if (this.target.isMacroLike !== true) {
           throw new TemplateException(`When applied on a ${this.target.isFunctionModel === true
             ? 'function' : 'method'}, ?${this.name} can't have a hash argument. `
@@ -628,7 +639,7 @@ for (const name of ['with_args', 'with_args_last']) {
    * @returns {WithArgsMethod} the BIMethod stand-in
    */
     * impl(target, argExprs, env) {
-      if (!(target instanceof TemplateMethodModel) && typeof target.invoke !== 'function') {
+      if (!isMethodModel(target) && typeof target.invoke !== 'function') {
         throw new NonMethodException(
           `For "?${name}" left-hand operand: Expected a macro, function, directive, or `
           + `method, but this has evaluated to ${env.typeLabel(target)}`);
@@ -646,7 +657,7 @@ registerBuiltIn('sequence', {
      * @returns {import('../model/templateModel.js').TemplateModel}
      */
   * impl(target, args, env) {
-    if (target instanceof TemplateSequenceModel) return target;
+    if (isSequenceModel(target)) return target;
     const tl = env.typeLabel(target);
     throw new InvalidReferenceException(
       'For "?sequence" left-hand operand: Expected a sequence or collection, '

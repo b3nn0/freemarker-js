@@ -4,7 +4,7 @@ import { Expression } from './expression.js';
 import { InvalidReferenceException, TemplateException } from '../../../errors.js';
 import { awaitOp, callOp } from '../../../async.js';
 import { BooleanModel, RangeModel, StringModel, MarkupModel } from '../../../model/models.js';
-import { TemplateSequenceModel, TemplateHashModel } from '../../../model/templateModel.js';
+import { isSequenceModel, isHashModelEx } from '../../../model/capabilities.js';
 import { Decimal } from '../../../format/decimal.js';
 import { NumberModel } from '../../../model/models.js';
 
@@ -86,7 +86,7 @@ export class AddConcatExpression extends Expression {
         : fmt.escapePlainText(yield* env.coerceToString(r, ' used with the "+" operator'));
       return new MarkupModel(null, fmt, lM + rM);
     }
-    if (l instanceof TemplateSequenceModel && r instanceof TemplateSequenceModel) {
+    if (isSequenceModel(l) && isSequenceModel(r)) {
       const items = [];
       const n1 = yield* awaitOp('size', l.size());
       for (let i = 0; i < n1; i++) items.push(yield* callOp('getByIndex', l, 'getByIndex', i));
@@ -94,7 +94,7 @@ export class AddConcatExpression extends Expression {
       for (let i = 0; i < n2; i++) items.push(yield* callOp('getByIndex', r, 'getByIndex', i));
       return env.wrap(items);
     }
-    if (l instanceof TemplateHashModel && r instanceof TemplateHashModel) {
+    if (isHashModelEx(l) && isHashModelEx(r)) {
       const map = new Map();
       for (const k of yield* awaitOp('keys', l.keys())) map.set(k, yield* callOp(`get "${k}"`, l, 'get', k));
       for (const k of yield* awaitOp('keys', r.keys())) map.set(k, yield* callOp(`get "${k}"`, r, 'get', k));

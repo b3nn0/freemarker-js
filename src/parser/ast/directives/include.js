@@ -2,7 +2,10 @@
 
 import { TemplateElement } from '../templateElement.js';
 import { NonBooleanException } from '../../../errors.js';
-import { StringModel, BooleanModel } from '../../../model/models.js';
+import {
+  isScalarModel, isBooleanModel,
+} from '../../../model/capabilities.js';
+import { callOp } from '../../../async.js';
 
 /**
  * `#include name [parse=..] [encoding=..] [ignore_missing=..]` -- at render time
@@ -35,14 +38,14 @@ export class IncludeDirective extends TemplateElement {
   * _bool(env, exp, dflt, paramName) {
     if (exp === null) return dflt;
     const m = yield* exp.evaluate(env);
-    if (m instanceof BooleanModel) return m.getAsBoolean();
-    if (m instanceof StringModel) {
-      const s = m.getAsString().toLowerCase();
-      if (s === 'true' || s === 'yes') return true;
-      if (s === 'false' || s === 'no') return false;
+    if (isBooleanModel(m)) return yield* callOp('getAsBoolean', m, 'getAsBoolean');
+    if (isScalarModel(m)) {
+      const str = (yield* callOp('getAsString', m, 'getAsString')).toLowerCase();
+      if (str === 'true' || str === 'yes') return true;
+      if (str === 'false' || str === 'no') return false;
       throw new NonBooleanException(
         `Expected a boolean as the value of the "${paramName}" attribute, `
-        + `but the string "${m.getAsString()}" can't be converted to a boolean.`);
+        + `but the string "${yield* callOp('getAsString', m, 'getAsString')}" can't be converted to a boolean.`);
     }
     throw new NonBooleanException(
       `Expected a boolean as the value of the "${paramName}" attribute, `

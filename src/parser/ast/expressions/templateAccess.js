@@ -3,7 +3,12 @@
 // Deviation: the port has no byte-array template loaders, so the "encoding"
 // option is accepted (and validated) but the source is always a string.
 
-import { HashModel, BooleanModel, StringModel } from '../../../model/models.js';
+import { HashModel, BooleanModel } from '../../../model/models.js';
+import { TemplateModel } from '../../../model/templateModel.js';
+import {
+  isScalarModel, isBooleanModel, isHashModelEx,
+} from '../../../model/capabilities.js';
+import { callOp } from '../../../async.js';
 import { TemplateException } from '../../../errors.js';
 import { IncludeDirective } from '../directives/include.js';
 import { ImportDirective } from '../directives/importDir.js';
@@ -27,44 +32,44 @@ export function* getOptionalTemplateValue(env, args) {
       + `gave ${args.length} arguments.`);
   }
   const nameModel = yield* args[0].evaluate(env);
-  if (!(nameModel instanceof StringModel)) {
+  if (!isScalarModel(nameModel)) {
     throw new TemplateException(
       `The argument #1 (the template name) of ".getOptionalTemplate" must be a string, `
       + `but it was a ${env.typeLabel(nameModel)}.`);
   }
-  const name = nameModel.getAsString();
+  const name = yield* callOp('getAsString', nameModel, 'getAsString');
 
   let parseOpt = null;
   let encodingOpt = null;
   if (args.length >= 2) {
     const optModel = yield* args[1].evaluate(env);
-    if (!(optModel instanceof HashModel)) {
+    if (!isHashModelEx(optModel)) {
       throw new TemplateException(
         `The argument #2 (the options) of ".getOptionalTemplate" must be a hash, but it `
         + `was a ${env.typeLabel(optModel)}.`);
     }
-    const keys = optModel.isMap ? [...optModel.source.keys()] : Object.keys(optModel.source);
+    const keys = yield* callOp('keys', optModel, 'keys');
     for (const key of keys) {
       if (key !== 'parse' && key !== 'encoding') {
         throw new TemplateException(
           `Unrecognized option "${key}" in argument #2 of ".getOptionalTemplate"; the `
           + 'recognized options are "encoding" and "parse".');
       }
-      const v = yield* optModel.get(key);
+      const v = yield* callOp(`get "${key}"`, optModel, 'get', key);
       if (key === 'parse') {
-        if (!(v instanceof BooleanModel)) {
+        if (!isBooleanModel(v)) {
           throw new TemplateException(
             `The value of the "parse" option (argument #2) of ".getOptionalTemplate" must `
             + `be a boolean, but it was a ${env.typeLabel(v)}.`);
         }
-        parseOpt = v.getAsBoolean();
+        parseOpt = yield* callOp('getAsBoolean', v, 'getAsBoolean');
       } else {
-        if (!(v instanceof StringModel)) {
+        if (!isScalarModel(v)) {
           throw new TemplateException(
             `The value of the "encoding" option (argument #2) of ".getOptionalTemplate" `
             + `must be a string, but it was a ${env.typeLabel(v)}.`);
         }
-        encodingOpt = v.getAsString();
+        encodingOpt = yield* callOp('getAsString', v, 'getAsString');
       }
     }
   }
@@ -90,9 +95,10 @@ export function* getOptionalTemplateValue(env, args) {
 }
 
 /** <@t.include /> <- TemplateAccessMethod(include): #include without parameters. */
-class TemplateAccessIncludeModel {
+class TemplateAccessIncludeModel extends TemplateModel {
   /** @param {string} name @param {boolean|null} parseOpt @param {string|null} encodingOpt */
   constructor(name, parseOpt, encodingOpt) {
+    super();
     this.name = name;
     this.parseOpt = parseOpt;
     this.encodingOpt = encodingOpt; // accepted, not applied (string sources only)
@@ -130,9 +136,10 @@ class TemplateAccessIncludeModel {
 }
 
 /** t.import() <- TemplateAccessMethod(import): returns the library namespace. */
-class TemplateAccessImportModel {
+class TemplateAccessImportModel extends TemplateModel {
   /** @param {string} name */
   constructor(name) {
+    super();
     this.name = name;
   }
   /**

@@ -52,6 +52,7 @@ export class MethodCall extends Expression {
     }
     const raw = [];
     for (const a of this.args) raw.push(unwrap(yield* a.evaluate(env)));
-    return yield* callOp(`method call "${this.target.getCanonicalForm()}"`, t, 'exec', env, raw);
+    const r = yield* callOp(`method call "${this.target.getCanonicalForm()}"`, t, 'exec', env, raw);
+    return r instanceof Object ? r : env.wrap(r);
   }
 }

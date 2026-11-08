@@ -3,6 +3,7 @@
 // leaves the "(args)" to MethodCall, matching upstream.
 
 import { registerBuiltIn } from './registry.js';
+import { isNumberModel } from '../model/capabilities.js';
 import { BuiltinArgMethod, stringMethodArg } from './common.js';
 import { StringModel, NumberModel, SequenceModel, BooleanModel, MarkupModel } from '../model/models.js';
 import { NonNumericalException, TemplateException, InvalidFormatStringException, NonStringException } from '../errors.js';
@@ -102,7 +103,7 @@ function* methodOnString(target, env, key, minArgs, maxArgs, fn) {
  */
 function numberMethodArg(v, env, idx) {
   const m = env.wrap(v);
-  if (m instanceof NumberModel) return m.getAsNumber();
+  if (isNumberModel(m)) return m.getAsNumber();
   throw new NonNumericalException(
     `The argument at position ${idx + 1} of the built-in method must be a number, `
     + `but it is a ${env.typeLabel(m)}.`);

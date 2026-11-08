@@ -45,7 +45,7 @@ export function throwsMatch(fn, ErrorClass = null, substrings = []) {
 // Same as throwsMatch but for rejected promises.
 export async function rejectsMatch(promise, ErrorClass = null, substrings = []) {
   try {
-    await promise;
+    await (typeof promise === 'function' ? promise() : promise);
   } catch (e) {
     return checkError(e, ErrorClass, substrings);
   }

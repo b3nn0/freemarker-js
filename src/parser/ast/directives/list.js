@@ -5,7 +5,7 @@ import {
   InvalidReferenceException, NonSequenceOrCollectionException, TemplateException,
   BreakInstructionException, ContinueInstructionException,
 } from '../../../errors.js';
-import { TemplateSequenceModel, TemplateHashModelEx } from '../../../model/templateModel.js';
+import { isSequenceModel, isHashModelEx } from '../../../model/capabilities.js';
 import { awaitOp, callOp } from '../../../async.js';
 
 /** #list / #forEach <- IteratorBlock. */
@@ -47,9 +47,9 @@ export class IteratorBlock extends TemplateElement {
     let keys = null;
     const label = env.typeLabel(src);
     const aOrAn = 'aeiou'.includes(label.charAt(0)) ? 'an' : 'a';
-    if (src instanceof TemplateSequenceModel && !this.hashListing) {
+    if (isSequenceModel(src) && !this.hashListing) {
       length = yield* awaitOp('size', src.size());
-    } else if (this.hashListing && src instanceof TemplateHashModelEx) {
+    } else if (this.hashListing && isHashModelEx(src)) {
       keys = yield* awaitOp('keys', src.keys());
       length = keys.length;
     } else if (this.hashListing) {
@@ -57,7 +57,7 @@ export class IteratorBlock extends TemplateElement {
       throw new NonSequenceOrCollectionException(
         `The value you try to list is ${aOrAn} ${label}, thus you must specify only one loop `
         + 'variable after the "as" (there\'s no separate key and value).');
-    } else if (src instanceof TemplateHashModelEx) {
+    } else if (isHashModelEx(src)) {
       // <- IteratorBlock: a hash needs two loop variables
       throw new NonSequenceOrCollectionException(
         `The value you try to list is ${aOrAn} ${label}, thus you must specify two loop `
@@ -97,8 +97,8 @@ export class IteratorBlock extends TemplateElement {
     for (let i = 0; i < length; i++) {
       // first = loopVar value (hash listing: the key), second = loopVar2 value (hash: the value)
       const item = keys !== null
-        ? { first: env.wrap(keys[i]), second: yield* callOp(`get "${keys[i]}"`, src, 'get', keys[i]) }
-        : { first: yield* callOp('sequence index', src, 'getByIndex', i), second: null };
+        ? { first: env.wrap(keys[i]), second: env.wrap(yield* callOp(`get "${keys[i]}"`, src, 'get', keys[i])) }
+        : { first: env.wrap(yield* callOp('sequence index', src, 'getByIndex', i)), second: null };
       env.pushScope();
       // _iterStack drives both #items and the loop-variable built-ins (?counter,
       // ?index, ...); entries carry position info for those.
