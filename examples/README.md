@@ -3,7 +3,7 @@
 Getting-started examples, each standalone under Node (no install, no build):
 
     node examples/basics.mjs      # data model, interpolation, defaults, lists, built-ins
-    node examples/autoescape.mjs  # output formats, auto-escaping, ?no_esc / ?esc / ?html
+    node examples/autoescape.mjs  # output formats, auto-escaping, ?no_esc, markup composition
     node examples/directives.mjs  # macros, #function, #nested, lambdas, #switch, #attempt
     node examples/includes.mjs    # #include / #import, namespaces, auto-include/import
     node examples/async.mjs       # Promise-valued model data, methods and resolvers
