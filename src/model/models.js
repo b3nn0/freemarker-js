@@ -6,6 +6,7 @@ import {
 } from './templateModel.js';
 import { UnsupportedFeatureException } from '../errors.js';
 import { awaitOp, isThenable } from '../async.js';
+import { readerNameCandidates } from './beanNaming.js';
 
 /** A string value. */
 export class StringModel extends TemplateScalarModel {
@@ -132,9 +133,9 @@ export class SequenceModel extends TemplateSequenceModel {
     const v = this.items[i];
     if (this.wrapper && isThenable(v)) {
       const raw = yield* awaitOp(`sequence element at index ${i}`, v);
-      return this.wrapper.wrap(raw);
+      return this.wrapper.wrap(raw, this.items);
     }
-    return this.wrapper ? this.wrapper.wrap(v) : v;
+    return this.wrapper ? this.wrapper.wrap(v, this.items) : v;
   }
   /** @returns {number} */
   size() {
@@ -154,15 +155,22 @@ export class HashModel extends TemplateHashModelEx {
     this.wrapper = wrapper ?? null;
     this.isMap = source instanceof Map;
   }
-  /** @param {unknown} v @returns {import('./templateModel.js').TemplateModel} */
+  /**
+   * @param {unknown} v
+   * @returns {import('./templateModel.js').TemplateModel} a function value becomes a
+   *   method model that runs on this hash's source object (<- upstream's
+   *   SimpleMethodModel is bound to the bean it was read from)
+   */
   _wrap(v) {
-    return this.wrapper ? this.wrapper.wrap(v) : v;
+    return this.wrapper ? this.wrapper.wrap(v, this.source) : v;
   }
   /**
    * @param {string} key
    * @returns {Generator<unknown, import('./templateModel.js').TemplateModel|null, unknown>}
    *   null when missing; plain objects walk the prototype chain but never past
-   *   Object.prototype; async property values (getter -> Promise) are awaited in
+   *   Object.prototype, and on a miss a getFoo/isFoo member stands for the property
+   *   (JavaBeans reader naming, see beanNaming.js; Maps are exact-key only, like the
+   *   JVM's MapModel); async property values (getter -> Promise) are awaited in
    *   async mode (generator form; see async.js)
    */
   * get(key) {
@@ -170,7 +178,7 @@ export class HashModel extends TemplateHashModelEx {
       if (!this.source.has(key)) return null;
       const v = this.source.get(key);
       if (this.wrapper && isThenable(v)) {
-        return this.wrapper.wrap(yield* awaitOp(`data-model key "${key}"`, v));
+        return this.wrapper.wrap(yield* awaitOp(`data-model key "${key}"`, v), this.source);
       }
       return this._wrap(v);
     }
@@ -180,9 +188,39 @@ export class HashModel extends TemplateHashModelEx {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const v = obj[key];
         if (this.wrapper && isThenable(v)) {
-          return this.wrapper.wrap(yield* awaitOp(`data-model key "${key}"`, v));
+          return this.wrapper.wrap(yield* awaitOp(`data-model key "${key}"`, v), this.source);
         }
         return this._wrap(v);
+      }
+      obj = Object.getPrototypeOf(obj);
+    }
+    // JavaBeans reader fallback <- the property entries of ClassIntrospector's map:
+    // ${cust.foo} reads getFoo()/isFoo(). The exact-name step above already won, so a
+    // real member called "foo" (data or method) always beats the reader naming.
+    for (const reader of readerNameCandidates(key)) {
+      const fn = this._memberFunction(reader);
+      if (fn === null) continue;
+      const r = fn.call(this.source);
+      if (this.wrapper && isThenable(r)) {
+        return this.wrapper.wrap(yield* awaitOp(`read-only call "${reader}"`, r), this.source);
+      }
+      return this._wrap(r);
+    }
+    return null;
+  }
+  /**
+   * A zero-parameter member function on the object or its prototypes (never past
+   * Object.prototype), for the getFoo/isFoo fallback. A same-named member that is not
+   * a zero-parameter function shadows any inherited reader and reads as no reader.
+   * @param {string} name - member name
+   * @returns {Function|null} the member function, or null
+   */
+  _memberFunction(name) {
+    let obj = this.source;
+    while (obj !== null && obj !== Object.prototype) {
+      if (Object.prototype.hasOwnProperty.call(obj, name)) {
+        const v = obj[name];
+        return typeof v === 'function' && v.length === 0 ? v : null;
       }
       obj = Object.getPrototypeOf(obj);
     }
@@ -211,11 +249,16 @@ export class MethodModel extends TemplateMethodModel {
   /**
    * @param {Function} fn
    * @param {string} [name]
+   * @param {unknown} [owner] - the object/array the member was read from; the receiver of
+   *   the call, <- upstream SimpleMethodModel keeps the bean it came from (JVM:
+   *   ${r.self()} reads the bean's field, ${r.viaGetter()} works). Without it the call
+   *   would run with the wrapper as receiver.
    */
-  constructor(fn, name = null) {
+  constructor(fn, name = null, owner = null) {
     super();
     this.fn = fn;
     this.name = name;
+    this.owner = owner ?? null;
   }
   /**
    * Args arrive already unwrapped to plain JS values (<- MethodCall). A JS
@@ -226,7 +269,7 @@ export class MethodModel extends TemplateMethodModel {
    *   the wrapped return value
    */
   * exec(env, args = []) {
-    const r = this.fn(...args);
+    const r = this.fn.call(this.owner, ...args);
     if (isThenable(r)) return env.wrap(yield* awaitOp(`method call "${this.name ?? 'anonymous'}"`, r));
     return env.wrap(r);
   }

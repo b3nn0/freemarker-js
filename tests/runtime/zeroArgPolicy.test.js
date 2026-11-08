@@ -21,12 +21,18 @@ describe('ZeroArgumentPolicy: AUTO_INVOKE (default)', () => {
     snapshot(await out('${p.s?? ?c}', model), 'true');
     snapshot(await out('${p.x + 1}', model), '6');
   });
-  it('getX/isX names are NOT special anymore (no bean carve-out)', async () => {
+  it('bean reader names (getV/isOn) stay callable; the name they read is the value', async () => {
+    // <- upstream keeps bean property readers out of the zero-argument-method policies
+    // (JVM: ${cust.getName} reports ?is_method true under its auto-invoking policies too),
+    // and the name a reader stands for reads the reader: ${p.v} == ${p.getV()}.
+    // The naming itself is pinned in tests/model/beanNaming.test.js.
     const model = { p: { getV() { return 1; }, isOn() { return true; } } };
-    snapshot(await out('${p.getV}', model), '1');
+    snapshot(await out('${p.v}', model), '1');
+    snapshot(await out('${p.on?c}', model), 'true');
     snapshot(await out('${p.getV()}', model), '1');
-    snapshot(await out('${p.isOn?c}', model), 'true');
-    await rejectsMatch(out('${p.v}', model), InvalidPropertyException, ['==> p.v']);
+    snapshot(await out('${p.getV?is_method?c}', model), 'true');
+    await rejectsMatch(out('${p.getV}', model), NonStringOrTemplateOutputException, ['evaluated to a method']);
+    await rejectsMatch(out('${p.vv}', model), InvalidPropertyException, ['==> p.vv']);
   });
   it('1-argument functions are not auto-invoked', async () => {
     const model = { p: { f(a) { return a + 1; } } };

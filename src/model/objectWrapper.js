@@ -17,16 +17,19 @@ export class SimpleObjectWrapper {
 
   /**
    * @param {unknown} value - any JS value; models pass through
+   * @param {unknown} [owner] - the object/array a function value was read from; it becomes
+   *   the receiver of the call (<- upstream SimpleMethodModel keeps the bean). Omitted for
+   *   values that came from nowhere (literals, arguments), which then get no receiver.
    * @returns {import('./templateModel.js').TemplateModel|null} null for null/undefined/unsupported
    */
-  wrap(value) {
+  wrap(value, owner = null) {
     if (value === null || value === undefined) return null;
     if (value instanceof TemplateModel) return value;
     switch (typeof value) {
       case 'string': return new StringModel(value);
       case 'number': return new NumberModel(value);
       case 'boolean': return value ? BooleanModel.TRUE : BooleanModel.FALSE;
-      case 'function': return new MethodModel(value);
+      case 'function': return new MethodModel(value, null, owner);
       default: break;
     }
     if (value instanceof Date) return new DateModel(value);

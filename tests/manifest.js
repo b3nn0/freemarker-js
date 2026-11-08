@@ -9,6 +9,7 @@ export const TEST_FILES = [
   './parser/lexerPositions.test.js',
   './parser/parser.test.js',
   './utility/stringUtil.test.js',
+  './model/beanNaming.test.js',
   './model/objectWrapper.test.js',
   './runtime/interpolation.test.js',
   './runtime/dynamicAccess.test.js',

@@ -8,6 +8,7 @@ Getting-started examples, each standalone under Node (no install, no build):
     node examples/includes.mjs    # #include / #import, namespaces, auto-include/import
     node examples/async.mjs       # Promise-valued model data, methods and resolvers
     node examples/beans.mjs       # custom model objects via capability contracts
+    node examples/bean-readers.mjs # JavaBean-style getters: getFoo()/isFoo() as ${foo}
     node examples/demo.mjs        # all of it in one template
 
 Two pages need a browser instead. Module scripts are fetched under CORS rules, so `file://`

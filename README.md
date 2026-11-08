@@ -53,8 +53,8 @@ cfg.setOutputFormat('HTML'); // #ftl output_format=... works per template too
 ```
 
 Runnable examples in `examples/` (see `examples/README.md`): `basics.mjs`, `autoescape.mjs`,
-`directives.mjs`, `includes.mjs`, `async.mjs`, `beans.mjs`, plus `demo.mjs` (all of it in one
-template). Run: `node examples/basics.mjs`.
+`directives.mjs`, `includes.mjs`, `async.mjs`, `beans.mjs`, `bean-readers.mjs`, plus `demo.mjs`
+(all of it in one template). Run: `node examples/basics.mjs`.
 Run the test suite: `node tests/cli.mjs`.
 
 ## Sandbox and test run in the browser
@@ -107,12 +107,16 @@ Honest summary; details and rationale in `UPSTREAM.md`.
   dates render in browser-local time unless a `time_zone` setting (IANA or offset
   form, DST-aware) is given; the `locale` setting parses but is inert.
 - RTF/CSS/JSON output formats and nested `{outer{inner}}` format expressions.
-- Java-bean concepts without a JS analogue: getter naming (`getFoo`/`isFoo`) is not magic, and
-  the three-value zero-arg-method policy is collapsed to one knob,
-  `ZeroArgumentPolicy.AUTO_INVOKE` (default) / `METHOD_ONLY`. AUTO_INVOKE turns a
-  0-argument function in the data model into its return value on a bare read at any
-  nesting, root-scope variables included (`${x}` == `${x()}`); METHOD_ONLY keeps it as
-  a callable value (`?is_method` stays true).
+- Java-bean surface: getter naming (`getFoo`/`isFoo` -> `${foo}`) follows the upstream naming
+  rules, but it is lighter than real introspection - `?keys`/`?size`/`?values` never list the
+  derived names (that view is data-keys-only), `isX` counts as a reader whatever it returns
+  (upstream wants a `boolean`/`Boolean` return), a rest-parameter `getFoo(...a)` counts as a
+  zero-argument reader, and with both `getFoo` and `getfoo` the upper-first spelling wins.
+  The three-value zero-arg-method policy is one knob (`ZeroArgumentPolicy.AUTO_INVOKE` default,
+  which turns a 0-argument data-model function into its return value on a bare read at any
+  nesting, root scope included / `METHOD_ONLY`, which keeps it callable); bean-reader names are
+  exempt from it, as upstream keeps them exempt. There is no `TemplateCollectionModel`, so
+  `is_collection(_ex)` is always false and only sequences/vs-hashes are distinguished.
 
 **Deliberate deviations:**
 

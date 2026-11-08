@@ -51,6 +51,33 @@ describe('Method calls', () => {
     snapshot(await out('${o.m("x")}', { o: { m: (s) => s + '!' } }), 'x!');
     snapshot(await out('${f(g(2))}', { f: (x) => x + 1, g: (x) => x * 10 }), '21');
   });
+  it('the receiver of a model method is the object it was read from (JVM-pinned)', async () => {
+    // <- upstream SimpleMethodModel keeps the bean it came from: JVM ${r.self()} -> "P",
+    // ${r.viaMethod()} -> "via:P". Losing the receiver would hand the function the port's
+    // MethodModel wrapper instead, so this.p would silently read as missing.
+    class R {
+      constructor() { this.p = 'P'; }
+      self() { return this && this.p ? this.p : 'NO-RECEIVER'; }
+      two(a, b) { return `${a}+${this.p}+${b}`; }
+      viaMethod() { return 'via:' + this.self(); }
+    }
+    const m = { r: new R() };
+    snapshot(await out('${r.self()}', m), 'P');
+    snapshot(await out('${r.two(1, 2)}', m), '1+P+2');
+    snapshot(await out('${r.viaMethod()}', m), 'via:P');
+    snapshot(await out('${r["self"]()}', m), 'P');
+    snapshot(await out('${r.self}', m), 'P'); // AUTO_INVOKE's auto-call keeps the receiver
+    // A sequence element function sees the array; so does a top-level data-model function
+    // (the root hash is the container it was read from).
+    snapshot(await out('${a[0]()}', { a: [function () { return this && this.length; }] }), '1');
+    snapshot(await out('${f()}', { f: function () { return this && typeof this.f === 'function' ? 'the-holder' : 'other'; } }),
+      'the-holder');
+    // unwrap() hands user callbacks the plain function, receiver-free, as JS does (f takes
+    // an argument so AUTO_INVOKE leaves it a callable value):
+    const callIt = (fn) => fn();
+    snapshot(await out('${callIt(f)}', { callIt, f: function (x) { return this === undefined ? 'no-receiver' : 'some'; } }),
+      'no-receiver');
+  });
   it('arguments are deep-unwrapped plain JS values', async () => {
     const f = (...args) => args.map(v => Array.isArray(v) ? `arr(${v.length})` : typeof v).join(',');
     snapshot(await out('${f(1, "s", true, [1, 2])}', { f }), 'number,string,boolean,arr(2)');

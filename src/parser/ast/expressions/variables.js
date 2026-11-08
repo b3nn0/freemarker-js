@@ -16,20 +16,23 @@ import { zeroArgFunctionIsProperty } from '../../../model/policy.js';
 /**
  * @param {import('../../../environment.js').Environment} env
  * @param {Object} t - the hash model holding the value
- * @param {string} label - key for error/trace wording
+ * @param {string} label - the key that was read (error/trace wording, bean-reader check)
  * @param {Object|null} v - the read model value
  * @param {Expression[]|null} argExprs - call args, or null for a bare read
  * @returns {Generator<unknown, [Object|null, boolean], unknown>} [model, autoInvoked]
  */
 function* applyZeroArgPolicy(env, t, label, v, argExprs) {
   if (v !== null && v !== undefined && t instanceof HashModel
-      && zeroArgFunctionIsProperty(env.configuration, v.fn)) {
+      && zeroArgFunctionIsProperty(env.configuration, v.fn, t.isMap ? undefined : label)) {
+    // Receiver of the auto-invocation: the model's own owner when it carries one, else the
+    // object/array the member was read from (<- upstream calls bean methods on the bean).
+    const recv = v.owner ?? t.source;
     if (argExprs === null) {
-      return [env.wrap(yield* awaitOp(`read-only call "${label}"`, v.fn())), true];
+      return [env.wrap(yield* awaitOp(`read-only call "${label}"`, v.fn.call(recv))), true];
     }
     const raw = [];
     for (const a of argExprs) raw.push(unwrap(yield* a.evaluate(env)));
-    return [env.wrap(yield* awaitOp(`method call "${label}"`, v.fn(...raw))), true];
+    return [env.wrap(yield* awaitOp(`method call "${label}"`, v.fn.call(recv, ...raw))), true];
   }
   return [v, false];
 }
