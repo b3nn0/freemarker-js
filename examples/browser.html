@@ -1,13 +1,17 @@
 <!doctype html>
-<!-- Static page: open in a browser; src/index.js is plain dependency-free ESM. -->
+<!-- Static page; src/index.js is plain dependency-free ESM. Module scripts are
+     fetched with CORS rules, so file:// won't load them: serve the repo root
+     (`python3 -m http.server`) and open /examples/browser.html. -->
 <meta charset="utf-8">
 <pre id="out"></pre>
 <script type="module">
   import { Configuration, Template } from '../src/index.js';
   const cfg = new Configuration();
   cfg.setOutputFormat('HTML'); // auto-escapes ${...} interpolations
+  // 3rd argument is the Configuration (the parse settings live there); a plain
+  // {} object is not a Configuration and fails when the lexer reads its settings.
   const t = new Template('greet.ftl',
-    'Hello, ${name}! Your score: ${score?string("0.0")}%', {});
+    'Hello, ${name}! Your score: ${score?string("0.0")}%', cfg);
   const out = await t.processToString({ name: '<b>World</b>', score: 97.25 });
   document.getElementById('out').textContent = out; // untrusted name stays escaped
 </script>
