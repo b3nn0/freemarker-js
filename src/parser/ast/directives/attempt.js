@@ -20,6 +20,14 @@ export class AttemptBlock extends TemplateElement {
    * @returns {null}
    */
   * execute(env) {
+    // <- Environment.visitAttemptRecover: the body writes into a StringWriter;
+    // on error its output is discarded, on success it is flushed to the real
+    // output. Flow-control signals (JVM FlowControlException, RuntimeException)
+    // are not TemplateExceptions and propagate.
+    const prevOut = env.output;
+    const chunks = [];
+    env.output = { write(s) { chunks.push(String(s)); }, close() {} };
+    let thrown = null;
     try {
       for (const c of this.children) yield* env.visit(c);
     } catch (e) {
@@ -28,14 +36,21 @@ export class AttemptBlock extends TemplateElement {
         throw e;
       }
       if (!(e instanceof TemplateException)) throw e;
-      // <- Environment.visitAttemptRecover: .error is visible inside the recover body
-      const prev = env._recoverError;
-      env._recoverError = e;
-      try {
-        for (const c of this.recoveryChildren) yield* env.visit(c);
-      } finally {
-        env._recoverError = prev;
-      }
+      thrown = e;
+    } finally {
+      env.output = prevOut;
+    }
+    if (thrown === null) {
+      prevOut.write(chunks.join(''));
+      return null;
+    }
+    // <- Environment.visitAttemptRecover: .error is visible inside the recover body
+    const prev = env._recoverError;
+    env._recoverError = thrown;
+    try {
+      for (const c of this.recoveryChildren) yield* env.visit(c);
+    } finally {
+      env._recoverError = prev;
     }
     return null;
   }

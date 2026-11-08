@@ -13,7 +13,7 @@ const source = `
 <#function priceOf item>
   <#return item.price * (1 - (item.discount!0))>
 </#function>
-Net total: \${priceOf({ price: 10, discount: 0.25 })}
+Net total: \${priceOf({ "price": 10, "discount": 0.25 })}
 
 <#assign names = ["ada", "bob", "alice"]>
 Lambda filter: \${names?filter(n -> n?starts_with("a"))?join(", ")}

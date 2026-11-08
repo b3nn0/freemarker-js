@@ -12,11 +12,11 @@ const source = `
 <#ftl output_format="HTML">
 Model values are escaped: \${bio}
 Opt out per value:      \${bio?no_esc}
-Escape explicitly:      [\${bio?html}]
-Compose trusted markup (plain operands get escaped, the tags survive):
-  <#assign snippet = "<strong>"?esc + name?esc + "</strong>"?esc>
-  rendered: \${snippet}
+Compose trusted markup (the tags survive, the value stays escaped):
+  rendered: \${"<strong>"?no_esc + name + "</strong>"?no_esc}
 URL encoding for attributes: <a href="/search?q=\${query?url}">search</a>
+(With auto-escaping on, the legacy ?html escapes the already-escaped value,
+so templates reject it at parse time; ?no_esc above is the modern spelling.)
 `;
 
 const t = new Template('autoescape.ftl', source, cfg);

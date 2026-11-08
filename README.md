@@ -12,7 +12,7 @@ codebase. It is not affiliated with, endorsed by, or supported by the Apache Sof
 ## No guarantees whatsoever
 
 This project was completely vibe coded. Every line of it is AI-generated, reviewed only as much
-as a passing test suite (646 tests) allowed. There is no warranty of correctness, security,
+as a passing test suite (652 tests) allowed. There is no warranty of correctness, security,
 performance, or fitness for any purpose. Do not use it in production, do not trust it with
 untrusted templates or data, do not file bug reports against FreeMarker because of it. If it
 works for you, great; if it doesn't, that was on the table from the start.

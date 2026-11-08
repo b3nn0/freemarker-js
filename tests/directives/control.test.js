@@ -50,8 +50,10 @@ describe('Directive: #attempt/#recover', () => {
     throwsMatch(() => parse('<#attempt>x</#attempt>'), ParseException, ['#recover']);
   });
   it('break/continue markers are not swallowed by recover', async () => {
+    // JVM (Drv123): the signal propagates and the attempt's partial output is
+    // discarded (the body runs against a buffer that is dropped on error).
     snapshot(await out('<#list xs as x><#attempt>${x}<#break><#recover>r</#attempt></#list>',
-      { xs: [1, 2] }), '1');
+      { xs: [1, 2] }), '');
   });
 });
 
