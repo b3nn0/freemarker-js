@@ -116,6 +116,16 @@ function _snakeName(name) {
 const LOOP_VAR_BUILT_INS = new Set(['index', 'counter', 'has_next', 'is_last', 'is_first',
   'is_odd_item', 'is_even_item', 'item_parity', 'item_parity_cap', 'item_cycle']);
 
+// <- BuiltInForLegacyEscaping / BuiltInBannedWhenAutoEscaping: rejected at parse time
+// when auto-escaping is on with a markup output format ("web_safe" aliases htmlBI).
+const LEGACY_ESC_BANNED_BI = new Set(['html', 'xhtml', 'xml', 'rtf', 'web_safe']);
+
+// <- MarkupOutputFormatBoundBuiltIn (escBI/no_escBI): need a markup output format.
+const MARKUP_BOUND_BI = new Set(['esc', 'no_esc']);
+
+// <- BuiltInBannedWhenForcedAutoEscaping (no_escBI only).
+const FORCE_BANNED_BI = new Set(['no_esc']);
+
 /**
  * Recursive-descent parser mirroring the upstream JavaCC grammar (current syntax only).
  * @property {Object[]} macros - Macro nodes collected at parse time (namespace seeding)
@@ -346,9 +356,15 @@ export class Parser {
     } else if (matches('auto_esc', 'autoEsc')) {
       settings.autoEsc = this._evalHeaderBoolean(keyTok.image, exp);
       // <- FTL.jj header: auto_esc=true/false picks the policy, then recalculate.
+      // auto_esc=false under the force policy is a parse error.
+      if (!settings.autoEsc && this.autoEscapingPolicy === 'force') {
+        throw this._error(
+          `${keyTok.image}=false can't be used when the "auto_escaping_policy" configuration `
+          + 'setting was set to "force" (FORCE_AUTO_ESCAPING_POLICY).', keyTok);
+      }
       this.autoEscapingPolicy = settings.autoEsc
         ? 'enableIfSupported'
-        : (this.autoEscapingPolicy === 'force' ? this.autoEscapingPolicy : 'disable');
+        : 'disable';
       this.autoEscaping = this._recalculateAutoEscaping();
     } else if (matches('output_format', 'outputFormat')) {
       const v = this._evalHeaderConstant(exp);
@@ -432,6 +448,10 @@ export class Parser {
 
   /** @returns {import('./ast/templateElement.js').TemplateElement} */
   _parseRoot() {
+    // <- FMParser Root(): the header (if any) is parsed before the force-policy
+    // check; without a header the check runs before the body.
+    const tt = this._peek().type;
+    if (tt !== TT.TRIVIAL_FTL_HEADER && tt !== TT.FTL_HEADER) this._checkRootForcePolicy();
     const root = this._parseMixedContent(new Set());
     const t = this._peek();
     if (t.type !== TT.EOF) {
@@ -439,6 +459,17 @@ export class Parser {
     }
     // <- FTL.jj Root() / TemplateElements.asSingleElement(): a lone child *is* the root
     return root.children.length === 1 ? root.children[0] : root;
+  }
+
+  _checkRootForcePolicy() {
+    // <- FMParser Root(): force policy + non-markup output format is invalid for
+    // the whole template; the JVM throws a raw IllegalArgumentException (not a
+    // ParseException) here.
+    if (this.autoEscapingPolicy === 'force' && !this.outputFormat.isMarkup) {
+      throw new Error(
+        `Non-markup output format ${this.outputFormat} can't be used when the `
+        + '"auto_escaping_policy" configuration setting was set to "force" (FORCE_AUTO_ESCAPING_POLICY).');
+    }
   }
 
   /** @param {Set<import('./tokenType.js').TokenType>} stop @returns {MixedContentElements} */
@@ -527,6 +558,7 @@ export class Parser {
         // the first top-level text, so it skips the opening auto-strip.
         if (t.type === TT.TRIVIAL_FTL_HEADER) this._parseTrivialFTLHeader(t);
         else this._parseFTLHeader(t);
+        this._checkRootForcePolicy(); // <- FMParser Root(): checked right after the header
         continue;
       }
 
@@ -848,6 +880,12 @@ export class Parser {
   /** @param {import('./token.js').Token} startTok @returns {import('./ast/templateElement.js').TemplateElement} */
   _parseAutoEsc(startTok) {
     const isAuto = startTok.type === TT.AUTOESC;
+    if (!isAuto && this.autoEscapingPolicy === 'force') {
+      // <- FMParser NoAutoEsc(): banned under the force policy.
+      throw this._error(
+        '<#noautoesc> can\'t be used when the "auto_escaping_policy" configuration '
+        + 'setting was set to "force" (FORCE_AUTO_ESCAPING_POLICY).', startTok);
+    }
     this._next();
     // <- checkCurrentOutputFormatCanEscape(start): only for #autoesc
     if (isAuto && !this.outputFormat.isMarkup) {
@@ -882,6 +920,13 @@ export class Parser {
    * @param {import('./token.js').Token} startTok @returns {EscapeDirective}
    */
   _parseEscape(startTok) {
+    // <- FMParser Escape(): the #escape directive itself is banned with markup
+    // output formats when auto-escaping is on (confusion/double-escaping).
+    if (this.outputFormat.isMarkup && this.autoEscaping) {
+      throw this._error(
+        'Using the "escape" directive (legacy escaping) is not allowed when auto-escaping '
+        + `is on with a markup output format (${this.outputFormat.name}), to avoid confusion and double-escaping mistakes.`, startTok);
+    }
     this._next();
     const name = this._assignName();
     const asTok = this._peek();
@@ -970,6 +1015,13 @@ export class Parser {
     } catch (e) {
       if (e instanceof UnregisteredOutputFormatException) throw this._errorAt(e.message, exp);
       throw e;
+    }
+    if (!format.isMarkup && this.autoEscapingPolicy === 'force') {
+      // <- FMParser OutputFormatBlock(): switching to a non-markup format is
+      // banned under the force policy.
+      throw this._error(
+        `Non-markup output format ${format} can't be used when the "auto_escaping_policy" `
+        + 'configuration setting was set to "force" (FORCE_AUTO_ESCAPING_POLICY).', startTok);
     }
     if (this._peek().type === TT.EMPTY_DIRECTIVE_END) {
       const emptyEnd = this._next();
@@ -2048,6 +2100,24 @@ export class Parser {
           // <- FTL.jj: loop-variable built-ins are parse-checked against the
           // enclosing iterator's loop variables.
           this._checkLoopVariableBiLho(biName, exp, name);
+        }
+        if (LEGACY_ESC_BANNED_BI.has(biName) && this.autoEscaping && this.outputFormat.isMarkup) {
+          // <- FMParser: BuiltInBannedWhenAutoEscaping
+          throw this._error(
+            `Using ?${biName} (legacy escaping) is not allowed when auto-escaping is on with `
+            + `a markup output format (${this.outputFormat.name}), to avoid double-escaping mistakes.`, name);
+        }
+        if (FORCE_BANNED_BI.has(biName) && this.autoEscapingPolicy === 'force') {
+          // <- FMParser: BuiltInBannedWhenForcedAutoEscaping
+          throw this._error(
+            `The ?${biName} expression can't be used when the "auto_escaping_policy" `
+            + 'configuration setting was set to "force" (FORCE_AUTO_ESCAPING_POLICY).', name);
+        }
+        if (MARKUP_BOUND_BI.has(biName) && !this.outputFormat.isMarkup) {
+          // <- FMParser: MarkupOutputFormatBoundBuiltIn
+          throw this._error(
+            `?${biName} can't be used here, as the current output format isn't a markup `
+            + `(escaping) format: ${this.outputFormat}`, name);
         }
         exp = this._span(new BuiltIn(exp, biName, args), exp, name);
       } else if (t.type === TT.EXCLAM) {

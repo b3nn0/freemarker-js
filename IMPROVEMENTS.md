@@ -1,7 +1,8 @@
 # Improvement notes (post-M17 review)
 
 Self-review of the implementation, as items to work through one by one.
-Reference: HEAD `a422783`, suite 406 green.
+Reference: HEAD `a422783` at review time (suite 406 green then; suite and corpus
+state have moved on since -- see UPSTREAM.md's fidelity rounds for current status).
 
 ## A. Design tensions / deliberate compromises
 

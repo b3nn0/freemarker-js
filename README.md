@@ -6,13 +6,13 @@ upstream FreeMarker and its authors: this project is a re-implementation of thei
 semantics, baselined against FreeMarker 2.3.36, and inspired/derived from an Apache-2.0 licensed
 codebase. It is not affiliated with, endorsed by, or supported by the Apache Software Foundation.
 
-The upstream Java sources live in `../freemarker` in this checkout; `UPSTREAM.md` is the
-decision log of every porting choice made along the way.
+`UPSTREAM.md` is the decision log of every porting choice made along the way, and its
+"Deviations" section is the canonical list of actual differences from upstream.
 
 ## No guarantees whatsoever
 
 This project was completely vibe coded. Every line of it is AI-generated, reviewed only as much
-as a passing test suite (418 tests) allowed. There is no warranty of correctness, security,
+as a passing test suite (646 tests) allowed. There is no warranty of correctness, security,
 performance, or fitness for any purpose. Do not use it in production, do not trust it with
 untrusted templates or data, do not file bug reports against FreeMarker because of it. If it
 works for you, great; if it doesn't, that was on the table from the start.
@@ -52,7 +52,9 @@ the configured format then enables auto-escaping automatically:
 cfg.setOutputFormat('HTML'); // #ftl output_format=... works per template too
 ```
 
-Runnable examples: `node examples/demo.mjs` and `examples/browser.html`.
+Runnable examples in `examples/` (see `examples/README.md`): `basics.mjs`, `autoescape.mjs`,
+`directives.mjs`, `includes.mjs`, `async.mjs`, plus `demo.mjs` (all of it in one template)
+and `browser.html`. Run: `node examples/basics.mjs`.
 Run the test suite: `node tests/cli.mjs`.
 
 ## What's missing or different vs upstream FTL
@@ -62,14 +64,18 @@ Honest summary; details and rationale in `UPSTREAM.md`.
 **Out of scope entirely:**
 
 - `TemplateLoader`, filesystem/URL loading, cache configuration - `#include`/`#import` resolve
-  through a plain `setIncludeResolver((name) => source)` callback instead.
+  through a plain `setIncludeResolver((name) => source)` callback instead (relative
+  names resolve against the parent template's directory).
 - XML/DOM node models: `#visit`, `#recurse`, `?node_*`, `?new`, `?api`, `#fallback` bodies.
-- `classic_compatible`, `?interpret`, and the `?keep_* / ?remove_* / ?ensure_*`
-  string built-ins (the last three aren't FTL keywords in 2.3.36 at all).
-  `?matches` is ported (inline `(?i)/(?s)/(?m)` supported, other inline flags
-  throw); the 2.3.34 regex "flags" argument variants are not. `?substring`,
-  `?split`, `?word_list`, `?truncate/_c/_m/_w` and `?indent / ?dedent /
-  ?dedent_with_line_wraps / ?wrap` are supported.
+- `classic_compatible` (parses but is inert) and the `?keep_* / ?remove_* / ?ensure_*`
+  string built-ins (the latter aren't FTL keywords in 2.3.36 at all).
+  `?interpret`, `?matches` (inline `(?i)/(?s)(?m)` flags only), `?substring`,
+  `?split`, `?word_list`, `?truncate/_c/_m/_w`, `?indent`, `?dedent` and `?wrap`
+  are supported.
+- A small remainder of minor 2.3.36 built-ins: `number_to_date/_time/_datetime`
+  (string-to-date parsing), `rtf`, `url_path`, `web_safe`, `c_lower_case`,
+  `c_upper_case`, `groups`, `truncate_c_m`/`truncate_w_m` - they parse but fail at
+  runtime with a clear "isn't supported in this port" error.
 - Locale-aware behavior everywhere: number/date formatting is fixed to en_US symbols;
   dates render in browser-local time unless a `time_zone` setting (IANA or offset
   form, DST-aware) is given; the `locale` setting parses but is inert.
@@ -82,13 +88,20 @@ Honest summary; details and rationale in `UPSTREAM.md`.
 
 - Two API drivers instead of one: `processToString` (async-capable) vs `processToStringSync`
   / `process` (strict sync). The engine core is a generator tree that works for both.
-- No `incompatible_improvements` branches: only current 2.3 syntax; `#set`, `#var`, `#elif`,
-  `#{...}`-as-`#set`-alias and friends are parse errors.
-- `#set`/`#assign` in-namespace targets (`#assign x in ns`) parse, but parsing of unknown
-  built-ins is deferred to runtime; parse-error wording is simplified to human sentences.
-- Comparison is code-point based for strings (no locale collation); `1 == "1"` is true.
-- `?sort_by` is 2.3.36-style (string key paths only, no lambdas); `?map`/`?filter` require
-  parentheses; filter/map results are always eagerly materialized.
+- No `incompatible_improvements` branches: only current 2.3 syntax with 2.3.24+
+  semantics always on; `#set`, `#var`, `#elif`, `#{...}`-as-`#set`-alias and friends
+  are parse errors.
+- Parse-error wording is simplified to human sentences (positions and PARSE-vs-runtime
+  classes match); unknown built-ins are rejected at parse time against the full
+  2.3.36 name list.
+- Comparison operators compare strings by code point (`1 == "1"` is true);
+  `?sort`/`?sort_by` use `Intl.Collator` for order-sensitive sorting.
+- `?sort_by` is 2.3.36-style (string key paths only, no lambdas); `?map`/`?filter`
+  require parentheses; their results are lazy sequences that materialize when taken
+  into an eager context (e.g. `#assign`).
+- `#transform` works, but the `TransformControl` protocol is not modeled: loop-control
+  signals in a transform body always propagate to the enclosing loop.
+- `.getOptionalTemplate`'s `'encoding'` option is validated but inert (string sources).
 - `?url` is UTF-8 only; `#ftl` parameters must be literals; a handful of upstream error
   messages/stack-frame details are shortened.
 - `#flush` is a no-op (no streams in a pure string engine).

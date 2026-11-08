@@ -1299,12 +1299,12 @@ describe('Upstream SpecialVariableTest (ported subset)', () => {
       const c = mk(policy, 'HTML');
       snapshot(await run('${.autoEsc?c}', c), 'true');
       snapshot(await run('<#ftl autoEsc=false>${.autoEsc?c}', c), 'false');
-      snapshot(await run('${.autoEsc?c}', mk(policy, 'PlainText')), 'false');
+      snapshot(await run('${.autoEsc?c}', mk(policy, 'plainText')), 'false');
       snapshot(await run('${.autoEsc?c}', mk(policy, 'undefined')), 'false');
     }
     snapshot(await run('${.autoEsc?c}', mk('disable', 'HTML')), 'false');
     snapshot(await run('<#ftl autoEsc=true>${.autoEsc?c}', mk('disable', 'HTML')), 'true');
-    snapshot(await run('${.autoEsc?c}', mk('disable', 'PlainText')), 'false');
+    snapshot(await run('${.autoEsc?c}', mk('disable', 'plainText')), 'false');
     snapshot(await run('${.autoEsc?c}', mk('disable', 'undefined')), 'false');
     const c = mk('enableIfDefault', 'undefined');
     snapshot(await run('${.autoEsc?c} '
@@ -2429,5 +2429,68 @@ describe('Upstream IncudeFromNamelessTest (ported)', () => {
     snapshot(await new Template(null, "<#include 'i.ftl'>\n<#include '/i.ftl'>\n"
       + "<#include 'sub/i.ftl'>\n<#include '/sub/i.ftl'><#import 'import.ftl' as i>${i.x}",
     c).processToString(null), '[i][i][sub/i][sub/i]1');
+  });
+});
+
+// <- Auto-escaping / legacy-escaping parse bans. JVM-pinned via Drv110-120 probes
+// (FMParser BuiltInBannedWhenAutoEscaping / BuiltInBannedWhenForcedAutoEscaping /
+// MarkupOutputFormatBoundBuiltIn / NoAutoEsc / OutputFormatBlock / Root / FTLSpecifier).
+describe('Legacy escaping and auto-escaping parse bans (JVM-pinned)', () => {
+  const run = (src, cfg) => new Template('t', src, cfg ?? new Configuration()).processToString({ v: '<b>' });
+  const outcome = async (src, cfg) => {
+    try { return 'OK[' + (await run(src, cfg)) + ']'; }
+    catch (e) { return 'ERR[' + e.constructor.name + '] ' + e.message.split('\n')[0]; }
+  };
+  it('legacy escaping BIs pass under the Undefined format, banned under markup+auto-esc', async () => {
+    snapshot(await outcome('${v?html}'), 'OK[&lt;b&gt;]');
+    snapshot(await outcome('${v?xhtml}'), 'OK[&lt;b&gt;]');
+    snapshot(await outcome('${v?xml}'), 'OK[&lt;b&gt;]');
+    for (const bi of ['html', 'xhtml', 'xml', 'rtf', 'web_safe']) {
+      snapshot(await outcome(`<#ftl output_format='HTML'>\${v?${bi}}`),
+        'ERR[ParseException] Syntax error in template "t" in line 1, column 32:');
+    }
+    snapshot(await outcome("<#ftl output_format='HTML'><#noautoesc>${v?html}</#noautoesc>"), 'OK[&lt;b&gt;]');
+    snapshot(await outcome("<#ftl output_format='HTML'><#noautoesc>${v?no_esc?html}</#noautoesc>"), 'OK[<b>]');
+  });
+  it('esc/no_esc need a markup output format; no_esc banned under force', async () => {
+    snapshot(await outcome('${v?esc}'),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 5:');
+    snapshot(await outcome('${v?no_esc}'),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 5:');
+    snapshot(await outcome("<#ftl output_format='HTML'>${v?esc}"), 'OK[&lt;b&gt;]');
+    snapshot(await outcome("<#ftl output_format='HTML'>${v?no_esc}"), 'OK[<b>]');
+    snapshot(await outcome("<#ftl output_format='HTML'>${v?no_esc?no_esc}"), 'OK[<b>]');
+    const fcfg = new Configuration();
+    fcfg.setAutoEscapingPolicy('force');
+    snapshot(await outcome("<#ftl output_format='HTML'>${v?no_esc}", fcfg),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 32:');
+    snapshot(await outcome("<#ftl output_format='HTML'>${v?esc}", fcfg), 'OK[&lt;b&gt;]');
+  });
+  it('the #escape directive is banned with markup+auto-escaping', async () => {
+    snapshot(await outcome("<#ftl output_format='HTML'><#escape x as x?html>${v}</#escape>"),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 28:');
+    snapshot(await outcome("<#ftl output_format='HTML'><#noautoesc><#escape x as x?html>${v}</#escape></#noautoesc>"),
+      'OK[&lt;b&gt;]');
+    snapshot(await outcome('<#escape x as x?html>${v}</#escape>'), 'OK[&lt;b&gt;]');
+  });
+  it('force policy: banned everywhere except a markup output format', async () => {
+    const fcfg = new Configuration();
+    fcfg.setAutoEscapingPolicy('force');
+    snapshot(await outcome('${v}', fcfg), 'ERR[Error] Non-markup output format undefined can\'t be used when the "auto_escaping_policy" configuration setting was set to "force" (FORCE_AUTO_ESCAPING_POLICY).');
+    snapshot(await outcome("<#ftl output_format='HTML'>${v}", fcfg), 'OK[&lt;b&gt;]');
+    snapshot(await outcome("<#ftl output_format='HTML'><#noautoesc>${v}</#noautoesc>", fcfg),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 28:');
+    snapshot(await outcome("<#ftl output_format='HTML'><#autoesc>${v}</#autoesc>", fcfg), 'OK[&lt;b&gt;]');
+    snapshot(await outcome("<#ftl output_format='HTML'><#outputformat 'undefined'>${v}</#outputformat>", fcfg),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 28:');
+    snapshot(await outcome("<#ftl output_format='HTML' auto_esc=false>${v}", fcfg),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 28:');
+  });
+  it('plainText is the registered name (lowercase p) and escapes nothing', async () => {
+    snapshot(await outcome("<#ftl output_format='plainText'>${v}"), 'OK[<b>]');
+    snapshot(await outcome("<#ftl output_format='plainText'>${.output_format}"), 'OK[plainText]');
+    snapshot(await outcome("<#ftl output_format='PlainText'>${v}"),
+      'ERR[ParseException] Syntax error in template "t" in line 1, column 21:');
+    snapshot(await outcome("<#ftl output_format='HTML'><#outputformat 'plainText'>${v}</#outputformat>"), 'OK[<b>]');
   });
 });

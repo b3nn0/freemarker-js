@@ -19,3 +19,8 @@
 - [x] M16 #setting, number/date formatting subset (#{exp;m2M4}, ?string(fmt), number_format/date_format, pattern subset)
 - [x] M17 polish: position audit, README matrix, examples/, regex/eval audit, perf sanity
 - [x] M18 async-capable core: generator green-threads (src/async.js runSync/runAsync), async model protocol (get/getByIndex/exec/impl), async resolvers/callbacks, processToStringSync/processAsync, asyncModel tests
+
+Post-M18: seven JVM-differential fidelity rounds plus an upstream-test-porting program
+(ported upstream test classes into tests/builtins/upstreamFidelity.test.js; suite 646,
+corpus same=256/diff=62 wording-only). Decision history and the canonical deviation
+list live in `UPSTREAM.md`; open review items in `IMPROVEMENTS.md`.

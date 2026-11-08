@@ -55,7 +55,7 @@ describe('runtime: output formats and auto-escaping', () => {
   it('unknown format names produce the upstream unregistered-format error', () => {
     throwsMatch(() => new Template('m', '<#ftl output_format="xhtml">${v}', new Configuration()),
       ParseException, ['Unregistered output format name, "xhtml"',
-        'The output formats registered in the Configuration are: HTML, PlainText, XHTML, XML, undefined.']);
+        'The output formats registered in the Configuration are: HTML, XHTML, XML, plainText, undefined.']);
   });
 
   it('#outputformat requires a parse-time constant', () => {
@@ -110,9 +110,18 @@ describe('runtime: escaping built-ins', () => {
       '<b>ok</b>');
   });
 
-  it('?html on an already-escaped markup value is bypassed', async () => {
-    eq(await render('<#ftl output_format="HTML">${v?no_esc?html}', new Configuration(), { v: '<b>' }),
-      '<b>');
+  it('?html is banned at parse time with auto-escaping + markup format', () => {
+    // <- FMParser BuiltInBannedWhenAutoEscaping (JVM: ParseException, not runtime).
+    throwsMatch(() => new Template('m', '<#ftl output_format="HTML">${v?no_esc?html}', new Configuration()),
+      ParseException, ['Using ?html (legacy escaping) is not allowed', 'to avoid double-escaping mistakes']);
+    throwsMatch(() => new Template('m', '<#ftl output_format="HTML">${v?html?no_esc}', new Configuration()),
+      ParseException, ['Using ?html (legacy escaping) is not allowed']);
+  });
+
+  it('#escape is banned at parse time with auto-escaping + markup format', () => {
+    throwsMatch(() => new Template('m', '<#ftl output_format="HTML"><#escape x as x?html>${v}</#escape>', new Configuration()),
+      ParseException, ['Using the "escape" directive (legacy escaping) is not allowed',
+        'to avoid confusion and double-escaping mistakes']);
   });
 
   it('?c returns the computer form', async () => {

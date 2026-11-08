@@ -8,6 +8,83 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - Baseline = FreeMarker **2.3.36** (latest `Configuration.VERSION_2_3_36` in the clone); hard-coded once in `src/version.js`.
 - Only current syntax: no `incompatibleImprovements` branches, no pre-2.3 quirks. `#set`/`#var`/`#elif`/`#else_if`/`#{...}` are parse errors; the `classic_compatible` setting parses but is inert (missing values still error -- documented B5 gap).
 
+## Deviations (canonical list)
+
+This is the actual, current difference surface against upstream 2.3.36. The milestone
+notes and fidelity-round notes below are the decision history; where they disagree
+with this section, this section wins (interim statements were superseded).
+
+### Out of scope
+
+- TemplateLoader chains and locale/encoding cache variants: template sources come from
+  `Configuration.setIncludeResolver((name) => source)` (or the per-process
+  `includeResolver` option); referenced templates are parse-cached per Configuration
+  keyed by the normalized name. `TemplateLookupStrategy` and name-resolution strategies
+  are not modeled.
+- XML/DOM support: node models, `#visit`, `#recurse`, `?node_*`, `?new`, `?api`,
+  `#fallback` execution; the special variables `.node`/`.current_node` throw.
+- The unported remainder of the 2.3.36 built-in set (they parse and fail at runtime
+  with "isn't supported in this port"): the XML family (`ancestors`, `api`, `children`,
+  `has_api`, `namespace`, `new`, `next_sibling`, `node_name`, `node_namespace`,
+  `node_type`, `parent`, `previous_sibling`, `root`), plus `c_lower_case`,
+  `c_upper_case`, `groups` (deprecated alias of `group_by`), `number_to_date`,
+  `number_to_time`, `number_to_datetime` (string-to-date parsing, M16), `rtf`,
+  `url_path`, `web_safe`, and the `truncate_c_m`/`truncate_w_m` markup-hybrid variants.
+- Locale-aware behavior: number formatting is fixed to en_US symbols, dates render in
+  browser-local time (a `time_zone` setting is honored, DST-aware), the `locale`
+  setting parses but is inert; string case mapping follows JS, not locale rules.
+- RTF/CSS/JSON output formats and nested `{outer{inner}}` format expressions
+  (`UnsupportedFeatureException`).
+- Java-bean surface: getter naming (`getFoo`/`isFoo`) is not magic; the three-value
+  zero-arg-method policy is one knob (`ZeroArgumentPolicy.AUTO_INVOKE` default /
+  `METHOD_ONLY`); there is no `TemplateCollectionModel`, so `is_collection(_ex)`
+  is always false and only sequences/vs-hashes are distinguished.
+- `classic_compatible` (parses, inert) and the regex "flags" argument variants of the
+  string built-ins; `?matches` supports only the inline `(?i)/(?s)(?m)` flags.
+- `#transform`'s `TransformControl` protocol: transforms are plain `getWriter` sinks;
+  a `#break`/`#continue` inside a transform body always propagates to the enclosing
+  loop (upstream lets the control object intervene first).
+- `.getOptionalTemplate(...)`'s `'encoding'` option is accepted and validated but has
+  no effect (sources are always strings; there are no byte-array loaders).
+- Java-only API surface with no FTL semantics (custom attributes, Environment custom
+  state, TemplateConfiguration, TemplateCache/storage knobs, TemplateProcessingTracer,
+  ObjectWrapper subclassing beyond the wrapper knobs) is simply absent.
+
+### Behavior and API differences (deliberate or forced)
+
+- Async core: the render/eval path is a generator tree; `processToString`/`processAsync`
+  await model values, model methods and resolvers on demand (upstream is fully
+  synchronous). `process`/`processToStringSync` are the strict sync drivers and throw
+  `AsyncOperationNotAllowedException` at async attempts (catchable by `#attempt`).
+- No `incompatible_improvements` branching: 2.3.24+ semantics always apply -- e.g. an
+  `#import` executed in the main template also exposes the namespace variable as a
+  global (inside a library it stays library-local), auto-include/auto-import,
+  `setLazyImports`/`setLazyAutoImports`, and `.getOptionalTemplate` are always
+  available; `#set`, `#var`, `#elif`, `#{...}` as `#set` alias are parse errors.
+- Error wording is simplified to human sentences; PARSE-vs-runtime status classes,
+  error classes' semantics and template line/column blaming match. Unknown built-ins
+  and `?then` arity are checked at parse time against the full 2.3.36 name list. A few
+  exception classes are simplified: markup left-operands of string built-ins throw
+  `NonStringException` (upstream `NonStringOrTemplateOutputException`), `?with_args`
+  type errors use `NonMethodException` (upstream `UnexpectedTypeException`).
+- FTL stack traces print `Failed at:` / `Reached through:` frames; upstream's `~`
+  nesting-related frames are not emitted.
+- Comparison operators coerce sides to numbers/dates/booleans or code-point string
+  order (`1 == "1"` is true); sorting (`?sort`, `?sort_by`) uses `Intl.Collator`
+  (closer to the JDK Collator than code-point order, but not byte-identical).
+- JS `Date` model values wrap as DATE_TIME and render; upstream wraps `java.util.Date`
+  as an UNKNOWN date type whose plain interpolation throws.
+- `?filter`/`?map` return lazy sequences (element-wise lambda calls during iteration;
+  `?map`'s `size()` is the source size, like `LazyMappedList`), materialized when an
+  eager-context operation takes them (e.g. `#assign`). Parentheses are required
+  (upstream trips an internal AssertionError without them).
+- `?interpret` is string-LHS only; the sequence LHS and the `interpret(callbackName)`
+  nesting wiring are simplified (visits the parsed body through the normal element
+  pipeline instead of the upstream writer stack).
+- `#flush` is a no-op (string sinks); `#ftl` parameters must be literals;
+  `#include`/`#import` "template not found" messages are short (no loader-details
+  block).
+
 ## Decisions
 
 - `src/model/objectWrapper.js` <- `freemarker/ext/beans/BeansWrapper.wrap` + `DefaultObjectWrapper`: plain JS object -> `GenericObjectModel`; Map -> `HashModel` with items first and methods shadowed (SimpleObjectWrapper-like `simpleObjectWrapper=true` semantics as the default).
@@ -30,7 +107,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - `BeforeMethodCall` is a runtime hook (`_evaluateForMethodCall` on Dot/DynamicKeyName reached from MethodCall) instead of upstream's parse-time node pre-creation -- same observable semantics.
 - Class (non-record) objects: HashModel.get walks the prototype chain but stops at `Object.prototype`, so class methods are members while `toString` etc. never leak.
 - M7: reproduced upstream quirks -- no `</#else>`/`</#elseif>` end tags (bodies end at the next sibling/parent end tag); `>` right after a tag expression closes the tag (so `gt`/parens required inside `<#if a gt b>`); `#attempt` catches `TemplateException`s but never the internal `#break`/`#continue` markers; whitespace before the first `#case` is dropped.
-- M8: single-child templates: the lone child *is* the root element (<- FTL.jj `Root()` / `TemplateElements.asSingleElement()`); evaluation errors are blamed at the failing expression's own line/column (<- upstream `InvalidReferenceException(bean)`); the FTL stack prints `- Failed at:` for frame 0 and `- Reached through:` for outer frames -- the `~` nesting-related frames (upstream `BodyInstruction`) are not emitted yet; `#assign x in ns` throws `UnsupportedFeatureException` until `#import` (M14).
+- M8: single-child templates: the lone child *is* the root element (<- FTL.jj `Root()` / `TemplateElements.asSingleElement()`); evaluation errors are blamed at the failing expression's own line/column (<- upstream `InvalidReferenceException(bean)`); the FTL stack prints `- Failed at:` for frame 0 and `- Reached through:` for outer frames -- the `~` nesting-related frames (upstream `BodyInstruction`) are not emitted yet; `#assign x in ns` was deferred to the `#import` milestone and is now implemented (see the seventh fidelity round).
 - M7 follow-up (found via upstream `ast-1.ftl`): `#on` takes `PositionalArgs()` like `<@>` calls -- `<#on 1, 2>` and `<#on 1 2>` are the grammatical forms; the parenthesized `<#on (1, 2)>` we originally pinned is not upstream syntax and was replaced (FTL.jj `On(): <ON> PositionalArgs() <DIRECTIVE_END>`, `On.dump` prints `<#on a, b>`).
 - M9: `#fallback` is an XML node-processing marker (`FallbackInstruction.accept` -> `Environment.fallback()` for `#visit`), not a macro default body; the port parses it (inside macros only, <- `FallBack()`) but throws `UnsupportedFeatureException` at execution since `#visit` is out of scope.
 - M9: macro/function bodies see only their own parameter scope plus the template namespace/data model -- caller loop/macro scopes are never visible (<- `Environment.pushMacroContext`); `<#nested>` bodies run in the caller scope saved at call time (<- `BodyInstruction.accept`), with `; p1, p2` body parameters bound on top.
@@ -45,7 +122,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M10: lambda invocation pushes one plain scope on the env scope stack (not a macro scope) <- `LocalLambdaExpression.invokeLambdaDefinedFunction`/`evaluateWithNewLocal`; parameters are dynamic (shadowed at call time), not closure-captured.
 - M10: 2.3.36 `?sort_by` takes a string or string-sequence key path only -- NO lambda keys (that is 3.0 `sort_by`); the built-in evaluates to a method model (<- `sort_byBI.BIMethod`), and `?sort_by` without parens falls into MethodCall handling.
 - M10: `?sort` with arguments is not checked at parse time; it sorts and the trailing `(args)` becomes a method call on the sorted sequence (runtime "not a method" error) <- grammar fall-through via `BuiltInWithDirectCallOptimization` shape; `?sort_by(...)` is the intentional method-like exception (`METHOD_LIKE_BUILTINS`).
-- M10: filter/map results are always eagerly materialized (upstream's `isLazilyGeneratedResultEnabled` result-stream path is out of scope); filter must return boolean and map non-null with upstream messages (<- `FilterLikeBI`, `mapBI`).
+- M10: filter/map results are always eagerly materialized (upstream's `isLazilyGeneratedResultEnabled` result-stream path is out of scope); filter must return boolean and map non-null with upstream messages (<- `FilterLikeBI`, `mapBI`). [Superseded: `?filter`/`?map` are lazy since the seventh fidelity round -- see Deviations.]
 - M10: `?sort` string keys compare by code point (upstream uses the locale Collator -- no locale APIs in the browser port); sort is stable via index tie-break.
 - M11: built-in "(args)" mechanism follows upstream uniformly: plain built-ins return first and the "(...)" is a MethodCall on the built-in's method result (the BIMethod pattern, <- BuiltInsForStringsBasic/index_ofBI etc.); only lazy-parameter built-ins (?then, ?switch, ?default <- BuiltInWithParseTimeParameters / BuiltInsWithLazyConditionals) and lambda built-ins consume "(args)" at parse time. Arity errors are run-time TemplateExceptions via upstream-ish newArgCntError wording, not parse errors (deviation).
 - M11: ?also / ?when don't exist in 2.3.36 (added in later versions); PLAN text mentioned ?also -- implemented ?then (exactly 2 args) and ?switch instead.
@@ -69,7 +146,7 @@ Upstream reference: Apache FreeMarker clone at `../freemarker` (Gradle-modularis
 - M13: strip_text applies only at mixedContentNesting == 1 (top level), matching Text() in FTL.jj.
 - M13: whitespace-trim jython template suite (templatesuite/whitespace-trim.ftl/.txt) reproduces expected output exactly; WhitespaceStrippingTest.java expectations ported incl. the quirky 2.3.0-compat comment cases.
 - M13: LooseDirectiveEnd (">/" grammar) verified: break/nested accept "/>"; #sep/#else (CLOSE_TAG1-only) reject it as malformed tags.
-- M14: template references resolve through a synchronous resolver ((name) => source string) set via Configuration.setIncludeResolver or the process-level includeResolver option - the browser stand-in for TemplateLoader chains; the parse cache is per-Configuration keyed by name only (no locale/encoding variants). No relative-path TemplateNameFormat machinery: the raw location string is passed to the resolver (deviation).
+- M14: template references resolve through a synchronous resolver ((name) => source string) set via Configuration.setIncludeResolver or the process-level includeResolver option - the browser stand-in for TemplateLoader chains; the parse cache is per-Configuration keyed by name only (no locale/encoding variants). Relative names are resolved against the including template's directory and normalized (`/./x`, `a/../b` -> `x`) before hitting the resolver (added with the include/import fidelity work; supersedes the original raw-string note).
 - M14: #include/#import error text is the short "Could not find the included template \"x\"." form without the upstream multi-line TemplateNotFoundLoaderDetailsBlock.
 - M14: #include parse=false writes the file source verbatim (upstream wraps it as MarkupModel, i.e. unescaped raw text - port writes it straight to the output, same effect). The encoding parameter parses (canonical keeps it) but has no effect (no encodings in the browser).
 - M14: #include ignore_missing suppresses both missing-source and parse failures, matching 2.3.x (documented upstream quirk).
@@ -229,3 +306,47 @@ Sixth fidelity round (JVM-pinned, corpus now 160 cases):
   ("malformed date/time/datetime format string ... Illegal pattern
   character"). Matching that exactly would require porting the
   SimpleDateFormat pattern validator; documented deviation.
+
+Seventh fidelity round (JVM-pinned; ported upstream test classes now drive the
+work -- LamdaAndEscapeTest, CapturingAssignmentTest, CoercionToTextualTest,
+WhitespaceStrippingTest, ListWithStreamLikeBuiltinsTest, IncludeAndImportTest,
+GetOptionalTemplateTest, TemplateTransformModelTest, IncudeFromNamelessTest;
+suite 646 green, corpus unchanged):
+- `#escape` reworked to the upstream model: the escape target wraps each
+  interpolation lexically inside the block at PARSE time (nested escapes chain
+  inner-to-outer; `#noescape` opts out; macro/function definitions and bodies are
+  never wrapped), and the target expression binds the interpolated VALUE when it
+  runs. Lambda parameter lists may not shadow an active escape placeholder
+  (upstream parse error). Interpolated-string-literal parts are not wrapped
+  (expression level) -- JVM-pinned.
+- Markup-aware `+`: when either operand is markup, the string side is
+  auto-escaped through the markup format (MarkupModel result; mixing different
+  markup formats throws). Markup values survive `#global` assignment; `?esc`
+  and `?markup_string` are ported.
+- `#assign x in ns` works for imported namespaces (pair form `<#assign a=1 in
+  ns>` and block form `<#assign x in ns>...`; the JVM rejects the value form
+  `<#assign x in ns = 1>` at parse on both sides).
+- `?filter`/`?map` produce lazy sequences (element-wise lambda calls while
+  iterating; `?map`'s `size()` short-circuits to the source size, like
+  `LazyMappedList`), materialized on `#assign` and other eager-context use.
+- Auto-include/auto-import (`addAutoInclude`/`addAutoImport`), `setLazyImports`
+  and the `setLazyAutoImports` tri-state ported: auto-imports run before
+  auto-includes before the main template; lazy namespaces initialize on first
+  access and failed initialization surfaces as a wrapped TemplateException;
+  template names are normalized so equivalent paths share one namespace; an
+  import in the MAIN template also exposes its namespace variable as a global,
+  while a library-internal import keeps it library-local (JVM-pinned).
+- `.getOptionalTemplate`/`.get_optional_template` ported: `exists`/`include`/
+  `import` members, option-hash validation (`parse`, `encoding` accepted but
+  inert), `!`-defaulting works over missing templates; `include`/`import`
+  re-resolve the raw name at call time against the current template.
+- `#transform` and `<@transformModel>` calls ported: nested content flows into
+  the sink returned by `getWriter(env.out, args)`; the sink is closed after a
+  normal body end and when `#break`/`#continue`/`#return` pass through, but NOT
+  when an error aborts the body (JVM rule, pinned). A null sink with nested
+  content fails with "does not allow nested content"; `<@nonTransform>` and
+  `<#transform 1>` fail with "Expected a transform" (class and status match).
+- Accepted residual wording differences: the lazy-namespace-init error text,
+  `.getOptionalTemplate` argument-error texts and transform callee-error texts
+  differ from upstream's wording; every case above has its behavior class,
+  position and payload pinned by JVM probes and the ported suites.

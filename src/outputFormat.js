@@ -54,7 +54,17 @@ export class PlainTextOutputFormat extends OutputFormat {
 
   /** Constructs the singleton. */
   constructor() {
-    super('PlainText');
+    super('plainText'); // <- PlainTextOutputFormat.getName() (lowercase "plainText")
+  }
+
+  /** <- PlainTextOutputFormat.isOutputFormatMixingAllowed() = false */
+  get isOutputFormatMixingAllowed() {
+    return false;
+  }
+
+  /** plainText passes text through (no escaping capability, but not an error). */
+  escapePlainText(text) {
+    return text;
   }
 }
 
@@ -153,7 +163,7 @@ export class XMLOutputFormat extends MarkupOutputFormat {
 /** name -> standard OutputFormat instance. @type {Map<string, Object>} */
 const STANDARD_OUTPUT_FORMATS = new Map([
   ['undefined', UndefinedOutputFormat.INSTANCE],
-  ['PlainText', PlainTextOutputFormat.INSTANCE],
+  ['plainText', PlainTextOutputFormat.INSTANCE],
   ['HTML', HTMLOutputFormat.INSTANCE],
   ['XHTML', XHTMLOutputFormat.INSTANCE],
   ['XML', XMLOutputFormat.INSTANCE],
